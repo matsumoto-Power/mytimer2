@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>STUDIO DIAL — 多機能タイマー＆時計</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-fallback-1:#0d1b1e;
+    --bg-fallback-2:#142d2b;
+    --panel-dark-bg: rgba(8,10,12,0.52);
+    --panel-dark-bg-strong: rgba(8,10,12,0.72);
+    --panel-light-bg: rgba(250,248,244,0.58);
+    --panel-light-bg-strong: rgba(250,248,244,0.78);
+    --text-dark-mode:#F5F3EC;
+    --text-light-mode:#14171A;
+    --muted-dark: rgba(245,243,236,0.62);
+    --muted-light: rgba(20,23,26,0.58);
+    --accent-work:#FF5D3A;
+    --accent-rest:#33C7B0;
+    --accent-amber:#F2C84B;
+    --hairline-dark: rgba(245,243,236,0.16);
+    --hairline-light: rgba(20,23,26,0.14);
+    --radius: 20px;
+    --panel-text: var(--text-dark-mode);
+    --panel-muted: var(--muted-dark);
+    --panel-bg: var(--panel-dark-bg);
+    --panel-bg-strong: var(--panel-dark-bg-strong);
+    --panel-hairline: var(--hairline-dark);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    color:var(--panel-text);
+    height:100vh;
+    overflow:hidden;
+    background: linear-gradient(160deg, var(--bg-fallback-1), var(--bg-fallback-2));
+  }
+  body.panel-light{
+    --panel-text: var(--text-light-mode);
+    --panel-muted: var(--muted-light);
+    --panel-bg: var(--panel-light-bg);
+    --panel-bg-strong: var(--panel-light-bg-strong);
+    --panel-hairline: var(--hairline-light);
+  }
+  .num{ font-family:'Oswald',sans-serif; font-variant-numeric: tabular-nums; letter-spacing:0.5px; }
+
+  /* ===== 全体レイアウト：機能ペイン ＋ 画像ペイン ===== */
+  #layout{ height:100vh; width:100vw; display:flex; }
+  #controlPane{
+    flex:1 1 50%; min-width:0; min-height:0; overflow-y:auto; overflow-x:hidden;
+    display:flex; flex-direction:column; padding:16px 22px 22px;
+  }
+  #imagePane{
+    flex:1 1 50%; min-width:0; min-height:0; position:relative; overflow:hidden;
+    background: radial-gradient(ellipse at center, #1c2a2a 0%, #0a1212 100%);
+    touch-action:none;
+  }
+
+  @media (orientation: landscape){
+    #layout{ flex-direction:row; }
+    #controlPane{ order:1; }
+    #imagePane{ order:2; border-left:1px solid rgba(255,255,255,0.06); border-top:none; }
+  }
+  @media (orientation: portrait){
+    #layout{ flex-direction:column; }
+    #imagePane{ order:1; border-top:none; border-left:none; border-bottom:1px solid rgba(255,255,255,0.06); }
+    #controlPane{ order:2; }
+  }
+
+  /* ===== 画像ペイン ===== */
+  #imagePane .slide{
+    position:absolute; inset:0; background-size:cover; background-position:50% 50%;
+    opacity:0; transition:opacity 1.6s ease;
+  }
+  #imagePane.position-mode .slide{ transition:opacity 1.6s ease; }
+  #imagePane.position-mode{ cursor:grab; }
+  #imagePane.position-mode.dragging{ cursor:grabbing; }
+  #imagePane .scrim{
+    position:absolute; inset:0; pointer-events:none;
+    background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 30%);
+  }
+  .image-empty{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    color:rgba(245,243,236,0.55); text-align:center; padding:30px;
+  }
+  .image-empty svg{ width:52px; height:52px; opacity:0.7; }
+  .image-empty p{ margin:0; font-size:13px; line-height:1.7; max-width:280px; }
+  .image-empty-btns{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .image-empty button{
+    appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.3); background:rgba(245,243,236,0.08);
+    color:#F5F3EC; padding:11px 20px; border-radius:999px; font-weight:700; font-size:13px; letter-spacing:0.5px;
+  }
+  .image-empty button.primary{ background:var(--accent-amber); color:#1a1305; border-color:transparent; }
+  .image-empty button:hover{ filter:brightness(1.1); }
+
+  .image-nav{ position:absolute; top:50%; transform:translateY(-50%); width:100%; display:flex; justify-content:space-between; padding:0 14px; pointer-events:none; }
+  .image-nav button{
+    pointer-events:all; appearance:none; cursor:pointer; border:none; width:40px; height:40px; border-radius:50%;
+    background:rgba(0,0,0,0.35); color:#F5F3EC; font-size:18px; display:flex; align-items:center; justify-content:center;
+    backdrop-filter: blur(6px); transition: background .2s ease;
+  }
+  .image-nav button:hover{ background:rgba(0,0,0,0.55); }
+
+  .image-footer{ position:absolute; left:0; right:0; bottom:12px; display:flex; flex-direction:column; align-items:center; gap:9px; pointer-events:none; }
+  .image-footer > *{ pointer-events:all; }
+  .image-dots{ display:flex; gap:6px; }
+  .image-dots span{ width:6px; height:6px; border-radius:50%; background:rgba(245,243,236,0.35); transition: all .25s ease; }
+  .image-dots span.active{ background:var(--accent-amber); width:18px; border-radius:4px; }
+  .image-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; padding:0 10px; }
+  .image-action-btn{
+    appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.38);
+    color:#F5F3EC; padding:8px 14px; border-radius:999px; font-size:11.5px; font-weight:700; letter-spacing:0.3px;
+    backdrop-filter: blur(6px); display:flex; align-items:center; gap:5px; white-space:nowrap; transition: all .2s ease;
+  }
+  .image-action-btn:hover{ background:rgba(0,0,0,0.55); }
+  .image-action-btn.on{ background:var(--accent-amber); color:#1a1305; border-color:transparent; }
+  .image-action-btn svg{ width:13px; height:13px; }
+
+  .position-toast{
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.55); backdrop-filter:blur(8px); color:#F5F3EC;
+    padding:8px 10px 8px 16px; border-radius:999px; display:none; align-items:center; gap:10px;
+    font-size:12px; font-weight:600; letter-spacing:0.3px; z-index:5;
+  }
+  .position-toast.show{ display:flex; }
+  .position-toast button{
+    appearance:none; cursor:pointer; border:none; border-radius:999px; padding:6px 12px; font-size:11px; font-weight:700;
+  }
+  .position-toast .reset-btn{ background:rgba(245,243,236,0.18); color:#F5F3EC; }
+  .position-toast .done-btn{ background:var(--accent-amber); color:#1a1305; }
+
+  /* ===== トップバー ===== */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:10px 16px; border-radius: 999px; flex:0 0 auto;
+    background:var(--panel-bg); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border:1px solid var(--panel-hairline);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  }
+  .brand{ display:flex; align-items:center; gap:10px; padding-left:2px; flex:0 0 auto; }
+  .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 10px var(--accent-amber);}
+  .brand span{ font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:2.5px; font-size:13px; opacity:0.9; white-space:nowrap;}
+
+  .tabs{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:999px; flex:1 1 auto; justify-content:center; max-width:420px; margin:0 auto;}
+  .tab-btn{
+    appearance:none; border:none; cursor:pointer; padding:9px 16px; border-radius:999px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.2px;
+    background:transparent; color:var(--panel-muted); transition: all .25s ease; white-space:nowrap;
+  }
+  .tab-btn.active{ background:var(--accent-amber); color:#1a1305; box-shadow:0 4px 14px rgba(242,200,75,0.35);}
+
+  .top-actions{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .icon-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
+    color:var(--panel-text); border-radius:999px; padding:8px 14px; font-size:12px; font-weight:600;
+    display:flex; align-items:center; gap:6px; transition: all .2s ease; white-space:nowrap;
+  }
+  .icon-btn:hover{ background:rgba(128,128,128,0.22); }
+  .icon-btn svg{ width:15px; height:15px; }
+
+  main{ flex:1; display:flex; margin-top:16px; min-height:0; }
+  .tab-panel{ display:none; width:100%; }
+  .tab-panel.active{ display:flex; flex-direction:column; width:100%; animation: fadein .4s ease; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  .panel{
+    background:var(--panel-bg); backdrop-filter: blur(22px) saturate(150%); -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border:1px solid var(--panel-hairline); border-radius:var(--radius);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.20);
+  }
+
+  /* ===== CLOCK TAB ===== */
+  #tab-clock .clock-wrap{ flex:1; display:flex; gap:18px; align-items:stretch; flex-wrap:wrap; }
+  .clock-card{ flex:1 1 260px; display:flex; align-items:center; justify-content:center; padding:22px; min-height:280px; }
+  .digital-card{ flex:1 1 260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:22px; }
+  .digital-time{ font-family:'Oswald',sans-serif; font-weight:600; font-size:min(9vw,84px); line-height:1; letter-spacing:1.5px; }
+  .digital-date{ font-size:16px; font-weight:600; color:var(--panel-muted); letter-spacing:1px;}
+  .digital-week{ display:flex; gap:8px; margin-top:4px; flex-wrap:wrap; justify-content:center; }
+  .digital-week span{ padding:5px 10px; border-radius:9px; font-size:12px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); border:1px solid var(--panel-hairline);}
+  .digital-week span.today{ color:#1a1305; background:var(--accent-amber); border-color:transparent; }
+
+  /* ===== INTERVAL TIMER TAB ===== */
+  #tab-timer .timer-wrap{ flex:1; display:flex; gap:16px; align-items:stretch; flex-wrap:wrap; }
+  .ring-card{ flex:1.1 1 280px; min-width:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; gap:12px; position:relative; overflow:hidden; }
+  .phase-badge{ font-family:'Oswald',sans-serif; font-weight:600; font-size:18px; letter-spacing:5px; padding:7px 18px; border-radius:999px; }
+  .phase-badge.work{ background:rgba(255,93,58,0.18); color:var(--accent-work); border:1px solid rgba(255,93,58,0.4);}
+  .phase-badge.rest{ background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4);}
+  .phase-badge.idle{ background:rgba(128,128,128,0.16); color:var(--panel-muted); border:1px solid var(--panel-hairline);}
+  .set-label{ font-size:13px; letter-spacing:2px; color:var(--panel-muted); font-weight:600;}
+  .timer-controls{ display:flex; gap:10px; margin-top:4px; }
+  .ctrl-btn{ appearance:none; cursor:pointer; border:none; padding:12px 24px; border-radius:14px; font-weight:700; font-size:14px; letter-spacing:1px; transition: all .2s ease;}
+  .ctrl-btn.start{ background:var(--accent-amber); color:#1a1305; }
+  .ctrl-btn.start:hover{ filter:brightness(1.08); }
+  .ctrl-btn.reset{ background:rgba(128,128,128,0.18); color:var(--panel-text); border:1px solid var(--panel-hairline); }
+  .ctrl-btn.reset:hover{ background:rgba(128,128,128,0.3); }
+  .ctrl-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
+  .settings-title{ font-weight:800; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:8px;}
+  .field-row{ display:flex; gap:12px; }
+  .field{ flex:1; display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase;}
+  .field input[type=number]{
+    width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-family:'Oswald',sans-serif; font-size:19px; font-weight:600;
+  }
+  .field input[type=number]:focus{ outline:2px solid var(--accent-amber); }
+  hr.div{ border:none; border-top:1px solid var(--panel-hairline); margin:2px 0; }
+  .preset-row{ display:flex; gap:8px; }
+  select, .memo-select{
+    flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px; font-weight:600;
+  }
+  .preset-save-row{ display:flex; gap:8px; }
+  .preset-save-row input[type=text]{
+    flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
+  }
+  .small-btn{ appearance:none; cursor:pointer; border:none; padding:0 16px; border-radius:12px; font-weight:700; font-size:12px; background:var(--accent-rest); color:#04211d; white-space:nowrap;}
+  .small-btn.del{ background:rgba(255,93,58,0.85); color:#2a0800; }
+  .preset-list-hint{ font-size:11px; color:var(--panel-muted); }
+
+  /* ===== SUB TAB ===== */
+  #tab-sub .sub-wrap{ flex:1; display:flex; gap:16px; flex-wrap:wrap; }
+  .weather-card{ flex:1 1 240px; padding:22px; display:flex; flex-direction:column; gap:14px; }
+  .weather-head{ display:flex; align-items:center; justify-content:space-between; }
+  .weather-head h3{ margin:0; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--panel-muted); font-weight:700;}
+  .weather-badge{ font-size:10px; padding:4px 9px; border-radius:999px; border:1px solid var(--panel-hairline); color:var(--panel-muted); }
+  .weather-main{ display:flex; align-items:center; gap:14px; }
+  .weather-icon{ font-size:50px; line-height:1; }
+  .weather-temp{ font-family:'Oswald',sans-serif; font-size:50px; font-weight:600; }
+  .weather-desc{ font-size:14px; color:var(--panel-muted); font-weight:600; }
+  .weather-stats{ display:flex; gap:10px; margin-top:4px; }
+  .weather-stat{ flex:1; background:rgba(128,128,128,0.1); border:1px solid var(--panel-hairline); border-radius:14px; padding:11px; text-align:center;}
+  .weather-stat .v{ font-family:'Oswald',sans-serif; font-size:21px; font-weight:600; }
+  .weather-stat .l{ font-size:10px; color:var(--panel-muted); letter-spacing:1px; margin-top:2px; }
+
+  .memo-card{ flex:1.3 1 280px; padding:20px 22px; display:flex; flex-direction:column; gap:12px; }
+  .memo-head{ display:flex; align-items:center; justify-content:space-between; }
+  .memo-head h3{ margin:0; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--panel-muted); font-weight:700;}
+  .weekday-pills{ display:flex; gap:7px; flex-wrap:wrap; }
+  .weekday-pills button{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
+    color:var(--panel-text); padding:8px 12px; border-radius:12px; font-weight:700; font-size:12px;
+  }
+  .weekday-pills button.active{ background:var(--accent-amber); color:#1a1305; border-color:transparent; }
+  textarea{
+    flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); padding:14px; font-size:14px; font-family:'Inter',sans-serif; line-height:1.6;
+  }
+  textarea:focus{ outline:2px solid var(--accent-amber); }
+  .memo-status{ font-size:11px; color:var(--panel-muted); text-align:right; height:14px; }
+
+  #bgFileInputReplace, #bgFileInputAppend{ display:none; }
+
+  .ring-svg{ width:min(70vh, 260px); height:auto; max-width:100%; }
+
+  /* ===== スライドショー作成モーダル ===== */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-box{
+    width:min(560px, 100%); max-height:85vh; display:flex; flex-direction:column; gap:14px; padding:22px;
+  }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; }
+  .modal-head h3{ margin:0; font-size:15px; letter-spacing:1px; font-weight:800; }
+  .modal-close{ appearance:none; cursor:pointer; border:none; background:rgba(128,128,128,0.2); color:var(--panel-text); width:30px; height:30px; border-radius:50%; font-size:15px; }
+  .modal-add-btn{
+    appearance:none; cursor:pointer; border:1px dashed var(--panel-hairline); background:rgba(128,128,128,0.08);
+    color:var(--panel-text); padding:12px; border-radius:14px; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .modal-add-btn:hover{ background:rgba(128,128,128,0.16); }
+  .modal-list{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:80px; }
+  .modal-list-empty{ text-align:center; color:var(--panel-muted); font-size:13px; padding:30px 10px; }
+  .modal-item{
+    display:flex; align-items:center; gap:10px; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline);
+    border-radius:12px; padding:8px; 
+  }
+  .modal-item img{ width:56px; height:56px; object-fit:cover; border-radius:8px; flex:0 0 auto; }
+  .modal-item .idx{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; color:var(--panel-muted); width:22px; text-align:center; flex:0 0 auto; }
+  .modal-item .spacer{ flex:1; }
+  .modal-item button{
+    appearance:none; cursor:pointer; border:none; background:rgba(128,128,128,0.18); color:var(--panel-text);
+    width:28px; height:28px; border-radius:8px; font-size:14px; display:flex; align-items:center; justify-content:center;
+  }
+  .modal-item button:hover{ background:rgba(128,128,128,0.3); }
+  .modal-item button.remove{ background:rgba(255,93,58,0.22); color:var(--accent-work); }
+  .modal-item button:disabled{ opacity:0.3; cursor:not-allowed; }
+  .modal-footer{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .modal-footer .hint{ font-size:11.5px; color:var(--panel-muted); }
+  .modal-done-btn{ appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#1a1305; padding:11px 24px; border-radius:12px; font-weight:800; font-size:13px; }
+</style>
+</head>
+<body>
+
+<div id="layout">
+
+  <!-- ===== 機能ペイン ===== -->
+  <div id="controlPane">
+    <header class="topbar">
+      <div class="brand"><span class="dot"></span><span>STUDIO DIAL</span></div>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="clock">時計</button>
+        <button class="tab-btn" data-tab="timer">インターバル</button>
+        <button class="tab-btn" data-tab="sub">コンディション</button>
+      </nav>
+      <div class="top-actions">
+        <button class="icon-btn" id="panelThemeBtn" title="文字パネルの色を切り替え">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
+          パネル
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <!-- ===== CLOCK TAB ===== -->
+      <section class="tab-panel active" id="tab-clock">
+        <div class="clock-wrap">
+          <div class="panel clock-card">
+            <canvas id="analogClock" width="280" height="280" style="max-width:100%; height:auto;"></canvas>
+          </div>
+          <div class="panel digital-card">
+            <div class="digital-time num" id="digitalTime">00:00:00</div>
+            <div class="digital-date" id="digitalDate">----年--月--日</div>
+            <div class="digital-week" id="digitalWeek"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== INTERVAL TIMER TAB ===== -->
+      <section class="tab-panel" id="tab-timer">
+        <div class="timer-wrap">
+          <div class="panel ring-card">
+            <div class="phase-badge idle" id="phaseBadge">READY</div>
+            <svg class="ring-svg" viewBox="0 0 300 300">
+              <circle cx="150" cy="150" r="132" fill="none" stroke="rgba(128,128,128,0.18)" stroke-width="14"/>
+              <circle id="progressRing" cx="150" cy="150" r="132" fill="none" stroke="var(--accent-amber)" stroke-width="14"
+                stroke-linecap="round" stroke-dasharray="829.4" stroke-dashoffset="0"
+                transform="rotate(-90 150 150)" style="transition: stroke-dashoffset 0.9s linear, stroke 0.4s ease;"/>
+              <text x="150" y="145" text-anchor="middle" id="ringNumber" fill="currentColor" font-size="80" font-family="Oswald, sans-serif" font-weight="600">00:00</text>
+              <text x="150" y="182" text-anchor="middle" class="set-label" id="setLabel" fill="currentColor" font-size="15" font-family="Inter, sans-serif" font-weight="600" letter-spacing="2">SET 0 / 0</text>
+            </svg>
+            <div class="timer-controls">
+              <button class="ctrl-btn start" id="startBtn">スタート</button>
+              <button class="ctrl-btn reset" id="resetBtn">リセット</button>
+            </div>
+          </div>
+
+          <div class="panel settings-card">
+            <div class="settings-title">⏱ タイマー設定</div>
+            <div class="field-row">
+              <div class="field"><label>ワーク（秒）</label><input type="number" id="workInput" min="1" value="40"></div>
+              <div class="field"><label>休憩（秒）</label><input type="number" id="restInput" min="0" value="20"></div>
+              <div class="field"><label>セット数</label><input type="number" id="setsInput" min="1" value="8"></div>
+            </div>
+
+            <hr class="div">
+            <div class="settings-title">💾 プロジェクト保存</div>
+            <div class="preset-row">
+              <select id="presetSelect"><option value="">-- 保存済みメニューを選択 --</option></select>
+              <button class="small-btn del" id="presetDeleteBtn">削除</button>
+            </div>
+            <div class="preset-save-row">
+              <input type="text" id="presetNameInput" placeholder="例）プランク、スクワット">
+              <button class="small-btn" id="presetSaveBtn">この設定を保存</button>
+            </div>
+            <div class="preset-list-hint">選択すると、ワーク・休憩・セット数が即座に反映されます。データはこの端末に保存されます。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SUB TAB ===== -->
+      <section class="tab-panel" id="tab-sub">
+        <div class="sub-wrap">
+          <div class="panel weather-card">
+            <div class="weather-head">
+              <h3>今日の天気</h3>
+              <span class="weather-badge" id="weatherBadge">サンプルデータ</span>
+            </div>
+            <div class="weather-main">
+              <div class="weather-icon" id="weatherIcon">⛅</div>
+              <div>
+                <div class="weather-temp num" id="weatherTemp">24°</div>
+                <div class="weather-desc" id="weatherDesc">晴れ時々くもり</div>
+              </div>
+            </div>
+            <div class="weather-stats">
+              <div class="weather-stat"><div class="v num" id="weatherHumidity">58%</div><div class="l">湿度</div></div>
+              <div class="weather-stat"><div class="v num" id="weatherWind">2.1m</div><div class="l">風速</div></div>
+              <div class="weather-stat"><div class="v num" id="weatherFeels">26°</div><div class="l">体感</div></div>
+            </div>
+          </div>
+
+          <div class="panel memo-card">
+            <div class="memo-head">
+              <h3>トレーニングメモ</h3>
+              <span class="memo-status" id="memoStatus"></span>
+            </div>
+            <div class="weekday-pills" id="weekdayPills"></div>
+            <textarea id="memoArea" placeholder="この曜日の予定やコンディションを自由に入力..."></textarea>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===== 画像ペイン ===== -->
+  <div id="imagePane">
+    <div class="slide" id="slideA"></div>
+    <div class="slide" id="slideB"></div>
+    <div class="scrim"></div>
+
+    <div class="position-toast" id="positionToast">
+      <span>ドラッグして表示位置を調整</span>
+      <button class="reset-btn" id="positionResetBtn">リセット</button>
+      <button class="done-btn" id="positionDoneBtn">完了</button>
+    </div>
+
+    <div class="image-empty" id="imageEmpty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
+      <p>お気に入りの画像を選ぶと、ここに表示されます。複数枚でスライドショーも作成できます。</p>
+      <div class="image-empty-btns">
+        <button class="primary" id="imagePickBtnEmpty">画像を選ぶ</button>
+        <button id="slideshowOpenBtnEmpty">スライドショー作成</button>
+      </div>
+    </div>
+
+    <div class="image-nav" id="imageNav" style="display:none;">
+      <button id="imagePrevBtn" aria-label="前の画像">‹</button>
+      <button id="imageNextBtn" aria-label="次の画像">›</button>
+    </div>
+
+    <div class="image-footer" id="imageFooter" style="display:none;">
+      <div class="image-dots" id="imageDots"></div>
+      <div class="image-actions">
+        <button class="image-action-btn" id="positionToggleBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M6 6l-4 6 4 6M18 6l4 6-4 6M6 6l6-4 6 4M6 18l6 4 6-4"/></svg>
+          位置調整
+        </button>
+        <button class="image-action-btn" id="imagePickBtnFooter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
+          画像を変更
+        </button>
+        <button class="image-action-btn" id="slideshowOpenBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M7 3v2M13 3v2M3 9h14"/><rect x="17" y="9" width="4" height="10" rx="1"/></svg>
+          スライドショー作成
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- スライドショー作成モーダル -->
+<div class="modal-overlay" id="slideshowModal">
+  <div class="panel modal-box">
+    <div class="modal-head">
+      <h3>🖼 スライドショー作成</h3>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <button class="modal-add-btn" id="modalAddBtn">＋ 画像を追加</button>
+    <div class="modal-list" id="modalList">
+      <div class="modal-list-empty">画像がまだありません。「画像を追加」から選んでください。</div>
+    </div>
+    <div class="modal-footer">
+      <span class="hint">上下ボタンで並び替え・×で削除できます</span>
+      <button class="modal-done-btn" id="modalDoneBtn">完了</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="bgFileInputReplace" accept="image/*" multiple>
+<input type="file" id="bgFileInputAppend" accept="image/*" multiple>
+
+<script>
+/* =========================================================
+   共通ユーティリティ
+========================================================= */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+/* =========================================================
+   タブ切り替え
+========================================================= */
+$$('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+    $$('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    $('#tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* =========================================================
+   パネルの色（黒/白 座布団）切り替え
+========================================================= */
+$('#panelThemeBtn').addEventListener('click', ()=>{
+  document.body.classList.toggle('panel-light');
+});
+
+/* =========================================================
+   画像ペイン：複数選択 → 30秒ごとスライドショー ＋ 手動送り ＋ 位置調整
+========================================================= */
+let bgImages = [];       // dataURLの配列
+let bgPositions = [];    // {landscape:{x,y}, portrait:{x,y}} の配列（bgImagesと同じ順）
+let bgIndex = -1;
+let bgTimer = null;
+const imagePane = $('#imagePane');
+const slideA = $('#slideA');
+const slideB = $('#slideB');
+let activeSlide = slideA;
+
+function defaultPosition(){ return { landscape:{x:50,y:50}, portrait:{x:50,y:50} }; }
+function currentOrientation(){ return window.matchMedia('(orientation: portrait)').matches ? 'portrait' : 'landscape'; }
+
+function readFilesAsDataURLs(fileList){
+  const files = Array.from(fileList || []);
+  const readAsDataURL = (file) => new Promise((res, rej)=>{
+    const r = new FileReader();
+    r.onload = ()=> res(r.result);
+    r.onerror = ()=> rej(r.error);
+    r.readAsDataURL(file);
+  });
+  return Promise.all(files.map(readAsDataURL));
+}
+
+/* --- 画像を変更（置き換え） --- */
+function openReplacePicker(){ $('#bgFileInputReplace').click(); }
+$('#imagePickBtnEmpty').addEventListener('click', openReplacePicker);
+$('#imagePickBtnFooter').addEventListener('click', openReplacePicker);
+
+$('#bgFileInputReplace').addEventListener('change', async (e)=>{
+  const files = e.target.files;
+  if(!files || !files.length) return;
+  try{
+    const urls = await readFilesAsDataURLs(files);
+    bgImages = urls;
+    bgPositions = urls.map(defaultPosition);
+    bgIndex = -1;
+    onImagesChanged();
+    showImage(0);
+    restartSlideshow();
+  }catch(err){
+    console.error('画像の読み込みに失敗しました', err);
+  }
+  e.target.value = '';
+});
+
+function onImagesChanged(){
+  const has = bgImages.length > 0;
+  $('#imageEmpty').style.display = has ? 'none' : 'flex';
+  $('#imageNav').style.display = has && bgImages.length > 1 ? 'flex' : 'none';
+  $('#imageFooter').style.display = has ? 'flex' : 'none';
+  renderDots();
+}
+
+function renderDots(){
+  const dotsWrap = $('#imageDots');
+  if(bgImages.length <= 1){ dotsWrap.innerHTML = ''; return; }
+  dotsWrap.innerHTML = bgImages.map((_,i)=>`<span class="${i===bgIndex?'active':''}"></span>`).join('');
+}
+
+function applyPositionToSlide(el, index){
+  if(!bgPositions[index]) bgPositions[index] = defaultPosition();
+  const pos = bgPositions[index][currentOrientation()];
+  el.style.backgroundPosition = `${pos.x}% ${pos.y}%`;
+}
+
+function showImage(index){
+  if(!bgImages.length) return;
+  bgIndex = ((index % bgImages.length) + bgImages.length) % bgImages.length;
+  const nextSlide = activeSlide === slideA ? slideB : slideA;
+  nextSlide.style.backgroundImage = `url(${bgImages[bgIndex]})`;
+  applyPositionToSlide(nextSlide, bgIndex);
+  nextSlide.style.opacity = '1';
+  activeSlide.style.opacity = '0';
+  activeSlide = nextSlide;
+  renderDots();
+}
+
+function restartSlideshow(){
+  if(bgTimer) clearInterval(bgTimer);
+  if(bgImages.length > 1){
+    bgTimer = setInterval(()=> showImage(bgIndex+1), 30000);
+  }
+}
+
+$('#imagePrevBtn').addEventListener('click', ()=>{ showImage(bgIndex-1); restartSlideshow(); });
+$('#imageNextBtn').addEventListener('click', ()=>{ showImage(bgIndex+1); restartSlideshow(); });
+
+/* 向きが変わったら、現在表示中の画像に保存済みの位置を再適用 */
+window.matchMedia('(orientation: portrait)').addEventListener('change', ()=>{
+  if(bgIndex >= 0) applyPositionToSlide(activeSlide, bgIndex);
+});
+
+/* --- 位置調整（ドラッグでパン） --- */
+let positionModeActive = false;
+let dragState = null;
+
+$('#positionToggleBtn').addEventListener('click', ()=>{
+  if(bgIndex < 0) return;
+  positionModeActive = !positionModeActive;
+  imagePane.classList.toggle('position-mode', positionModeActive);
+  $('#positionToast').classList.toggle('show', positionModeActive);
+  $('#positionToggleBtn').classList.toggle('on', positionModeActive);
+});
+$('#positionDoneBtn').addEventListener('click', ()=>{
+  positionModeActive = false;
+  imagePane.classList.remove('position-mode');
+  $('#positionToast').classList.remove('show');
+  $('#positionToggleBtn').classList.remove('on');
+});
+$('#positionResetBtn').addEventListener('click', ()=>{
+  if(bgIndex < 0) return;
+  bgPositions[bgIndex][currentOrientation()] = {x:50,y:50};
+  applyPositionToSlide(activeSlide, bgIndex);
+});
+
+imagePane.addEventListener('pointerdown', (e)=>{
+  if(!positionModeActive || bgIndex < 0) return;
+  const rect = imagePane.getBoundingClientRect();
+  dragState = {
+    startX: e.clientX, startY: e.clientY,
+    rectW: rect.width, rectH: rect.height,
+    startPos: {...bgPositions[bgIndex][currentOrientation()]}
+  };
+  imagePane.classList.add('dragging');
+  imagePane.setPointerCapture(e.pointerId);
+});
+imagePane.addEventListener('pointermove', (e)=>{
+  if(!dragState) return;
+  const dx = e.clientX - dragState.startX;
+  const dy = e.clientY - dragState.startY;
+  const newX = clamp(dragState.startPos.x - (dx / dragState.rectW) * 100, 0, 100);
+  const newY = clamp(dragState.startPos.y - (dy / dragState.rectH) * 100, 0, 100);
+  bgPositions[bgIndex][currentOrientation()] = {x:newX, y:newY};
+  applyPositionToSlide(activeSlide, bgIndex);
+});
+function endDrag(e){
+  if(!dragState) return;
+  dragState = null;
+  imagePane.classList.remove('dragging');
+}
+imagePane.addEventListener('pointerup', endDrag);
+imagePane.addEventListener('pointercancel', endDrag);
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+/* =========================================================
+   スライドショー作成モーダル
+========================================================= */
+const slideshowModal = $('#slideshowModal');
+function openSlideshowModal(){ renderModalList(); slideshowModal.classList.add('show'); }
+function closeSlideshowModal(){ slideshowModal.classList.remove('show'); }
+$('#slideshowOpenBtn').addEventListener('click', openSlideshowModal);
+$('#slideshowOpenBtnEmpty').addEventListener('click', openSlideshowModal);
+$('#modalCloseBtn').addEventListener('click', closeSlideshowModal);
+$('#modalDoneBtn').addEventListener('click', closeSlideshowModal);
+slideshowModal.addEventListener('click', (e)=>{ if(e.target === slideshowModal) closeSlideshowModal(); });
+
+$('#modalAddBtn').addEventListener('click', ()=> $('#bgFileInputAppend').click());
+$('#bgFileInputAppend').addEventListener('change', async (e)=>{
+  const files = e.target.files;
+  if(!files || !files.length) return;
+  try{
+    const urls = await readFilesAsDataURLs(files);
+    bgImages = bgImages.concat(urls);
+    bgPositions = bgPositions.concat(urls.map(defaultPosition));
+    if(bgIndex < 0){ bgIndex = 0; }
+    onImagesChanged();
+    showImage(bgIndex);
+    restartSlideshow();
+    renderModalList();
+  }catch(err){
+    console.error('画像の追加に失敗しました', err);
+  }
+  e.target.value = '';
+});
+
+function renderModalList(){
+  const wrap = $('#modalList');
+  if(!bgImages.length){
+    wrap.innerHTML = '<div class="modal-list-empty">画像がまだありません。「画像を追加」から選んでください。</div>';
+    return;
+  }
+  wrap.innerHTML = bgImages.map((url,i)=>`
+    <div class="modal-item" data-i="${i}">
+      <span class="idx">${i+1}</span>
+      <img src="${url}" alt="画像${i+1}">
+      <span class="spacer"></span>
+      <button data-act="up" ${i===0?'disabled':''} title="上へ">↑</button>
+      <button data-act="down" ${i===bgImages.length-1?'disabled':''} title="下へ">↓</button>
+      <button data-act="remove" class="remove" title="削除">✕</button>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.modal-item button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const item = btn.closest('.modal-item');
+      const i = parseInt(item.dataset.i);
+      const act = btn.dataset.act;
+      if(act === 'remove'){
+        bgImages.splice(i,1);
+        bgPositions.splice(i,1);
+      } else if(act === 'up' && i > 0){
+        [bgImages[i-1], bgImages[i]] = [bgImages[i], bgImages[i-1]];
+        [bgPositions[i-1], bgPositions[i]] = [bgPositions[i], bgPositions[i-1]];
+      } else if(act === 'down' && i < bgImages.length-1){
+        [bgImages[i+1], bgImages[i]] = [bgImages[i], bgImages[i+1]];
+        [bgPositions[i+1], bgPositions[i]] = [bgPositions[i], bgPositions[i+1]];
+      }
+      bgIndex = bgImages.length ? Math.min(bgIndex, bgImages.length-1) : -1;
+      onImagesChanged();
+      if(bgImages.length){ showImage(Math.max(0,bgIndex)); restartSlideshow(); }
+      renderModalList();
+    });
+  });
+}
+
+/* =========================================================
+   時計モード：アナログ + デジタル
+========================================================= */
+const canvas = $('#analogClock');
+const ctx = canvas.getContext('2d');
+const weekdaysJP = ['日','月','火','水','木','金','土'];
+
+function drawAnalogClock(now){
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2, r = w/2 - 12;
+  ctx.clearRect(0,0,w,h);
+
+  const isLight = document.body.classList.contains('panel-light');
+  const faceColor = isLight ? 'rgba(20,23,26,0.9)' : 'rgba(245,243,236,0.92)';
+  const dimColor = isLight ? 'rgba(20,23,26,0.35)' : 'rgba(245,243,236,0.35)';
+  const amber = '#F2C84B';
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.strokeStyle = dimColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  for(let i=0;i<60;i++){
+    const ang = (i/60) * Math.PI*2;
+    const isHour = i % 5 === 0;
+    const outer = r - 4;
+    const inner = isHour ? r - 16 : r - 9;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ang)*outer, cy + Math.sin(ang)*outer);
+    ctx.lineTo(cx + Math.cos(ang)*inner, cy + Math.sin(ang)*inner);
+    ctx.strokeStyle = isHour ? faceColor : dimColor;
+    ctx.lineWidth = isHour ? 3 : 1.5;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = faceColor;
+  ctx.font = '600 16px Oswald, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const nums = [[12,0,-1],[3,1,0],[6,0,1],[9,-1,0]];
+  nums.forEach(([label,dx,dy])=>{
+    ctx.fillText(label, cx + dx*(r-32), cy + dy*(r-32));
+  });
+
+  const h24 = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ms = now.getMilliseconds();
+
+  const secAng = ((s + ms/1000)/60) * Math.PI*2 - Math.PI/2;
+  const minAng = ((m + s/60)/60) * Math.PI*2 - Math.PI/2;
+  const hourAng = (((h24%12) + m/60)/12) * Math.PI*2 - Math.PI/2;
+
+  drawHand(hourAng, r*0.5, 6, faceColor);
+  drawHand(minAng, r*0.72, 4, faceColor);
+  drawHand(secAng, r*0.8, 2, amber);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI*2);
+  ctx.fillStyle = amber;
+  ctx.fill();
+
+  function drawHand(angle, length, width, color){
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle)*length, cy + Math.sin(angle)*length);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+}
+
+function updateDigitalClock(now){
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const ss = String(now.getSeconds()).padStart(2,'0');
+  $('#digitalTime').textContent = `${hh}:${mm}:${ss}`;
+  $('#digitalDate').textContent = `${now.getFullYear()}年 ${now.getMonth()+1}月 ${now.getDate()}日`;
+
+  const weekEl = $('#digitalWeek');
+  if(!weekEl.dataset.built){
+    weekEl.innerHTML = weekdaysJP.map(d=>`<span data-day="${d}">${d}</span>`).join('');
+    weekEl.dataset.built = '1';
+  }
+  const today = weekdaysJP[now.getDay()];
+  $$('#digitalWeek span').forEach(s=> s.classList.toggle('today', s.dataset.day === today));
+}
+
+function clockTick(){
+  const now = new Date();
+  drawAnalogClock(now);
+  updateDigitalClock(now);
+  requestAnimationFrame(clockTick);
+}
+requestAnimationFrame(clockTick);
+
+/* =========================================================
+   インターバルタイマー
+========================================================= */
+const RING_CIRC = 2 * Math.PI * 132;
+const ring = $('#progressRing');
+const ringNumber = $('#ringNumber');
+const setLabel = $('#setLabel');
+const phaseBadge = $('#phaseBadge');
+const startBtn = $('#startBtn');
+const resetBtn = $('#resetBtn');
+const workInput = $('#workInput');
+const restInput = $('#restInput');
+const setsInput = $('#setsInput');
+
+let timerState = {
+  running:false,
+  phase:'idle',
+  currentSet:1,
+  phaseEnd:0,
+  phaseDuration:0,
+  rafId:null,
+};
+
+function fmtMMSS(totalSeconds){
+  const s = Math.max(0, Math.ceil(totalSeconds));
+  const m = Math.floor(s/60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function setRingProgress(fraction, color){
+  const offset = RING_CIRC * (1 - Math.max(0, Math.min(1, fraction)));
+  ring.style.strokeDashoffset = offset;
+  if(color) ring.style.stroke = color;
+}
+
+function updatePhaseBadge(phase){
+  phaseBadge.className = 'phase-badge ' + (phase==='work' ? 'work' : phase==='rest' ? 'rest' : 'idle');
+  phaseBadge.textContent = phase==='work' ? 'WORK' : phase==='rest' ? 'REST' : phase==='done' ? 'FINISH' : 'READY';
+}
+
+/* --- ビープ音（Web Audio API） ---
+   WORK開始（REST→WORK、および最初のスタート）: 「ピッ」（単発）
+   REST開始（WORK→REST）                  : 「ピピッ」（2連続）
+*/
+let audioCtx = null;
+function playBeep(freq=880, duration=0.16, delay=0, peakGain=0.55){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime + delay;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(peakGain, t0 + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.02);
+  }catch(err){ console.error('audio error', err); }
+}
+function playWorkStartBeep(){
+  // ピッ（単発、やや高め）
+  playBeep(920, 0.18, 0, 0.6);
+}
+function playRestStartBeep(){
+  // ピピッ（2連続）
+  playBeep(740, 0.13, 0, 0.6);
+  playBeep(740, 0.13, 0.16, 0.6);
+}
+function playFinishFanfare(){
+  playBeep(660,0.15,0,0.6); playBeep(880,0.15,0.16,0.6); playBeep(1046,0.24,0.32,0.6);
+}
+
+function startTimer(){
+  const work = Math.max(1, parseInt(workInput.value)||40);
+  const rest = Math.max(0, parseInt(restInput.value)||0);
+  const sets = Math.max(1, parseInt(setsInput.value)||1);
+
+  if(timerState.phase === 'idle' || timerState.phase === 'done'){
+    timerState.currentSet = 1;
+    timerState.phase = 'work';
+    timerState.phaseDuration = work;
+    timerState.phaseEnd = Date.now() + work*1000;
+    playWorkStartBeep();
+  }
+  timerState.running = true;
+  startBtn.textContent = '一時停止';
+  workInput.disabled = restInput.disabled = setsInput.disabled = true;
+  loopTimer();
+}
+
+function pauseTimer(){
+  timerState.running = false;
+  startBtn.textContent = '再開';
+  if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
+  timerState.remainingOnPause = (timerState.phaseEnd - Date.now())/1000;
+}
+
+function resumeFromPause(){
+  timerState.phaseEnd = Date.now() + Math.max(0,timerState.remainingOnPause)*1000;
+  timerState.running = true;
+  startBtn.textContent = '一時停止';
+  loopTimer();
+}
+
+function resetTimer(){
+  timerState.running = false;
+  timerState.phase = 'idle';
+  timerState.currentSet = 1;
+  if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
+  workInput.disabled = restInput.disabled = setsInput.disabled = false;
+  startBtn.textContent = 'スタート';
+  updatePhaseBadge('idle');
+  const work = Math.max(1, parseInt(workInput.value)||40);
+  ringNumber.textContent = fmtMMSS(work);
+  setLabel.textContent = `SET 1 / ${Math.max(1, parseInt(setsInput.value)||1)}`;
+  setRingProgress(1, 'var(--accent-amber)');
+}
+
+function loopTimer(){
+  if(!timerState.running) return;
+  const sets = Math.max(1, parseInt(setsInput.value)||1);
+  const remaining = (timerState.phaseEnd - Date.now())/1000;
+
+  updatePhaseBadge(timerState.phase);
+  ringNumber.textContent = fmtMMSS(remaining);
+  setLabel.textContent = `SET ${timerState.currentSet} / ${sets}`;
+  const color = timerState.phase==='work' ? 'var(--accent-work)' : timerState.phase==='rest' ? 'var(--accent-rest)' : 'var(--accent-amber)';
+  setRingProgress(remaining / timerState.phaseDuration, color);
+
+  if(remaining <= 0){
+    advancePhase(sets);
+  }
+  timerState.rafId = requestAnimationFrame(loopTimer);
+}
+
+function advancePhase(sets){
+  const work = Math.max(1, parseInt(workInput.value)||40);
+  const rest = Math.max(0, parseInt(restInput.value)||0);
+
+  if(timerState.phase === 'work'){
+    if(rest > 0){
+      timerState.phase = 'rest';
+      timerState.phaseDuration = rest;
+      timerState.phaseEnd = Date.now() + rest*1000;
+      playRestStartBeep();
+      return;
+    } else {
+      timerState.currentSet++;
+    }
+  } else if(timerState.phase === 'rest'){
+    timerState.currentSet++;
+  }
+
+  if(timerState.currentSet > sets){
+    finishTimer();
+    return;
+  }
+
+  timerState.phase = 'work';
+  timerState.phaseDuration = work;
+  timerState.phaseEnd = Date.now() + work*1000;
+  playWorkStartBeep();
+}
+
+function finishTimer(){
+  timerState.running = false;
+  timerState.phase = 'done';
+  if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
+  updatePhaseBadge('done');
+  ringNumber.textContent = '完了';
+  setRingProgress(1, 'var(--accent-amber)');
+  playFinishFanfare();
+  startBtn.textContent = 'スタート';
+  workInput.disabled = restInput.disabled = setsInput.disabled = false;
+}
+
+startBtn.addEventListener('click', ()=>{
+  if(!timerState.running){
+    if(timerState.phase !== 'idle' && timerState.phase !== 'done' && timerState.remainingOnPause !== undefined){
+      resumeFromPause();
+    } else {
+      startTimer();
+    }
+  } else {
+    pauseTimer();
+  }
+});
+resetBtn.addEventListener('click', resetTimer);
+[workInput, restInput, setsInput].forEach(inp=>{
+  inp.addEventListener('change', ()=>{ if(timerState.phase==='idle') resetTimer(); });
+});
+resetTimer();
+
+/* =========================================================
+   ワークアウトプリセット保存（window.storage）
+========================================================= */
+const PRESET_KEY = 'interval-presets';
+let presets = [];
+
+async function loadPresets(){
+  try{
+    const result = await window.storage.get(PRESET_KEY, false);
+    presets = result ? JSON.parse(result.value) : [];
+  }catch(err){
+    presets = [];
+  }
+  renderPresetSelect();
+}
+
+function renderPresetSelect(){
+  const sel = $('#presetSelect');
+  sel.innerHTML = '<option value="">-- 保存済みメニューを選択 --</option>' +
+    presets.map(p=>`<option value="${p.id}">${escapeHTML(p.name)}（${p.work}秒/${p.rest}秒×${p.sets}）</option>`).join('');
+}
+
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function savePresetsToStorage(){
+  try{
+    await window.storage.set(PRESET_KEY, JSON.stringify(presets), false);
+  }catch(err){ console.error('保存に失敗しました', err); }
+}
+
+$('#presetSaveBtn').addEventListener('click', async ()=>{
+  const name = $('#presetNameInput').value.trim();
+  if(!name){ $('#presetNameInput').focus(); return; }
+  const preset = {
+    id: 'p_' + Date.now(),
+    name,
+    work: Math.max(1, parseInt(workInput.value)||40),
+    rest: Math.max(0, parseInt(restInput.value)||0),
+    sets: Math.max(1, parseInt(setsInput.value)||1),
+  };
+  presets.push(preset);
+  await savePresetsToStorage();
+  renderPresetSelect();
+  $('#presetSelect').value = preset.id;
+  $('#presetNameInput').value = '';
+});
+
+$('#presetSelect').addEventListener('change', (e)=>{
+  const id = e.target.value;
+  const p = presets.find(x=>x.id===id);
+  if(!p) return;
+  workInput.value = p.work;
+  restInput.value = p.rest;
+  setsInput.value = p.sets;
+  resetTimer();
+});
+
+$('#presetDeleteBtn').addEventListener('click', async ()=>{
+  const id = $('#presetSelect').value;
+  if(!id) return;
+  presets = presets.filter(p=>p.id!==id);
+  await savePresetsToStorage();
+  renderPresetSelect();
+});
+
+loadPresets();
+
+/* =========================================================
+   天気エリア：Open-Meteo API（APIキー不要・無料）に接続
+   ---------------------------------------------------------
+   ・位置情報の利用を許可すると、その場所の天気を取得します
+   ・許可されない／取得失敗の場合は、東京の座標にフォールバックし、
+     それも失敗した場合は最後の手段としてダミーデータを表示します
+   ・他社のAPI（気象庁・OpenWeatherMap等）に変えたい場合は、
+     この fetchLiveWeather() の中身だけを差し替えればOKです
+========================================================= */
+const FALLBACK_LAT = 35.6812;   // 東京（緯度）
+const FALLBACK_LON = 139.6883;  // 東京（経度）
+
+// WMO weather code → アイコン・日本語の説明
+function decodeWeatherCode(code){
+  const table = {
+    0:['☀️','快晴'], 1:['🌤','晴れ'], 2:['⛅','晴れ時々くもり'], 3:['☁️','くもり'],
+    45:['🌫','霧'], 48:['🌫','霧氷'],
+    51:['🌦','霧雨（弱い）'], 53:['🌦','霧雨'], 55:['🌦','霧雨（強い）'],
+    61:['🌧','雨（弱い）'], 63:['🌧','雨'], 65:['🌧','雨（強い）'],
+    71:['🌨','雪（弱い）'], 73:['🌨','雪'], 75:['❄️','雪（強い）'],
+    80:['🌦','にわか雨'], 81:['🌦','にわか雨'], 82:['⛈','激しいにわか雨'],
+    95:['⛈','雷雨'], 96:['⛈','雷雨（ひょう）'], 99:['⛈','雷雨（激しいひょう）'],
+  };
+  return table[code] || ['⛅', '不明'];
+}
+
+function getCurrentPosition(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
+      ()  => resolve(null),
+      { timeout: 6000 }
+    );
+  });
+}
+
+async function fetchLiveWeather(){
+  const loc = (await getCurrentPosition()) || { lat: FALLBACK_LAT, lon: FALLBACK_LON };
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
+              `&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code&timezone=auto`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('weather fetch failed: ' + res.status);
+  const json = await res.json();
+  const c = json.current;
+  const [icon, description] = decodeWeatherCode(c.weather_code);
+  return {
+    icon,
+    tempC: Math.round(c.temperature_2m),
+    feelsC: Math.round(c.apparent_temperature),
+    description,
+    humidity: Math.round(c.relative_humidity_2m),
+    windMs: Math.round(c.wind_speed_10m * 10) / 10,
+    isLive: true,
+  };
+}
+
+async function getWeatherData(){
+  try{
+    return await fetchLiveWeather();
+  }catch(err){
+    console.error('天気データの取得に失敗したため、サンプルデータを表示します', err);
+    // ▼▼ フォールバック用のダミーデータ ▼▼
+    return {
+      icon: '⛅', tempC: 24, feelsC: 26, description: '晴れ時々くもり',
+      humidity: 58, windMs: 2.1, isLive: false,
+    };
+  }
+}
+
+async function renderWeather(){
+  $('#weatherBadge').textContent = '取得中…';
+  const data = await getWeatherData();
+  $('#weatherIcon').textContent = data.icon;
+  $('#weatherTemp').textContent = `${data.tempC}°`;
+  $('#weatherDesc').textContent = data.description;
+  $('#weatherHumidity').textContent = `${data.humidity}%`;
+  $('#weatherWind').textContent = `${data.windMs}m`;
+  $('#weatherFeels').textContent = `${data.feelsC}°`;
+  $('#weatherBadge').textContent = data.isLive ? 'ライブデータ' : 'サンプルデータ';
+}
+renderWeather();
+// 30分ごとに天気を自動更新
+setInterval(renderWeather, 30 * 60 * 1000);
+
+/* =========================================================
+   曜日ごとのトレーニングメモ（window.storage）
+========================================================= */
+const MEMO_KEY = 'weekly-memo';
+const weekdaysFull = ['月','火','水','木','金','土','日'];
+let memoData = {};
+let currentMemoDay = weekdaysFull[(new Date().getDay()+6)%7];
+let memoSaveTimeout = null;
+
+async function loadMemo(){
+  try{
+    const result = await window.storage.get(MEMO_KEY, false);
+    memoData = result ? JSON.parse(result.value) : {};
+  }catch(err){
+    memoData = {};
+  }
+  renderWeekdayPills();
+  $('#memoArea').value = memoData[currentMemoDay] || '';
+}
+
+function renderWeekdayPills(){
+  const wrap = $('#weekdayPills');
+  wrap.innerHTML = weekdaysFull.map(d=>
+    `<button data-day="${d}" class="${d===currentMemoDay?'active':''}">${d}曜日</button>`
+  ).join('');
+  $$('#weekdayPills button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      currentMemoDay = btn.dataset.day;
+      renderWeekdayPills();
+      $('#memoArea').value = memoData[currentMemoDay] || '';
+      $('#memoStatus').textContent = '';
+    });
+  });
+}
+
+$('#memoArea').addEventListener('input', (e)=>{
+  memoData[currentMemoDay] = e.target.value;
+  $('#memoStatus').textContent = '入力中…';
+  if(memoSaveTimeout) clearTimeout(memoSaveTimeout);
+  memoSaveTimeout = setTimeout(async ()=>{
+    try{
+      await window.storage.set(MEMO_KEY, JSON.stringify(memoData), false);
+      $('#memoStatus').textContent = '保存済み ✓';
+    }catch(err){
+      $('#memoStatus').textContent = '保存に失敗しました';
+    }
+  }, 600);
+});
+
+loadMemo();
+</script>
+</body>
+</html>
