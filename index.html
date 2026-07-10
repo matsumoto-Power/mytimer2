@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>STUDIO DIAL — 多機能タイマー＆時計</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -31,12 +31,13 @@
     --panel-hairline: var(--hairline-dark);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;}
+  html,body{height:100%; height:100dvh;}
   body{
     margin:0;
     font-family:'Inter',sans-serif;
     color:var(--panel-text);
     height:100vh;
+    height:100dvh;
     overflow:hidden;
     background: linear-gradient(160deg, var(--bg-fallback-1), var(--bg-fallback-2));
   }
@@ -50,7 +51,7 @@
   .num{ font-family:'Oswald',sans-serif; font-variant-numeric: tabular-nums; letter-spacing:0.5px; }
 
   /* ===== 全体レイアウト：機能ペイン ＋ 画像ペイン ===== */
-  #layout{ height:100vh; width:100vw; display:flex; }
+  #layout{ height:100vh; height:100dvh; width:100vw; display:flex; }
   #controlPane{
     flex:1 1 50%; min-width:0; min-height:0; overflow-y:auto; overflow-x:hidden;
     display:flex; flex-direction:column; padding:16px 22px 22px;
@@ -108,7 +109,7 @@
   }
   .image-nav button:hover{ background:rgba(0,0,0,0.55); }
 
-  .image-footer{ position:absolute; left:0; right:0; bottom:12px; display:flex; flex-direction:column; align-items:center; gap:9px; pointer-events:none; }
+  .image-footer{ position:absolute; left:0; right:0; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; align-items:center; gap:9px; pointer-events:none; }
   .image-footer > *{ pointer-events:all; }
   .image-dots{ display:flex; gap:6px; }
   .image-dots span{ width:6px; height:6px; border-radius:50%; background:rgba(245,243,236,0.35); transition: all .25s ease; }
