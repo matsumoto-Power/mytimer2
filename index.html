@@ -101,6 +101,29 @@
   .image-empty button.primary{ background:var(--accent-amber); color:#1a1305; border-color:transparent; }
   .image-empty button:hover{ filter:brightness(1.1); }
 
+  .fullscreen-toggle-btn{
+    position:absolute; top:14px; right:14px; z-index:6;
+    appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.38);
+    color:#F5F3EC; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    backdrop-filter: blur(6px); transition: background .2s ease;
+  }
+  .fullscreen-toggle-btn:hover{ background:rgba(0,0,0,0.55); }
+  .fullscreen-toggle-btn svg{ width:17px; height:17px; }
+  .fullscreen-exit-btn{
+    position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:14px; z-index:6;
+    appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.45);
+    color:#F5F3EC; padding:10px 16px; border-radius:999px; display:flex; align-items:center; gap:7px;
+    font-size:12.5px; font-weight:700; backdrop-filter: blur(8px);
+  }
+  .fullscreen-exit-btn:hover{ background:rgba(0,0,0,0.6); }
+  .fullscreen-exit-btn svg{ width:15px; height:15px; }
+
+  /* ===== 画像 全画面表示モード ===== */
+  body.fullscreen-image #controlPane{ display:none; }
+  body.fullscreen-image #imagePane{ border:none; }
+  body.fullscreen-image .image-actions,
+  body.fullscreen-image .fullscreen-toggle-btn{ display:none !important; }
+
   .image-nav{ position:absolute; top:50%; transform:translateY(-50%); width:100%; display:flex; justify-content:space-between; padding:0 14px; pointer-events:none; }
   .image-nav button{
     pointer-events:all; appearance:none; cursor:pointer; border:none; width:40px; height:40px; border-radius:50%;
@@ -214,18 +237,23 @@
   }
   .field input[type=number]:focus{ outline:2px solid var(--accent-amber); }
   hr.div{ border:none; border-top:1px solid var(--panel-hairline); margin:2px 0; }
-  .preset-row{ display:flex; gap:8px; }
   select, .memo-select{
-    flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px; font-weight:600;
   }
-  .preset-save-row{ display:flex; gap:8px; }
-  .preset-save-row input[type=text]{
-    flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
-    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
+  .preset-field{ display:flex; flex-direction:column; gap:8px; }
+  .preset-field input[type=text]{
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:14px;
   }
-  .small-btn{ appearance:none; cursor:pointer; border:none; padding:0 16px; border-radius:12px; font-weight:700; font-size:12px; background:var(--accent-rest); color:#04211d; white-space:nowrap;}
-  .small-btn.del{ background:rgba(255,93,58,0.85); color:#2a0800; }
+  .preset-full-btn{
+    appearance:none; cursor:pointer; border:none; width:100%; padding:13px 16px; border-radius:12px;
+    font-weight:700; font-size:13.5px; letter-spacing:0.3px; min-height:44px;
+  }
+  .preset-full-btn.save{ background:var(--accent-amber); color:#1a1305; }
+  .preset-full-btn.save:hover{ filter:brightness(1.06); }
+  .preset-full-btn.del{ background:rgba(255,93,58,0.16); color:var(--accent-work); border:1px solid rgba(255,93,58,0.4); }
+  .preset-full-btn.del:hover{ background:rgba(255,93,58,0.26); }
   .preset-list-hint{ font-size:11px; color:var(--panel-muted); }
 
   /* ===== SUB TAB ===== */
@@ -398,13 +426,13 @@
 
             <hr class="div">
             <div class="settings-title">💾 プロジェクト保存</div>
-            <div class="preset-row">
+            <div class="preset-field">
               <select id="presetSelect"><option value="">-- 保存済みメニューを選択 --</option></select>
-              <button class="small-btn del" id="presetDeleteBtn">削除</button>
+              <button class="preset-full-btn del" id="presetDeleteBtn">選択したメニューを削除</button>
             </div>
-            <div class="preset-save-row">
+            <div class="preset-field">
               <input type="text" id="presetNameInput" placeholder="例）プランク、スクワット">
-              <button class="small-btn" id="presetSaveBtn">この設定を保存</button>
+              <button class="preset-full-btn save" id="presetSaveBtn">この設定を保存</button>
             </div>
             <div class="preset-list-hint">選択すると、ワーク・休憩・セット数が即座に反映されます。データはこの端末に保存されます。</div>
           </div>
@@ -451,6 +479,14 @@
     <div class="slide" id="slideA"></div>
     <div class="slide" id="slideB"></div>
     <div class="scrim"></div>
+
+    <button class="fullscreen-toggle-btn" id="fullscreenToggleBtn" style="display:none;" title="画像を全画面表示">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    </button>
+    <button class="fullscreen-exit-btn" id="fullscreenExitBtn" style="display:none;" title="全画面表示を終了">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg>
+      <span>全画面を終了</span>
+    </button>
 
     <div class="position-toast" id="positionToast">
       <span>ドラッグして表示位置を調整</span>
@@ -683,6 +719,7 @@ function onImagesChanged(){
   $('#imageEmpty').style.display = has ? 'none' : 'flex';
   $('#imageNav').style.display = has && bgImages.length > 1 ? 'flex' : 'none';
   $('#imageFooter').style.display = has ? 'flex' : 'none';
+  $('#fullscreenToggleBtn').style.display = has && !document.body.classList.contains('fullscreen-image') ? 'flex' : 'none';
   renderDots();
 }
 
@@ -719,6 +756,21 @@ function restartSlideshow(){
 
 $('#imagePrevBtn').addEventListener('click', ()=>{ showImage(bgIndex-1); restartSlideshow(); });
 $('#imageNextBtn').addEventListener('click', ()=>{ showImage(bgIndex+1); restartSlideshow(); });
+
+/* --- 画像の全画面表示モード（タイマー等は非表示、スライドショーはそのまま継続） --- */
+function enterImageFullscreen(){
+  if(bgIndex < 0) return;
+  document.body.classList.add('fullscreen-image');
+  $('#fullscreenToggleBtn').style.display = 'none';
+  $('#fullscreenExitBtn').style.display = 'flex';
+}
+function exitImageFullscreen(){
+  document.body.classList.remove('fullscreen-image');
+  $('#fullscreenExitBtn').style.display = 'none';
+  $('#fullscreenToggleBtn').style.display = bgImages.length ? 'flex' : 'none';
+}
+$('#fullscreenToggleBtn').addEventListener('click', enterImageFullscreen);
+$('#fullscreenExitBtn').addEventListener('click', exitImageFullscreen);
 
 /* 向きが変わったら、現在表示中の画像に保存済みの位置を再適用 */
 window.matchMedia('(orientation: portrait)').addEventListener('change', ()=>{
