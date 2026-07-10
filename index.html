@@ -231,6 +231,50 @@
 
   .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
   .settings-title{ font-weight:800; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:8px;}
+
+  .mode-toggle{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:12px; margin-top:-6px; }
+  .mode-btn{
+    flex:1; appearance:none; border:none; cursor:pointer; padding:9px 8px; border-radius:9px;
+    font-family:'Inter',sans-serif; font-weight:700; font-size:12.5px; background:transparent; color:var(--panel-muted);
+    transition: all .2s ease;
+  }
+  .mode-btn.active{ background:var(--accent-amber); color:#ffffff; }
+  .mode-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  .circuit-steps-list{ display:flex; flex-direction:column; gap:8px; }
+  .circuit-empty-hint{ font-size:12px; color:var(--panel-muted); text-align:center; padding:16px 8px; }
+  .circuit-step-row{
+    display:flex; align-items:center; gap:6px; background:rgba(128,128,128,0.1); border:1px solid var(--panel-hairline);
+    border-radius:12px; padding:7px 8px;
+  }
+  .circuit-step-idx{ font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; color:var(--panel-muted); width:16px; text-align:center; flex:0 0 auto; }
+  .circuit-step-type{
+    flex:1 1 70px; min-width:64px; padding:8px 6px; border-radius:9px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.12); color:var(--panel-text); font-size:12px; font-weight:700;
+  }
+  .circuit-step-seconds{
+    width:56px; flex:0 0 auto; padding:8px 6px; border-radius:9px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.12); color:var(--panel-text); font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; text-align:center;
+  }
+  .circuit-step-unit{ font-size:11px; color:var(--panel-muted); flex:0 0 auto; }
+  .circuit-step-btn{
+    appearance:none; cursor:pointer; border:none; background:rgba(128,128,128,0.18); color:var(--panel-text);
+    width:28px; height:28px; border-radius:8px; font-size:13px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+  }
+  .circuit-step-btn:hover{ background:rgba(128,128,128,0.3); }
+  .circuit-step-btn.remove{ background:rgba(255,93,58,0.2); color:var(--accent-work); }
+  .circuit-step-btn:disabled{ opacity:0.3; cursor:not-allowed; }
+  .circuit-actions-row{ display:flex; gap:8px; margin-top:4px; }
+  .circuit-add-btn{
+    flex:1; appearance:none; cursor:pointer; border:1px dashed var(--panel-hairline); background:rgba(128,128,128,0.08);
+    color:var(--panel-text); padding:11px; border-radius:12px; font-weight:700; font-size:12.5px;
+  }
+  .circuit-add-btn:hover{ background:rgba(128,128,128,0.16); }
+  .circuit-sample-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:transparent;
+    color:var(--panel-muted); padding:11px 14px; border-radius:12px; font-weight:700; font-size:12px; white-space:nowrap;
+  }
+  .circuit-sample-btn:hover{ color:var(--panel-text); background:rgba(128,128,128,0.1); }
   .field-row{ display:flex; gap:12px; }
   .field{ flex:1; display:flex; flex-direction:column; gap:5px; }
   .field label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase;}
@@ -315,6 +359,11 @@
     .digital-time{ font-size: clamp(26px, 13cqw, 42px); }
     .digital-week span{ padding:3px 6px; font-size:9.5px; }
     .brand span{ display:none; }
+    .circuit-step-type{ font-size:11px; padding:7px 4px; }
+    .circuit-step-seconds{ width:46px; font-size:12.5px; }
+    .circuit-step-btn{ width:25px; height:25px; }
+    .circuit-sample-btn{ padding:11px 10px; font-size:11px; }
+    .mode-btn{ font-size:11px; padding:8px 4px; }
   }
   @container image (max-width: 620px){
     .image-action-btn{ font-size:10.5px; padding:7px 11px; gap:4px; }
@@ -423,10 +472,26 @@
 
           <div class="panel settings-card">
             <div class="settings-title">⏱ タイマー設定</div>
-            <div class="field-row">
+            <div class="mode-toggle" id="timerModeToggle">
+              <button class="mode-btn active" data-mode="simple">シンプル</button>
+              <button class="mode-btn" data-mode="circuit">カスタムサーキット</button>
+            </div>
+
+            <div class="field-row" id="simpleModeFields">
               <div class="field"><label>ワーク（秒）</label><input type="number" id="workInput" min="1" value="40"></div>
               <div class="field"><label>休憩（秒）</label><input type="number" id="restInput" min="0" value="20"></div>
               <div class="field"><label>セット数</label><input type="number" id="setsInput" min="1" value="8"></div>
+            </div>
+
+            <div id="circuitModeFields" style="display:none;">
+              <div class="circuit-steps-list" id="circuitStepsList"></div>
+              <div class="circuit-actions-row">
+                <button class="circuit-add-btn" id="circuitAddStepBtn">＋ ステップを追加</button>
+                <button class="circuit-sample-btn" id="circuitSampleBtn">例を試す</button>
+              </div>
+              <div class="field-row" style="margin-top:12px;">
+                <div class="field"><label>サーキットを繰り返す回数</label><input type="number" id="circuitRepeatInput" min="1" value="3"></div>
+              </div>
             </div>
 
             <hr class="div">
@@ -439,7 +504,7 @@
               <input type="text" id="presetNameInput" placeholder="例）プランク、スクワット">
               <button class="preset-full-btn save" id="presetSaveBtn">この設定を保存</button>
             </div>
-            <div class="preset-list-hint">選択すると、ワーク・休憩・セット数が即座に反映されます。データはこの端末に保存されます。</div>
+            <div class="preset-list-hint">選択すると、設定内容が即座に反映されます。データはこの端末に保存されます。</div>
           </div>
         </div>
       </section>
@@ -1022,14 +1087,23 @@ const resetBtn = $('#resetBtn');
 const workInput = $('#workInput');
 const restInput = $('#restInput');
 const setsInput = $('#setsInput');
+const circuitRepeatInput = $('#circuitRepeatInput');
+
+/* --- タイマーモード：シンプル（ワーク/休憩/セット） or カスタムサーキット（自由な手順の繰り返し） --- */
+let timerMode = 'simple'; // 'simple' | 'circuit'
+let circuitSteps = [];    // [{id, type:'work'|'rest', seconds}]
+let sequence = [];        // スタート時に組み立てる実行順の配列
+
+const mkId = () => 'cs_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
 let timerState = {
   running:false,
-  phase:'idle',
-  currentSet:1,
+  status:'idle', // 'idle' | 'active' | 'done'
+  index:-1,
   phaseEnd:0,
   phaseDuration:0,
   rafId:null,
+  remainingOnPause: undefined,
 };
 
 function fmtMMSS(totalSeconds){
@@ -1084,21 +1158,56 @@ function playFinishFanfare(){
   playBeep(660,0.15,0,0.6); playBeep(880,0.15,0.16,0.6); playBeep(1046,0.24,0.32,0.6);
 }
 
-function startTimer(){
+/* --- 実行シーケンスの組み立て --- */
+function buildSimpleSequence(){
   const work = Math.max(1, parseInt(workInput.value)||40);
   const rest = Math.max(0, parseInt(restInput.value)||0);
   const sets = Math.max(1, parseInt(setsInput.value)||1);
+  const seq = [];
+  for(let s=1; s<=sets; s++){
+    seq.push({type:'work', duration:work, setNumber:s, totalSets:sets, stepInSet:1, totalStepsInSet: rest>0 ? 2 : 1});
+    if(rest > 0) seq.push({type:'rest', duration:rest, setNumber:s, totalSets:sets, stepInSet:2, totalStepsInSet:2});
+  }
+  return seq;
+}
+function buildCircuitSequence(){
+  const repeat = Math.max(1, parseInt(circuitRepeatInput.value)||1);
+  const steps = circuitSteps.filter(s => s.seconds > 0);
+  const seq = [];
+  for(let r=1; r<=repeat; r++){
+    steps.forEach((st,i) => seq.push({
+      type:st.type, duration:st.seconds, setNumber:r, totalSets:repeat, stepInSet:i+1, totalStepsInSet:steps.length
+    }));
+  }
+  return seq;
+}
+function buildSequence(){
+  return timerMode === 'circuit' ? buildCircuitSequence() : buildSimpleSequence();
+}
 
-  if(timerState.phase === 'idle' || timerState.phase === 'done'){
-    timerState.currentSet = 1;
-    timerState.phase = 'work';
-    timerState.phaseDuration = work;
-    timerState.phaseEnd = Date.now() + work*1000;
-    playWorkStartBeep();
+function setInputsDisabled(disabled){
+  workInput.disabled = restInput.disabled = setsInput.disabled = disabled;
+  circuitRepeatInput.disabled = disabled;
+  $('#circuitAddStepBtn').disabled = disabled;
+  $('#circuitSampleBtn').disabled = disabled;
+  $$('.circuit-step-row select, .circuit-step-row input, .circuit-step-row button').forEach(el => el.disabled = disabled);
+  $$('.mode-btn').forEach(b => b.disabled = disabled);
+}
+
+function startTimer(){
+  if(timerState.status === 'idle' || timerState.status === 'done'){
+    sequence = buildSequence();
+    if(!sequence.length) return; // ステップが1つもない場合は開始しない
+    timerState.index = 0;
+    const first = sequence[0];
+    timerState.phaseDuration = first.duration;
+    timerState.phaseEnd = Date.now() + first.duration*1000;
+    timerState.status = 'active';
+    (first.type === 'work' ? playWorkStartBeep : playRestStartBeep)();
   }
   timerState.running = true;
   startBtn.textContent = '一時停止';
-  workInput.disabled = restInput.disabled = setsInput.disabled = true;
+  setInputsDisabled(true);
   loopTimer();
 }
 
@@ -1118,79 +1227,74 @@ function resumeFromPause(){
 
 function resetTimer(){
   timerState.running = false;
-  timerState.phase = 'idle';
-  timerState.currentSet = 1;
+  timerState.status = 'idle';
+  timerState.index = -1;
+  timerState.remainingOnPause = undefined;
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
-  workInput.disabled = restInput.disabled = setsInput.disabled = false;
-  startBtn.textContent = 'スタート';
+  setInputsDisabled(false);
   updatePhaseBadge('idle');
-  const work = Math.max(1, parseInt(workInput.value)||40);
-  ringNumber.textContent = fmtMMSS(work);
-  setLabel.textContent = `SET 1 / ${Math.max(1, parseInt(setsInput.value)||1)}`;
+  startBtn.textContent = 'スタート';
+
+  const preview = buildSequence();
+  if(preview.length){
+    const first = preview[0];
+    ringNumber.textContent = fmtMMSS(first.duration);
+    setLabel.textContent = timerMode === 'circuit'
+      ? `SET 1/${first.totalSets} ・ STEP 1/${first.totalStepsInSet}`
+      : `SET 1 / ${first.totalSets}`;
+  } else {
+    ringNumber.textContent = '00:00';
+    setLabel.textContent = timerMode === 'circuit' ? 'ステップ未設定' : 'SET 1 / 1';
+  }
   setRingProgress(1, 'var(--accent-amber)');
 }
 
 function loopTimer(){
   if(!timerState.running) return;
-  const sets = Math.max(1, parseInt(setsInput.value)||1);
+  const step = sequence[timerState.index];
   const remaining = (timerState.phaseEnd - Date.now())/1000;
 
-  updatePhaseBadge(timerState.phase);
+  updatePhaseBadge(step.type);
   ringNumber.textContent = fmtMMSS(remaining);
-  setLabel.textContent = `SET ${timerState.currentSet} / ${sets}`;
-  const color = timerState.phase==='work' ? 'var(--accent-work)' : timerState.phase==='rest' ? 'var(--accent-rest)' : 'var(--accent-amber)';
+  setLabel.textContent = timerMode === 'circuit'
+    ? `SET ${step.setNumber}/${step.totalSets} ・ STEP ${step.stepInSet}/${step.totalStepsInSet}`
+    : `SET ${step.setNumber} / ${step.totalSets}`;
+  const color = step.type==='work' ? 'var(--accent-work)' : 'var(--accent-rest)';
   setRingProgress(remaining / timerState.phaseDuration, color);
 
   if(remaining <= 0){
-    advancePhase(sets);
+    advanceStep();
   }
   timerState.rafId = requestAnimationFrame(loopTimer);
 }
 
-function advancePhase(sets){
-  const work = Math.max(1, parseInt(workInput.value)||40);
-  const rest = Math.max(0, parseInt(restInput.value)||0);
-
-  if(timerState.phase === 'work'){
-    if(rest > 0){
-      timerState.phase = 'rest';
-      timerState.phaseDuration = rest;
-      timerState.phaseEnd = Date.now() + rest*1000;
-      playRestStartBeep();
-      return;
-    } else {
-      timerState.currentSet++;
-    }
-  } else if(timerState.phase === 'rest'){
-    timerState.currentSet++;
-  }
-
-  if(timerState.currentSet > sets){
+function advanceStep(){
+  timerState.index++;
+  if(timerState.index >= sequence.length){
     finishTimer();
     return;
   }
-
-  timerState.phase = 'work';
-  timerState.phaseDuration = work;
-  timerState.phaseEnd = Date.now() + work*1000;
-  playWorkStartBeep();
+  const step = sequence[timerState.index];
+  timerState.phaseDuration = step.duration;
+  timerState.phaseEnd = Date.now() + step.duration*1000;
+  (step.type === 'work' ? playWorkStartBeep : playRestStartBeep)();
 }
 
 function finishTimer(){
   timerState.running = false;
-  timerState.phase = 'done';
+  timerState.status = 'done';
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
   updatePhaseBadge('done');
   ringNumber.textContent = '完了';
   setRingProgress(1, 'var(--accent-amber)');
   playFinishFanfare();
   startBtn.textContent = 'スタート';
-  workInput.disabled = restInput.disabled = setsInput.disabled = false;
+  setInputsDisabled(false);
 }
 
 startBtn.addEventListener('click', ()=>{
   if(!timerState.running){
-    if(timerState.phase !== 'idle' && timerState.phase !== 'done' && timerState.remainingOnPause !== undefined){
+    if(timerState.status === 'active' && timerState.remainingOnPause !== undefined){
       resumeFromPause();
     } else {
       startTimer();
@@ -1200,9 +1304,102 @@ startBtn.addEventListener('click', ()=>{
   }
 });
 resetBtn.addEventListener('click', resetTimer);
-[workInput, restInput, setsInput].forEach(inp=>{
-  inp.addEventListener('change', ()=>{ if(timerState.phase==='idle') resetTimer(); });
+[workInput, restInput, setsInput, circuitRepeatInput].forEach(inp=>{
+  inp.addEventListener('change', ()=>{ if(timerState.status==='idle') resetTimer(); });
 });
+
+/* --- モード切り替え（シンプル / カスタムサーキット） --- */
+function setModeUI(mode){
+  timerMode = mode;
+  $$('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  $('#simpleModeFields').style.display = mode === 'simple' ? 'flex' : 'none';
+  $('#circuitModeFields').style.display = mode === 'circuit' ? 'block' : 'none';
+}
+$$('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(timerState.running) return;
+    setModeUI(btn.dataset.mode);
+    resetTimer();
+  });
+});
+
+/* --- カスタムサーキットのステップ編集 --- */
+function addCircuitStep(type='work', seconds=30){
+  circuitSteps.push({ id: mkId(), type, seconds });
+  renderCircuitSteps();
+  if(timerMode === 'circuit' && timerState.status === 'idle') resetTimer();
+}
+function renderCircuitSteps(){
+  const wrap = $('#circuitStepsList');
+  if(!circuitSteps.length){
+    wrap.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。「＋ ステップを追加」から作成するか、「例を試す」をタップしてください。</div>';
+    return;
+  }
+  wrap.innerHTML = circuitSteps.map((s,i)=>`
+    <div class="circuit-step-row" data-id="${s.id}">
+      <span class="circuit-step-idx">${i+1}</span>
+      <select class="circuit-step-type" data-field="type">
+        <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
+        <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
+      </select>
+      <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}">
+      <span class="circuit-step-unit">秒</span>
+      <button class="circuit-step-btn" data-act="up" ${i===0?'disabled':''} title="上へ">↑</button>
+      <button class="circuit-step-btn" data-act="down" ${i===circuitSteps.length-1?'disabled':''} title="下へ">↓</button>
+      <button class="circuit-step-btn remove" data-act="remove" title="削除">✕</button>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.circuit-step-row').forEach(row=>{
+    const id = row.dataset.id;
+    const typeSel = row.querySelector('[data-field="type"]');
+    const secInput = row.querySelector('[data-field="seconds"]');
+    typeSel.addEventListener('change', e=>{
+      const step = circuitSteps.find(s=>s.id===id);
+      step.type = e.target.value;
+      if(timerMode==='circuit' && timerState.status==='idle') resetTimer();
+    });
+    secInput.addEventListener('change', e=>{
+      const step = circuitSteps.find(s=>s.id===id);
+      step.seconds = Math.max(1, parseInt(e.target.value)||1);
+      if(timerMode==='circuit' && timerState.status==='idle') resetTimer();
+    });
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = circuitSteps.findIndex(s=>s.id===id);
+        const act = btn.dataset.act;
+        if(act==='remove'){
+          circuitSteps.splice(idx,1);
+        } else if(act==='up' && idx>0){
+          [circuitSteps[idx-1], circuitSteps[idx]] = [circuitSteps[idx], circuitSteps[idx-1]];
+        } else if(act==='down' && idx<circuitSteps.length-1){
+          [circuitSteps[idx+1], circuitSteps[idx]] = [circuitSteps[idx], circuitSteps[idx+1]];
+        }
+        renderCircuitSteps();
+        if(timerMode==='circuit' && timerState.status==='idle') resetTimer();
+      });
+    });
+  });
+}
+$('#circuitAddStepBtn').addEventListener('click', ()=> addCircuitStep());
+$('#circuitSampleBtn').addEventListener('click', ()=>{
+  circuitSteps = [
+    { id: mkId(), type:'work', seconds:45 },
+    { id: mkId(), type:'rest', seconds:10 },
+    { id: mkId(), type:'work', seconds:45 },
+    { id: mkId(), type:'rest', seconds:10 },
+    { id: mkId(), type:'work', seconds:30 },
+    { id: mkId(), type:'rest', seconds:10 },
+    { id: mkId(), type:'work', seconds:20 },
+    { id: mkId(), type:'rest', seconds:60 },
+  ];
+  circuitRepeatInput.value = 3;
+  renderCircuitSteps();
+  setModeUI('circuit');
+  resetTimer();
+});
+
+renderCircuitSteps();
 resetTimer();
 
 /* =========================================================
@@ -1226,7 +1423,12 @@ function renderPresetSelect(){
   const collator = new Intl.Collator('ja', { usage: 'sort', sensitivity: 'base' });
   const sorted = [...presets].sort((a, b) => collator.compare(a.name, b.name));
   sel.innerHTML = '<option value="">-- 保存済みメニューを選択 --</option>' +
-    sorted.map(p=>`<option value="${p.id}">${escapeHTML(p.name)}（${p.work}秒/${p.rest}秒×${p.sets}）</option>`).join('');
+    sorted.map(p=>{
+      const detail = p.type === 'circuit'
+        ? `サーキット・${p.steps.length}ステップ×${p.repeat}周`
+        : `${p.work}秒/${p.rest}秒×${p.sets}`;
+      return `<option value="${p.id}">${escapeHTML(p.name)}（${detail}）</option>`;
+    }).join('');
 }
 
 function escapeHTML(str){
@@ -1240,13 +1442,27 @@ async function savePresetsToStorage(){
 $('#presetSaveBtn').addEventListener('click', async ()=>{
   const name = $('#presetNameInput').value.trim();
   if(!name){ $('#presetNameInput').focus(); return; }
-  const preset = {
-    id: 'p_' + Date.now(),
-    name,
-    work: Math.max(1, parseInt(workInput.value)||40),
-    rest: Math.max(0, parseInt(restInput.value)||0),
-    sets: Math.max(1, parseInt(setsInput.value)||1),
-  };
+
+  let preset;
+  if(timerMode === 'circuit'){
+    if(!circuitSteps.length){ $('#circuitAddStepBtn').focus(); return; }
+    preset = {
+      id: 'p_' + Date.now(),
+      name,
+      type: 'circuit',
+      steps: circuitSteps.map(s => ({ type: s.type, seconds: s.seconds })),
+      repeat: Math.max(1, parseInt(circuitRepeatInput.value)||1),
+    };
+  } else {
+    preset = {
+      id: 'p_' + Date.now(),
+      name,
+      type: 'simple',
+      work: Math.max(1, parseInt(workInput.value)||40),
+      rest: Math.max(0, parseInt(restInput.value)||0),
+      sets: Math.max(1, parseInt(setsInput.value)||1),
+    };
+  }
   presets.push(preset);
   await savePresetsToStorage();
   renderPresetSelect();
@@ -1258,9 +1474,18 @@ $('#presetSelect').addEventListener('change', (e)=>{
   const id = e.target.value;
   const p = presets.find(x=>x.id===id);
   if(!p) return;
-  workInput.value = p.work;
-  restInput.value = p.rest;
-  setsInput.value = p.sets;
+  const type = p.type || 'simple'; // 旧バージョンで保存されたプリセットはtype未設定 = simple扱い
+  if(type === 'circuit'){
+    circuitSteps = p.steps.map(s => ({ id: mkId(), type: s.type, seconds: s.seconds }));
+    circuitRepeatInput.value = p.repeat;
+    renderCircuitSteps();
+    setModeUI('circuit');
+  } else {
+    workInput.value = p.work;
+    restInput.value = p.rest;
+    setsInput.value = p.sets;
+    setModeUI('simple');
+  }
   resetTimer();
 });
 
