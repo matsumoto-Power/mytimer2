@@ -1221,8 +1221,10 @@ async function loadPresets(){
 
 function renderPresetSelect(){
   const sel = $('#presetSelect');
+  const collator = new Intl.Collator('ja', { usage: 'sort', sensitivity: 'base' });
+  const sorted = [...presets].sort((a, b) => collator.compare(a.name, b.name));
   sel.innerHTML = '<option value="">-- 保存済みメニューを選択 --</option>' +
-    presets.map(p=>`<option value="${p.id}">${escapeHTML(p.name)}（${p.work}秒/${p.rest}秒×${p.sets}）</option>`).join('');
+    sorted.map(p=>`<option value="${p.id}">${escapeHTML(p.name)}（${p.work}秒/${p.rest}秒×${p.sets}）</option>`).join('');
 }
 
 function escapeHTML(str){
