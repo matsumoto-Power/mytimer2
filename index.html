@@ -283,6 +283,8 @@
     color:var(--panel-text); padding:8px 12px; border-radius:12px; font-weight:700; font-size:12px;
   }
   .weekday-pills button.active{ background:var(--accent-amber); color:#ffffff; border-color:transparent; }
+  .weekday-pills button.free-memo-btn{ margin-left:8px; border-style:dashed; border-color:var(--accent-amber); color:var(--accent-amber); }
+  .weekday-pills button.free-memo-btn.active{ border-style:solid; color:#ffffff; }
   textarea{
     flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); padding:14px; font-size:14px; font-family:'Inter',sans-serif; line-height:1.6;
@@ -1358,10 +1360,12 @@ renderWeather();
 setInterval(renderWeather, 30 * 60 * 1000);
 
 /* =========================================================
-   曜日ごとのトレーニングメモ（window.storage）
+   曜日ごとのトレーニングメモ ＋ 自由メモ（window.storage）
 ========================================================= */
 const MEMO_KEY = 'weekly-memo';
 const weekdaysFull = ['月','火','水','木','金','土','日'];
+const FREE_MEMO_KEY = 'free';
+const memoTabs = [...weekdaysFull.map(d => ({ key: d, label: `${d}曜日` })), { key: FREE_MEMO_KEY, label: 'フリーメモ' }];
 let memoData = {};
 let currentMemoDay = weekdaysFull[(new Date().getDay()+6)%7];
 let memoSaveTimeout = null;
@@ -1379,8 +1383,8 @@ async function loadMemo(){
 
 function renderWeekdayPills(){
   const wrap = $('#weekdayPills');
-  wrap.innerHTML = weekdaysFull.map(d=>
-    `<button data-day="${d}" class="${d===currentMemoDay?'active':''}">${d}曜日</button>`
+  wrap.innerHTML = memoTabs.map(t=>
+    `<button data-day="${t.key}" class="${t.key===currentMemoDay?'active':''}${t.key===FREE_MEMO_KEY?' free-memo-btn':''}">${t.label}</button>`
   ).join('');
   $$('#weekdayPills button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
