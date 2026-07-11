@@ -1344,20 +1344,22 @@ function playFinishFanfare(){
   playBeep(660,0.15,0,0.6); playBeep(880,0.15,0.16,0.6); playBeep(1046,0.24,0.32,0.6);
 }
 
-/* --- カウントダウン音声（3・2・1）---
-   Web Speech APIで、落ち着いた女性の声を優先的に選んで読み上げます。
+/* --- カウントダウン音声（Three・Two・One）---
+   Web Speech APIで、自然で落ち着いた英語の女性の声を優先的に選んで読み上げます。
    音声合成が使えない環境では、従来のビープ音に自動でフォールバックします。 */
 let cachedVoices = [];
 let calmFemaleVoice = null;
+const COUNTDOWN_WORDS = { 1:'One', 2:'Two', 3:'Three' };
 
 function pickCalmFemaleVoice(voices){
   if(!voices || !voices.length) return null;
-  const jaVoices = voices.filter(v => (v.lang||'').toLowerCase().startsWith('ja'));
-  const pool = jaVoices.length ? jaVoices : voices;
-  // 日本語の女性ボイスによくある名称・キーワードを優先的に探す
-  const femaleNamePattern = /female|woman|女性|kyoko|京子|o-ren|sakura|nozomi|haruka|ayumi|mizuki|josei/i;
-  const femaleMatch = pool.find(v => femaleNamePattern.test(v.name));
-  return femaleMatch || pool[0] || null;
+  const enVoices = voices.filter(v => (v.lang||'').toLowerCase().startsWith('en'));
+  const pool = enVoices.length ? enVoices : voices;
+  // 自然で落ち着いた響きの英語女性ボイスによくある名称を優先的に探す
+  // (Samantha/Victoria/Zira等はOS標準の高品質な女性ボイスとして知られる)
+  const preferredNames = /samantha|victoria|zira|susan|karen|moira|tessa|fiona|kate|serena|allison|ava|joanna|salli|kimberly|kendra|amy|emma|nicole|female|woman/i;
+  const preferredMatch = pool.find(v => preferredNames.test(v.name));
+  return preferredMatch || pool[0] || null;
 }
 function refreshVoiceList(){
   if(!('speechSynthesis' in window)) return;
@@ -1385,11 +1387,11 @@ function speakCountdownNumber(n){
       playCountdownTick(); // フォールバック：音声合成が使えない場合はビープ音
       return;
     }
-    const utter = new SpeechSynthesisUtterance(String(n));
+    const utter = new SpeechSynthesisUtterance(COUNTDOWN_WORDS[n] || String(n));
     utter.voice = calmFemaleVoice;
-    utter.lang = calmFemaleVoice.lang || 'ja-JP';
-    utter.rate = 0.85;   // 落ち着いたテンポ
-    utter.pitch = 0.92;  // 落ち着いたやや低めのトーン
+    utter.lang = calmFemaleVoice.lang || 'en-US';
+    utter.rate = 0.92;   // 自然に聞こえるやや落ち着いたテンポ
+    utter.pitch = 1.0;   // 自然なトーン（下げすぎるとロボット的になるため標準に近い値）
     utter.volume = 1;
     window.speechSynthesis.speak(utter);
   }catch(err){
@@ -1397,6 +1399,7 @@ function speakCountdownNumber(n){
     playCountdownTick();
   }
 }
+
 
 /* --- 実行シーケンスの組み立て --- */
 function buildSimpleSequence(){
