@@ -121,6 +121,14 @@
   .fullscreen-exit-btn:hover{ background:rgba(0,0,0,0.6); }
   .fullscreen-exit-btn svg{ width:15px; height:15px; }
 
+  .group-quick-switch{
+    position:absolute; top:14px; left:14px; z-index:6; max-width:min(52%, 220px);
+    appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.45);
+    color:#F5F3EC; padding:9px 12px; border-radius:999px; font-size:12px; font-weight:700;
+    backdrop-filter: blur(8px);
+  }
+  .group-quick-switch option{ color:#14171A; }
+
   /* ===== 画像 全画面表示モード ===== */
   body.fullscreen-image #controlPane{ display:none; }
   body.fullscreen-image #imagePane{ border:none; }
@@ -398,6 +406,20 @@
   .modal-head{ display:flex; align-items:center; justify-content:space-between; }
   .modal-head h3{ margin:0; font-size:15px; letter-spacing:1px; font-weight:800; }
   .modal-close{ appearance:none; cursor:pointer; border:none; background:rgba(128,128,128,0.2); color:var(--panel-text); width:30px; height:30px; border-radius:50%; font-size:15px; }
+  .small-btn{
+    appearance:none; cursor:pointer; border:none; padding:0 16px; border-radius:12px; font-weight:700; font-size:12px;
+    background:var(--accent-rest); color:#04211d; white-space:nowrap;
+  }
+  .small-btn.del{ background:rgba(255,93,58,0.85); color:#ffffff; }
+  .group-manage-row{ display:flex; gap:8px; }
+  .group-manage-row select{ flex:1; }
+  .group-manage-row .small-btn{ flex:0 0 auto; }
+  .group-save-row{ display:flex; gap:8px; }
+  .group-save-row input[type=text]{
+    flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
+  }
+  .group-hint{ font-size:11.5px; color:var(--panel-muted); line-height:1.5; }
   .modal-add-btn{
     appearance:none; cursor:pointer; border:1px dashed var(--panel-hairline); background:rgba(128,128,128,0.08);
     color:var(--panel-text); padding:12px; border-radius:14px; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;
@@ -560,6 +582,10 @@
     <div class="slide" id="slideB"></div>
     <div class="scrim"></div>
 
+    <select class="group-quick-switch" id="groupQuickSwitch" style="display:none;" title="スライドショーのグループを切り替え">
+      <option value="">-- グループ未選択 --</option>
+    </select>
+
     <button class="fullscreen-toggle-btn" id="fullscreenToggleBtn" style="display:none;" title="画像を全画面表示">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
     </button>
@@ -616,6 +642,18 @@
       <h3>🖼 スライドショー作成</h3>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
+
+    <div class="group-manage-row">
+      <select id="modalGroupSelect"><option value="">-- 新規グループ（未保存）--</option></select>
+      <button class="small-btn del" id="modalGroupDeleteBtn">削除</button>
+    </div>
+    <div class="group-save-row">
+      <input type="text" id="modalGroupNameInput" placeholder="グループ名（例：やる気アップ、リラックス）">
+      <button class="small-btn" id="modalGroupSaveBtn">このグループを保存</button>
+    </div>
+    <div class="group-hint">気分に合わせて複数のグループを作っておけば、あとで下のセレクターからワンタップで切り替えられます。</div>
+    <hr class="div">
+
     <button class="modal-add-btn" id="modalAddBtn">＋ 画像を追加</button>
     <div class="modal-list" id="modalList">
       <div class="modal-list-empty">画像がまだありません。「画像を追加」から選んでください。</div>
@@ -784,10 +822,13 @@ $('#bgFileInputReplace').addEventListener('change', async (e)=>{
     bgImages = urls;
     bgPositions = urls.map(defaultPosition);
     bgIndex = -1;
+    activeGroupId = null; // 個別に画像を選び直した場合はグループの紐付けを解除
     onImagesChanged();
     showImage(0);
     restartSlideshow();
     scheduleImageSave();
+    persistActiveGroupId();
+    renderGroupSelectors();
   }catch(err){
     console.error('画像の読み込みに失敗しました', err);
   }
@@ -912,6 +953,107 @@ imagePane.addEventListener('pointercancel', endDrag);
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
 loadSavedImages();
+
+/* =========================================================
+   スライドショー：複数グループ管理（気分で使い分け）
+========================================================= */
+const GROUPS_KEY = 'slideshow-groups';
+const ACTIVE_GROUP_KEY = 'active-slideshow-group-id';
+let slideshowGroups = []; // [{id, name, images:[dataURL...], positions:[{landscape,portrait}...]}]
+let activeGroupId = null;
+
+async function persistActiveGroupId(){
+  await storageSet(ACTIVE_GROUP_KEY, activeGroupId || '');
+}
+
+async function loadSlideshowGroups(){
+  try{
+    const raw = await storageGet(GROUPS_KEY);
+    slideshowGroups = raw ? JSON.parse(raw) : [];
+  }catch(err){
+    slideshowGroups = [];
+  }
+  try{
+    activeGroupId = (await storageGet(ACTIVE_GROUP_KEY)) || null;
+  }catch(err){
+    activeGroupId = null;
+  }
+  renderGroupSelectors();
+}
+async function saveSlideshowGroupsToStorage(){
+  await storageSet(GROUPS_KEY, JSON.stringify(slideshowGroups));
+}
+
+function renderGroupSelectors(){
+  const quick = $('#groupQuickSwitch');
+  const modalSel = $('#modalGroupSelect');
+  quick.style.display = slideshowGroups.length ? 'block' : 'none';
+  quick.innerHTML = '<option value="">-- グループ未選択 --</option>' +
+    slideshowGroups.map(g=>`<option value="${g.id}">🎭 ${escapeHTML(g.name)}（${g.images.length}枚）</option>`).join('');
+  modalSel.innerHTML = '<option value="">-- 新規グループ（未保存）--</option>' +
+    slideshowGroups.map(g=>`<option value="${g.id}">${escapeHTML(g.name)}（${g.images.length}枚）</option>`).join('');
+  quick.value = activeGroupId || '';
+  modalSel.value = activeGroupId || '';
+}
+
+function applyGroup(id){
+  const g = slideshowGroups.find(x=>x.id===id);
+  if(!g || !g.images.length) return;
+  activeGroupId = id;
+  bgImages = [...g.images];
+  bgPositions = (g.positions && g.positions.length ? g.positions : g.images.map(defaultPosition)).map(p=>({...p}));
+  bgIndex = -1;
+  onImagesChanged();
+  showImage(0);
+  restartSlideshow();
+  scheduleImageSave();
+  persistActiveGroupId();
+  renderModalList();
+  renderGroupSelectors();
+}
+
+function handleGroupSelectChange(id){
+  if(!id){
+    activeGroupId = null;
+    persistActiveGroupId();
+    renderGroupSelectors();
+    return;
+  }
+  applyGroup(id);
+}
+$('#groupQuickSwitch').addEventListener('change', (e)=> handleGroupSelectChange(e.target.value));
+$('#modalGroupSelect').addEventListener('change', (e)=> handleGroupSelectChange(e.target.value));
+
+$('#modalGroupSaveBtn').addEventListener('click', async ()=>{
+  const name = $('#modalGroupNameInput').value.trim();
+  if(!name){ $('#modalGroupNameInput').focus(); return; }
+  if(!bgImages.length){ return; }
+  const existing = slideshowGroups.find(g=>g.id===activeGroupId);
+  if(existing){
+    existing.name = name;
+    existing.images = [...bgImages];
+    existing.positions = bgPositions.map(p=>({...p}));
+  } else {
+    const newGroup = { id:'grp_'+Date.now(), name, images:[...bgImages], positions:bgPositions.map(p=>({...p})) };
+    slideshowGroups.push(newGroup);
+    activeGroupId = newGroup.id;
+  }
+  await saveSlideshowGroupsToStorage();
+  await persistActiveGroupId();
+  renderGroupSelectors();
+  $('#modalGroupNameInput').value = '';
+});
+
+$('#modalGroupDeleteBtn').addEventListener('click', async ()=>{
+  const id = $('#modalGroupSelect').value;
+  if(!id) return;
+  slideshowGroups = slideshowGroups.filter(g=>g.id!==id);
+  if(activeGroupId === id){ activeGroupId = null; await persistActiveGroupId(); }
+  await saveSlideshowGroupsToStorage();
+  renderGroupSelectors();
+});
+
+loadSlideshowGroups();
 
 /* =========================================================
    スライドショー作成モーダル
@@ -1202,6 +1344,60 @@ function playFinishFanfare(){
   playBeep(660,0.15,0,0.6); playBeep(880,0.15,0.16,0.6); playBeep(1046,0.24,0.32,0.6);
 }
 
+/* --- カウントダウン音声（3・2・1）---
+   Web Speech APIで、落ち着いた女性の声を優先的に選んで読み上げます。
+   音声合成が使えない環境では、従来のビープ音に自動でフォールバックします。 */
+let cachedVoices = [];
+let calmFemaleVoice = null;
+
+function pickCalmFemaleVoice(voices){
+  if(!voices || !voices.length) return null;
+  const jaVoices = voices.filter(v => (v.lang||'').toLowerCase().startsWith('ja'));
+  const pool = jaVoices.length ? jaVoices : voices;
+  // 日本語の女性ボイスによくある名称・キーワードを優先的に探す
+  const femaleNamePattern = /female|woman|女性|kyoko|京子|o-ren|sakura|nozomi|haruka|ayumi|mizuki|josei/i;
+  const femaleMatch = pool.find(v => femaleNamePattern.test(v.name));
+  return femaleMatch || pool[0] || null;
+}
+function refreshVoiceList(){
+  if(!('speechSynthesis' in window)) return;
+  cachedVoices = window.speechSynthesis.getVoices();
+  if(cachedVoices.length) calmFemaleVoice = pickCalmFemaleVoice(cachedVoices);
+}
+if('speechSynthesis' in window){
+  refreshVoiceList();
+  window.speechSynthesis.onvoiceschanged = refreshVoiceList;
+}
+/* iOS Safari等、発話に「ユーザー操作の直後」を要求するブラウザ向けに、
+   スタートボタンを押した瞬間に無音の発話を1回挟んで発話機能を有効化しておく */
+function primeSpeechSynthesis(){
+  if(!('speechSynthesis' in window)) return;
+  try{
+    const primer = new SpeechSynthesisUtterance(' ');
+    primer.volume = 0;
+    window.speechSynthesis.speak(primer);
+  }catch(err){ /* noop */ }
+}
+
+function speakCountdownNumber(n){
+  try{
+    if(!('speechSynthesis' in window) || !calmFemaleVoice){
+      playCountdownTick(); // フォールバック：音声合成が使えない場合はビープ音
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(String(n));
+    utter.voice = calmFemaleVoice;
+    utter.lang = calmFemaleVoice.lang || 'ja-JP';
+    utter.rate = 0.85;   // 落ち着いたテンポ
+    utter.pitch = 0.92;  // 落ち着いたやや低めのトーン
+    utter.volume = 1;
+    window.speechSynthesis.speak(utter);
+  }catch(err){
+    console.error('speech synthesis error', err);
+    playCountdownTick();
+  }
+}
+
 /* --- 実行シーケンスの組み立て --- */
 function buildSimpleSequence(){
   const work = Math.max(1, parseInt(workInput.value)||40);
@@ -1254,6 +1450,7 @@ function startTimer(){
     timerState.status = 'active';
     timerState.lastWholeSecond = Math.ceil(first.duration);
     playSessionStartBeep(); // スタート時の確認音（約1秒の「ピーッ」）
+    primeSpeechSynthesis();
   }
   timerState.running = true;
   startBtn.textContent = '一時停止';
@@ -1316,7 +1513,7 @@ function loopTimer(){
   if(wholeSecRemaining !== timerState.lastWholeSecond && wholeSecRemaining < timerState.lastWholeSecond){
     timerState.lastWholeSecond = wholeSecRemaining;
     if(wholeSecRemaining >= 1 && wholeSecRemaining <= 3){
-      playCountdownTick();
+      speakCountdownNumber(wholeSecRemaining);
     } else if(wholeSecRemaining >= 1 && step.type === 'work'){
       playWorkTick();
     }
