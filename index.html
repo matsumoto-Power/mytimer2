@@ -124,8 +124,10 @@
   /* ===== 画像 全画面表示モード ===== */
   body.fullscreen-image #controlPane{ display:none; }
   body.fullscreen-image #imagePane{ border:none; }
-  body.fullscreen-image .image-actions,
+  body.fullscreen-image #imagePickBtnFooter,
+  body.fullscreen-image #slideshowOpenBtn,
   body.fullscreen-image .fullscreen-toggle-btn{ display:none !important; }
+  body.fullscreen-image .image-actions{ display:flex; }
 
   .image-nav{ position:absolute; top:50%; transform:translateY(-50%); width:100%; display:flex; justify-content:space-between; padding:0 14px; pointer-events:none; }
   .image-nav button{
@@ -220,7 +222,8 @@
   .phase-badge.work{ background:rgba(255,93,58,0.18); color:var(--accent-work); border:1px solid rgba(255,93,58,0.4);}
   .phase-badge.rest{ background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4);}
   .phase-badge.idle{ background:rgba(128,128,128,0.16); color:var(--panel-muted); border:1px solid var(--panel-hairline);}
-  .set-label{ font-size:13px; letter-spacing:2px; color:var(--panel-muted); font-weight:600;}
+  .set-label{ font-size:30px; letter-spacing:1px; color:var(--panel-text); font-weight:800;}
+  .step-label{ font-size:11px; letter-spacing:2px; color:var(--panel-muted); font-weight:600;}
   .timer-controls{ display:flex; gap:10px; margin-top:4px; }
   .ctrl-btn{ appearance:none; cursor:pointer; border:none; padding:12px 24px; border-radius:14px; font-weight:700; font-size:14px; letter-spacing:1px; transition: all .2s ease;}
   .ctrl-btn.start{ background:var(--accent-amber); color:#ffffff; }
@@ -339,6 +342,12 @@
   #bgFileInputReplace, #bgFileInputAppend{ display:none; }
 
   .ring-svg{ width:min(70vh, 260px); height:auto; max-width:100%; }
+  #ringNumber.countdown-pulse{ animation: countdownPulse 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes countdownPulse{
+    0%{ transform: scale(1); opacity: 1; }
+    30%{ transform: scale(1.07); opacity: 0.85; }
+    100%{ transform: scale(1); opacity: 1; }
+  }
 
   /* ===== コンテナクエリ：ペインの実際の幅に応じて縮小 =====
      縦横切り替えでペイン幅が変わっても、見切れずに収まるようにする */
@@ -461,8 +470,9 @@
               <circle id="progressRing" cx="150" cy="150" r="132" fill="none" stroke="var(--accent-amber)" stroke-width="14"
                 stroke-linecap="round" stroke-dasharray="829.4" stroke-dashoffset="0"
                 transform="rotate(-90 150 150)" style="transition: stroke-dashoffset 0.9s linear, stroke 0.4s ease;"/>
-              <text x="150" y="145" text-anchor="middle" id="ringNumber" fill="currentColor" font-size="80" font-family="Oswald, sans-serif" font-weight="600">00:00</text>
-              <text x="150" y="182" text-anchor="middle" class="set-label" id="setLabel" fill="currentColor" font-size="15" font-family="Inter, sans-serif" font-weight="600" letter-spacing="2">SET 0 / 0</text>
+              <text x="150" y="135" text-anchor="middle" id="ringNumber" fill="currentColor" font-size="72" font-family="Oswald, sans-serif" font-weight="600">00:00</text>
+              <text x="150" y="183" text-anchor="middle" class="set-label" id="setLabel" fill="currentColor" font-size="32" font-family="Oswald, sans-serif" font-weight="700" letter-spacing="1">SET 0 / 0</text>
+              <text x="150" y="208" text-anchor="middle" class="step-label" id="stepLabel" fill="currentColor" font-size="13" font-family="Inter, sans-serif" font-weight="600" letter-spacing="2" opacity="0.6"></text>
             </svg>
             <div class="timer-controls">
               <button class="ctrl-btn start" id="startBtn">スタート</button>
@@ -1081,6 +1091,7 @@ const RING_CIRC = 2 * Math.PI * 132;
 const ring = $('#progressRing');
 const ringNumber = $('#ringNumber');
 const setLabel = $('#setLabel');
+const stepLabel = $('#stepLabel');
 const phaseBadge = $('#phaseBadge');
 const startBtn = $('#startBtn');
 const resetBtn = $('#resetBtn');
@@ -1104,6 +1115,7 @@ let timerState = {
   phaseDuration:0,
   rafId:null,
   remainingOnPause: undefined,
+  lastWholeSecond: null, // 秒刻み音の重複再生を防ぐためのトラッカー
 };
 
 function fmtMMSS(totalSeconds){
@@ -1125,8 +1137,12 @@ function updatePhaseBadge(phase){
 }
 
 /* --- ビープ音（Web Audio API） ---
-   WORK開始（REST→WORK、および最初のスタート）: 「ピッ」（単発）
-   REST開始（WORK→REST）                  : 「ピピッ」（2連続）
+   スタート時          : 「ピーッ」と長め（約1秒）の確認音を1回
+   WORK中              : 1秒ごとに小さな「ピッ」で時間を刻む
+   REST中              : 基本は無音
+   切り替わりの3秒前   : WORK/REST問わず、毎秒カウントダウン音
+   WORK⇔REST切り替わり : 「ポーン」というチャイム音
+   全ステップ終了時     : ファンファーレ
 */
 let audioCtx = null;
 function playBeep(freq=880, duration=0.16, delay=0, peakGain=0.55){
@@ -1145,15 +1161,43 @@ function playBeep(freq=880, duration=0.16, delay=0, peakGain=0.55){
     osc.stop(t0 + duration + 0.02);
   }catch(err){ console.error('audio error', err); }
 }
-function playWorkStartBeep(){
-  // ピッ（単発、やや高め）
-  playBeep(920, 0.18, 0, 0.6);
+
+/* スタート時の長め確認音（約1秒の「ピーッ」） */
+function playSessionStartBeep(){
+  playBeep(760, 1.0, 0, 0.65);
 }
-function playRestStartBeep(){
-  // ピピッ（2連続）
-  playBeep(740, 0.13, 0, 0.6);
-  playBeep(740, 0.13, 0.16, 0.6);
+
+/* WORK中、1秒ごとの小さな刻み音 */
+function playWorkTick(){
+  playBeep(1050, 0.045, 0, 0.22);
 }
+
+/* 切り替わり3秒前からのカウントダウン音（WORK/REST共通） */
+function playCountdownTick(){
+  playBeep(880, 0.09, 0, 0.55);
+}
+
+/* WORK⇔REST切り替わりの「ポーン」チャイム（倍音を重ねたベル風の音） */
+function playTransitionChime(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    const duration = 0.7;
+    [ {mult:1, gain:0.5}, {mult:2.01, gain:0.22}, {mult:3.0, gain:0.12} ].forEach(({mult, gain: g})=>{
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 523.25 * mult; // C5 を基音にしたベル風
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(g, t0 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.05);
+    });
+  }catch(err){ console.error('audio error', err); }
+}
+
 function playFinishFanfare(){
   playBeep(660,0.15,0,0.6); playBeep(880,0.15,0.16,0.6); playBeep(1046,0.24,0.32,0.6);
 }
@@ -1194,6 +1238,11 @@ function setInputsDisabled(disabled){
   $$('.mode-btn').forEach(b => b.disabled = disabled);
 }
 
+function updateSetStepLabels(step){
+  setLabel.textContent = `SET ${step.setNumber} / ${step.totalSets}`;
+  stepLabel.textContent = timerMode === 'circuit' ? `STEP ${step.stepInSet} / ${step.totalStepsInSet}` : '';
+}
+
 function startTimer(){
   if(timerState.status === 'idle' || timerState.status === 'done'){
     sequence = buildSequence();
@@ -1203,7 +1252,8 @@ function startTimer(){
     timerState.phaseDuration = first.duration;
     timerState.phaseEnd = Date.now() + first.duration*1000;
     timerState.status = 'active';
-    (first.type === 'work' ? playWorkStartBeep : playRestStartBeep)();
+    timerState.lastWholeSecond = Math.ceil(first.duration);
+    playSessionStartBeep(); // スタート時の確認音（約1秒の「ピーッ」）
   }
   timerState.running = true;
   startBtn.textContent = '一時停止';
@@ -1230,21 +1280,22 @@ function resetTimer(){
   timerState.status = 'idle';
   timerState.index = -1;
   timerState.remainingOnPause = undefined;
+  timerState.lastWholeSecond = null;
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
   setInputsDisabled(false);
   updatePhaseBadge('idle');
   startBtn.textContent = 'スタート';
+  ringNumber.classList.remove('countdown-pulse');
 
   const preview = buildSequence();
   if(preview.length){
     const first = preview[0];
     ringNumber.textContent = fmtMMSS(first.duration);
-    setLabel.textContent = timerMode === 'circuit'
-      ? `SET 1/${first.totalSets} ・ STEP 1/${first.totalStepsInSet}`
-      : `SET 1 / ${first.totalSets}`;
+    updateSetStepLabels(first);
   } else {
     ringNumber.textContent = '00:00';
     setLabel.textContent = timerMode === 'circuit' ? 'ステップ未設定' : 'SET 1 / 1';
+    stepLabel.textContent = '';
   }
   setRingProgress(1, 'var(--accent-amber)');
 }
@@ -1256,11 +1307,21 @@ function loopTimer(){
 
   updatePhaseBadge(step.type);
   ringNumber.textContent = fmtMMSS(remaining);
-  setLabel.textContent = timerMode === 'circuit'
-    ? `SET ${step.setNumber}/${step.totalSets} ・ STEP ${step.stepInSet}/${step.totalStepsInSet}`
-    : `SET ${step.setNumber} / ${step.totalSets}`;
+  updateSetStepLabels(step);
   const color = step.type==='work' ? 'var(--accent-work)' : 'var(--accent-rest)';
   setRingProgress(remaining / timerState.phaseDuration, color);
+
+  // 1秒刻みの音（WORK中の刻み音／切り替わり3秒前のカウントダウン音）
+  const wholeSecRemaining = Math.max(0, Math.ceil(remaining - 0.0001));
+  if(wholeSecRemaining !== timerState.lastWholeSecond && wholeSecRemaining < timerState.lastWholeSecond){
+    timerState.lastWholeSecond = wholeSecRemaining;
+    if(wholeSecRemaining >= 1 && wholeSecRemaining <= 3){
+      playCountdownTick();
+    } else if(wholeSecRemaining >= 1 && step.type === 'work'){
+      playWorkTick();
+    }
+  }
+  ringNumber.classList.toggle('countdown-pulse', wholeSecRemaining >= 1 && wholeSecRemaining <= 3);
 
   if(remaining <= 0){
     advanceStep();
@@ -1269,6 +1330,7 @@ function loopTimer(){
 }
 
 function advanceStep(){
+  const prevStep = sequence[timerState.index];
   timerState.index++;
   if(timerState.index >= sequence.length){
     finishTimer();
@@ -1277,7 +1339,11 @@ function advanceStep(){
   const step = sequence[timerState.index];
   timerState.phaseDuration = step.duration;
   timerState.phaseEnd = Date.now() + step.duration*1000;
-  (step.type === 'work' ? playWorkStartBeep : playRestStartBeep)();
+  timerState.lastWholeSecond = Math.ceil(step.duration);
+  ringNumber.classList.remove('countdown-pulse');
+  if(!prevStep || step.type !== prevStep.type){
+    playTransitionChime(); // WORK⇔REST切り替わりの「ポーン」
+  }
 }
 
 function finishTimer(){
@@ -1285,7 +1351,9 @@ function finishTimer(){
   timerState.status = 'done';
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
   updatePhaseBadge('done');
+  ringNumber.classList.remove('countdown-pulse');
   ringNumber.textContent = '完了';
+  stepLabel.textContent = '';
   setRingProgress(1, 'var(--accent-amber)');
   playFinishFanfare();
   startBtn.textContent = 'スタート';
