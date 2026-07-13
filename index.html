@@ -105,7 +105,7 @@
   .image-empty button:hover{ filter:brightness(1.1); }
 
   .fullscreen-toggle-btn{
-    position:absolute; top:14px; right:14px; z-index:6;
+    position:absolute; top:14px; right:14px; z-index:10;
     appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.38);
     color:#F5F3EC; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     backdrop-filter: blur(6px); transition: background .2s ease;
@@ -113,13 +113,33 @@
   .fullscreen-toggle-btn:hover{ background:rgba(0,0,0,0.55); }
   .fullscreen-toggle-btn svg{ width:17px; height:17px; }
   .fullscreen-exit-btn{
-    position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:14px; z-index:6;
+    position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:14px; z-index:10;
     appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.45);
     color:#F5F3EC; padding:10px 16px; border-radius:999px; display:flex; align-items:center; gap:7px;
     font-size:12.5px; font-weight:700; backdrop-filter: blur(8px);
   }
   .fullscreen-exit-btn:hover{ background:rgba(0,0,0,0.6); }
   .fullscreen-exit-btn svg{ width:15px; height:15px; }
+
+  /* ===== 参考動画：画像ペイン内の動画オーバーレイ ===== */
+  .video-overlay{ position:absolute; inset:0; background:#000; display:none; z-index:8; }
+  .video-overlay.show{ display:block; }
+  .video-frame-wrap{ position:absolute; inset:0; }
+  .video-frame-wrap iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .video-close-btn{
+    position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); left:14px; z-index:9;
+    appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.55);
+    color:#F5F3EC; padding:10px 16px; border-radius:999px; display:flex; align-items:center; gap:7px;
+    font-size:12.5px; font-weight:700; backdrop-filter: blur(8px);
+  }
+  .video-close-btn:hover{ background:rgba(0,0,0,0.7); }
+  .video-close-btn svg{ width:15px; height:15px; }
+  /* 動画表示中は、画像用のUIを隠す（全画面ボタンは動画にも使うため残す） */
+  #imagePane.video-active .image-empty,
+  #imagePane.video-active .image-nav,
+  #imagePane.video-active .image-footer,
+  #imagePane.video-active .group-quick-switch,
+  #imagePane.video-active .position-toast{ display:none !important; }
 
   .group-quick-switch{
     position:absolute; top:14px; left:14px; z-index:6; max-width:min(52%, 220px);
@@ -347,6 +367,45 @@
   textarea:focus{ outline:2px solid var(--accent-amber); }
   .memo-status{ font-size:11px; color:var(--panel-muted); text-align:right; height:14px; }
 
+  /* ===== 参考動画タブ ===== */
+  .video-tab-wrap{ flex:1; display:flex; }
+  .video-list-card{ flex:1; padding:22px 24px; display:flex; flex-direction:column; gap:12px; min-height:0; }
+  .video-ref-hint{ font-size:12px; color:var(--panel-muted); line-height:1.6; margin-top:-4px; }
+  .video-ref-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1; min-height:0; }
+  .video-ref-empty{ font-size:13px; color:var(--panel-muted); text-align:center; padding:30px 10px; }
+  .video-ref-item{
+    border:1px solid var(--panel-hairline); border-radius:14px; overflow:hidden;
+    background:rgba(128,128,128,0.08);
+  }
+  .video-ref-header{
+    appearance:none; cursor:pointer; border:none; width:100%; text-align:left; background:transparent;
+    color:var(--panel-text); padding:13px 14px; display:flex; align-items:center; gap:10px; font-weight:700; font-size:14px;
+  }
+  .video-ref-header:hover{ background:rgba(128,128,128,0.08); }
+  .video-ref-chevron{ display:inline-flex; transition:transform .2s ease; color:var(--panel-muted); flex:0 0 auto; }
+  .video-ref-item.open .video-ref-chevron{ transform:rotate(90deg); }
+  .video-ref-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .video-ref-name.placeholder{ color:var(--panel-muted); font-weight:600; }
+  .video-ref-badge{ flex:0 0 auto; font-size:10px; padding:3px 8px; border-radius:999px; background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4); font-weight:700; }
+  .video-ref-body{ padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
+  .video-ref-body .field label{ font-size:10.5px; }
+  .video-ref-body input[type=text]{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
+  }
+  .video-ref-actions{ display:flex; gap:8px; }
+  .video-play-btn{
+    flex:1; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
+    padding:11px; border-radius:10px; font-weight:800; font-size:13px;
+  }
+  .video-play-btn:hover{ filter:brightness(1.08); }
+  .video-play-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+  .video-delete-btn{
+    flex:0 0 auto; appearance:none; cursor:pointer; border:1px solid rgba(255,93,58,0.4); background:rgba(255,93,58,0.16);
+    color:var(--accent-work); padding:11px 16px; border-radius:10px; font-weight:700; font-size:12.5px;
+  }
+  .video-delete-btn:hover{ background:rgba(255,93,58,0.26); }
+
   #bgFileInputReplace, #bgFileInputAppend{ display:none; }
 
   .ring-svg{ width:min(70vh, 260px); height:auto; max-width:100%; }
@@ -458,6 +517,7 @@
         <button class="tab-btn active" data-tab="clock">時計</button>
         <button class="tab-btn" data-tab="timer">インターバル</button>
         <button class="tab-btn" data-tab="sub">コンディション</button>
+        <button class="tab-btn" data-tab="videos">参考動画</button>
       </nav>
       <div class="top-actions">
         <button class="icon-btn" id="panelThemeBtn" title="文字パネルの色を切り替え">
@@ -573,6 +633,20 @@
           </div>
         </div>
       </section>
+
+      <!-- ===== 参考動画タブ ===== -->
+      <section class="tab-panel" id="tab-videos">
+        <div class="video-tab-wrap">
+          <div class="panel video-list-card">
+            <div class="settings-title">🎬 参考動画リスト</div>
+            <div class="video-ref-hint">トレーニング名/ストレッチ名をタップすると詳細が開きます。YouTubeのリンクを貼って再生できます。</div>
+            <div class="video-ref-list" id="videoRefList">
+              <div class="video-ref-empty">まだ動画が登録されていません。「＋ 追加」から登録してください。</div>
+            </div>
+            <button class="modal-add-btn" id="videoAddBtn">＋ トレーニング/ストレッチを追加</button>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -593,6 +667,18 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3"/></svg>
       <span>全画面を終了</span>
     </button>
+
+    <div class="video-overlay" id="videoOverlay">
+      <button class="video-close-btn" id="videoCloseBtn" title="動画を閉じて画像に戻る">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <span>動画を閉じる</span>
+      </button>
+      <div class="video-frame-wrap">
+        <iframe id="videoIframe" src="" title="参考動画"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
+      </div>
+    </div>
 
     <div class="position-toast" id="positionToast">
       <span>ドラッグして表示位置を調整</span>
@@ -837,10 +923,11 @@ $('#bgFileInputReplace').addEventListener('change', async (e)=>{
 
 function onImagesChanged(){
   const has = bgImages.length > 0;
-  $('#imageEmpty').style.display = has ? 'none' : 'flex';
-  $('#imageNav').style.display = has && bgImages.length > 1 ? 'flex' : 'none';
-  $('#imageFooter').style.display = has ? 'flex' : 'none';
-  $('#fullscreenToggleBtn').style.display = has && !document.body.classList.contains('fullscreen-image') ? 'flex' : 'none';
+  const videoActive = imagePane.classList.contains('video-active');
+  $('#imageEmpty').style.display = (has || videoActive) ? 'none' : 'flex';
+  $('#imageNav').style.display = has && bgImages.length > 1 && !videoActive ? 'flex' : 'none';
+  $('#imageFooter').style.display = has && !videoActive ? 'flex' : 'none';
+  $('#fullscreenToggleBtn').style.display = (has || videoActive) && !document.body.classList.contains('fullscreen-image') ? 'flex' : 'none';
   renderDots();
 }
 
@@ -880,7 +967,7 @@ $('#imageNextBtn').addEventListener('click', ()=>{ showImage(bgIndex+1); restart
 
 /* --- 画像の全画面表示モード（タイマー等は非表示、スライドショーはそのまま継続） --- */
 function enterImageFullscreen(){
-  if(bgIndex < 0) return;
+  if(bgIndex < 0 && !imagePane.classList.contains('video-active')) return;
   document.body.classList.add('fullscreen-image');
   $('#fullscreenToggleBtn').style.display = 'none';
   $('#fullscreenExitBtn').style.display = 'flex';
@@ -888,7 +975,7 @@ function enterImageFullscreen(){
 function exitImageFullscreen(){
   document.body.classList.remove('fullscreen-image');
   $('#fullscreenExitBtn').style.display = 'none';
-  $('#fullscreenToggleBtn').style.display = bgImages.length ? 'flex' : 'none';
+  $('#fullscreenToggleBtn').style.display = (bgImages.length || imagePane.classList.contains('video-active')) ? 'flex' : 'none';
 }
 $('#fullscreenToggleBtn').addEventListener('click', enterImageFullscreen);
 $('#fullscreenExitBtn').addEventListener('click', exitImageFullscreen);
@@ -1900,6 +1987,145 @@ $('#memoArea').addEventListener('input', (e)=>{
 });
 
 loadMemo();
+
+/* =========================================================
+   参考動画（トレーニング/ストレッチのYouTube参考動画リスト）
+========================================================= */
+const VIDEOS_KEY = 'reference-videos';
+let referenceVideos = []; // [{id, name, youtubeUrl}]
+let openVideoItemId = null;
+let videoSaveTimeout = null;
+
+function extractYouTubeId(url){
+  if(!url) return null;
+  const m = String(url).match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+async function loadReferenceVideos(){
+  try{
+    const raw = await storageGet(VIDEOS_KEY);
+    referenceVideos = raw ? JSON.parse(raw) : [];
+  }catch(err){
+    referenceVideos = [];
+  }
+  renderVideoRefList();
+}
+function scheduleVideoSave(){
+  if(videoSaveTimeout) clearTimeout(videoSaveTimeout);
+  videoSaveTimeout = setTimeout(async ()=>{
+    await storageSet(VIDEOS_KEY, JSON.stringify(referenceVideos));
+  }, 500);
+}
+
+function renderVideoRefList(){
+  const wrap = $('#videoRefList');
+  if(!referenceVideos.length){
+    wrap.innerHTML = '<div class="video-ref-empty">まだ動画が登録されていません。「＋ 追加」から登録してください。</div>';
+    return;
+  }
+  wrap.innerHTML = referenceVideos.map(v=>{
+    const isOpen = v.id === openVideoItemId;
+    const hasName = v.name && v.name.trim();
+    return `
+      <div class="video-ref-item${isOpen?' open':''}" data-id="${v.id}">
+        <button class="video-ref-header" data-act="toggle">
+          <span class="video-ref-chevron">▸</span>
+          <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(v.name) : '（名称未設定）'}</span>
+        </button>
+        <div class="video-ref-body" style="display:${isOpen?'flex':'none'};">
+          <div class="field">
+            <label>トレーニング/ストレッチ名</label>
+            <input type="text" class="video-name-input" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="例）プランク、肩甲骨ストレッチ">
+          </div>
+          <div class="field">
+            <label>YouTubeリンク</label>
+            <input type="text" class="video-url-input" data-field="youtubeUrl" value="${escapeHTML(v.youtubeUrl||'')}" placeholder="https://www.youtube.com/watch?v=...">
+          </div>
+          <div class="video-ref-actions">
+            <button class="video-play-btn" data-act="play" ${extractYouTubeId(v.youtubeUrl) ? '' : 'disabled'}>▶ 再生する</button>
+            <button class="video-delete-btn" data-act="delete">削除</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  wrap.querySelectorAll('.video-ref-item').forEach(item=>{
+    const id = item.dataset.id;
+    item.querySelector('[data-act="toggle"]').addEventListener('click', ()=>{
+      openVideoItemId = (openVideoItemId === id) ? null : id;
+      renderVideoRefList();
+      if(openVideoItemId === id){
+        const nameInput = wrap.querySelector(`.video-ref-item[data-id="${id}"] .video-name-input`);
+        if(nameInput && !nameInput.value) nameInput.focus();
+      }
+    });
+    const nameInput = item.querySelector('[data-field="name"]');
+    const urlInput = item.querySelector('[data-field="youtubeUrl"]');
+    if(nameInput){
+      nameInput.addEventListener('change', ()=>{
+        const entry = referenceVideos.find(v=>v.id===id);
+        entry.name = nameInput.value;
+        scheduleVideoSave();
+        renderVideoRefList();
+      });
+    }
+    if(urlInput){
+      urlInput.addEventListener('change', ()=>{
+        const entry = referenceVideos.find(v=>v.id===id);
+        entry.youtubeUrl = urlInput.value.trim();
+        scheduleVideoSave();
+        renderVideoRefList();
+      });
+    }
+    const playBtn = item.querySelector('[data-act="play"]');
+    if(playBtn){
+      playBtn.addEventListener('click', ()=>{
+        const entry = referenceVideos.find(v=>v.id===id);
+        playReferenceVideo(entry.youtubeUrl);
+      });
+    }
+    const deleteBtn = item.querySelector('[data-act="delete"]');
+    if(deleteBtn){
+      deleteBtn.addEventListener('click', ()=>{
+        referenceVideos = referenceVideos.filter(v=>v.id!==id);
+        if(openVideoItemId === id) openVideoItemId = null;
+        scheduleVideoSave();
+        renderVideoRefList();
+      });
+    }
+  });
+}
+
+$('#videoAddBtn').addEventListener('click', ()=>{
+  const entry = { id: mkId(), name:'', youtubeUrl:'' };
+  referenceVideos.push(entry);
+  openVideoItemId = entry.id;
+  renderVideoRefList();
+  scheduleVideoSave();
+  const nameInput = $(`.video-ref-item[data-id="${entry.id}"] .video-name-input`);
+  if(nameInput) nameInput.focus();
+});
+
+/* --- 動画の再生（画像ペイン内に表示、全画面表示にも対応） --- */
+function playReferenceVideo(youtubeUrl){
+  const videoId = extractYouTubeId(youtubeUrl);
+  if(!videoId) return;
+  $('#videoIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  imagePane.classList.add('video-active');
+  $('#videoOverlay').classList.add('show');
+  onImagesChanged();
+}
+function closeReferenceVideo(){
+  $('#videoOverlay').classList.remove('show');
+  $('#videoIframe').src = ''; // 再生を確実に停止
+  imagePane.classList.remove('video-active');
+  onImagesChanged(); // 画像側のUI表示状態を再計算
+}
+$('#videoCloseBtn').addEventListener('click', closeReferenceVideo);
+
+loadReferenceVideos();
 </script>
 </body>
 </html>
