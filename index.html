@@ -146,8 +146,10 @@
     appearance:none; cursor:pointer; border:1px solid rgba(245,243,236,0.28); background:rgba(0,0,0,0.45);
     color:#F5F3EC; padding:9px 12px; border-radius:999px; font-size:12px; font-weight:700;
     backdrop-filter: blur(8px);
+    opacity:0; pointer-events:none; transition: opacity .35s ease;
   }
   .group-quick-switch option{ color:#14171A; }
+  #imagePane.controls-visible .group-quick-switch{ opacity:1; pointer-events:auto; }
 
   /* ===== 画像 全画面表示モード ===== */
   body.fullscreen-image #controlPane{ display:none; }
@@ -165,8 +167,11 @@
   }
   .image-nav button:hover{ background:rgba(0,0,0,0.55); }
 
-  .image-footer{ position:absolute; left:0; right:0; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; align-items:center; gap:9px; pointer-events:none; }
-  .image-footer > *{ pointer-events:all; }
+  .image-footer{
+    position:absolute; left:0; right:0; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; align-items:center; gap:9px;
+    opacity:0; pointer-events:none; transition: opacity .35s ease;
+  }
+  #imagePane.controls-visible .image-footer{ opacity:1; pointer-events:auto; }
   .image-dots{ display:flex; gap:6px; }
   .image-dots span{ width:6px; height:6px; border-radius:50%; background:rgba(245,243,236,0.35); transition: all .25s ease; }
   .image-dots span.active{ background:var(--accent-amber); width:18px; border-radius:4px; }
@@ -393,18 +398,19 @@
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
   }
-  .video-ref-actions{ display:flex; gap:8px; }
   .video-play-btn{
-    flex:1; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
-    padding:11px; border-radius:10px; font-weight:800; font-size:13px;
+    width:100%; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
+    padding:13px; border-radius:10px; font-weight:800; font-size:14px;
   }
   .video-play-btn:hover{ filter:brightness(1.08); }
   .video-play-btn:disabled{ opacity:0.45; cursor:not-allowed; }
   .video-delete-btn{
-    flex:0 0 auto; appearance:none; cursor:pointer; border:1px solid rgba(255,93,58,0.4); background:rgba(255,93,58,0.16);
-    color:var(--accent-work); padding:11px 16px; border-radius:10px; font-weight:700; font-size:12.5px;
+    width:100%; appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:transparent;
+    color:var(--panel-muted); padding:10px; border-radius:10px; font-weight:600; font-size:11.5px;
+    margin-top:6px; padding-top:14px; border-top:1px dashed var(--panel-hairline); border-left:none; border-right:none; border-bottom:none;
   }
-  .video-delete-btn:hover{ background:rgba(255,93,58,0.26); }
+  .video-delete-btn:hover{ color:var(--accent-work); }
+
 
   #bgFileInputReplace, #bgFileInputAppend{ display:none; }
 
@@ -929,6 +935,7 @@ function onImagesChanged(){
   $('#imageFooter').style.display = has && !videoActive ? 'flex' : 'none';
   $('#fullscreenToggleBtn').style.display = (has || videoActive) && !document.body.classList.contains('fullscreen-image') ? 'flex' : 'none';
   renderDots();
+  if(has && !videoActive) showImageControls();
 }
 
 function renderDots(){
@@ -985,6 +992,21 @@ window.matchMedia('(orientation: portrait)').addEventListener('change', ()=>{
   if(bgIndex >= 0) applyPositionToSlide(activeSlide, bgIndex);
 });
 
+/* --- 画像エリアのUI自動表示/非表示 ---
+   スライドショー名や各種ボタンは普段は非表示にしておき、
+   画面（画像表示ゾーン）に触れたときだけ一時的に表示する。
+   左右の送り矢印（.image-nav）は常に表示のまま対象外。 */
+let controlsHideTimeout = null;
+function showImageControls(autoHideDelay = 3200){
+  imagePane.classList.add('controls-visible');
+  if(controlsHideTimeout) clearTimeout(controlsHideTimeout);
+  controlsHideTimeout = setTimeout(()=>{
+    if(!positionModeActive){ imagePane.classList.remove('controls-visible'); }
+  }, autoHideDelay);
+}
+imagePane.addEventListener('pointerdown', ()=> showImageControls());
+imagePane.addEventListener('pointermove', ()=> showImageControls());
+
 /* --- 位置調整（ドラッグでパン） --- */
 let positionModeActive = false;
 let dragState = null;
@@ -995,12 +1017,14 @@ $('#positionToggleBtn').addEventListener('click', ()=>{
   imagePane.classList.toggle('position-mode', positionModeActive);
   $('#positionToast').classList.toggle('show', positionModeActive);
   $('#positionToggleBtn').classList.toggle('on', positionModeActive);
+  showImageControls();
 });
 $('#positionDoneBtn').addEventListener('click', ()=>{
   positionModeActive = false;
   imagePane.classList.remove('position-mode');
   $('#positionToast').classList.remove('show');
   $('#positionToggleBtn').classList.remove('on');
+  showImageControls();
 });
 $('#positionResetBtn').addEventListener('click', ()=>{
   if(bgIndex < 0) return;
@@ -2024,7 +2048,10 @@ function renderVideoRefList(){
     wrap.innerHTML = '<div class="video-ref-empty">まだ動画が登録されていません。「＋ 追加」から登録してください。</div>';
     return;
   }
-  wrap.innerHTML = referenceVideos.map(v=>{
+  const collator = new Intl.Collator('ja', { usage: 'sort', sensitivity: 'base' });
+  const sorted = [...referenceVideos].sort((a, b) => collator.compare(a.name || '', b.name || ''));
+
+  wrap.innerHTML = sorted.map(v=>{
     const isOpen = v.id === openVideoItemId;
     const hasName = v.name && v.name.trim();
     return `
@@ -2034,6 +2061,7 @@ function renderVideoRefList(){
           <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(v.name) : '（名称未設定）'}</span>
         </button>
         <div class="video-ref-body" style="display:${isOpen?'flex':'none'};">
+          <button class="video-play-btn" data-act="play" ${extractYouTubeId(v.youtubeUrl) ? '' : 'disabled'}>▶ 再生する</button>
           <div class="field">
             <label>トレーニング/ストレッチ名</label>
             <input type="text" class="video-name-input" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="例）プランク、肩甲骨ストレッチ">
@@ -2042,10 +2070,7 @@ function renderVideoRefList(){
             <label>YouTubeリンク</label>
             <input type="text" class="video-url-input" data-field="youtubeUrl" value="${escapeHTML(v.youtubeUrl||'')}" placeholder="https://www.youtube.com/watch?v=...">
           </div>
-          <div class="video-ref-actions">
-            <button class="video-play-btn" data-act="play" ${extractYouTubeId(v.youtubeUrl) ? '' : 'disabled'}>▶ 再生する</button>
-            <button class="video-delete-btn" data-act="delete">削除</button>
-          </div>
+          <button class="video-delete-btn" data-act="delete">🗑 このトレーニング/ストレッチを削除</button>
         </div>
       </div>
     `;
