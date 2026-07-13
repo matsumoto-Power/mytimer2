@@ -241,7 +241,14 @@
   /* ===== CLOCK TAB ===== */
   #tab-clock .clock-wrap{ flex:1; display:flex; gap:18px; align-items:stretch; flex-wrap:wrap; }
   .clock-card{ flex:1 1 260px; display:flex; align-items:center; justify-content:center; padding:22px; min-height:280px; }
-  .digital-card{ flex:1 1 260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:22px; }
+  .digital-card{ flex:1 1 260px; display:flex; flex-direction:column; padding:22px; min-height:280px; }
+  .digital-card-top{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
+  .digital-card-divider{ height:1px; background:var(--panel-hairline); margin:14px 0; flex:0 0 auto; }
+  .digital-card-bottom{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:12px; }
+  .digital-card-bottom .weather-icon{ font-size:38px; }
+  .digital-card-bottom .weather-temp{ font-size:38px; }
+  .digital-card-bottom .weather-stat{ padding:9px; }
+  .digital-card-bottom .weather-stat .v{ font-size:17px; }
   .digital-time{ font-family:'Oswald',sans-serif; font-weight:600; font-size:min(9vw,84px); line-height:1; letter-spacing:1.5px; }
   .digital-date{ font-size:16px; font-weight:600; color:var(--panel-muted); letter-spacing:1px;}
   .digital-week{ display:flex; gap:8px; margin-top:4px; flex-wrap:wrap; justify-content:center; }
@@ -355,6 +362,8 @@
   .weather-stat .l{ font-size:10px; color:var(--panel-muted); letter-spacing:1px; margin-top:2px; }
 
   .memo-card{ flex:1.3 1 280px; padding:20px 22px; display:flex; flex-direction:column; gap:12px; }
+  .memo-card-full{ flex:1 1 100%; }
+  .memo-card-full textarea{ min-height:260px; }
   .memo-head{ display:flex; align-items:center; justify-content:space-between; }
   .memo-head h3{ margin:0; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--panel-muted); font-weight:700;}
   .weekday-pills{ display:flex; gap:7px; flex-wrap:wrap; }
@@ -411,11 +420,36 @@
   }
   .video-delete-btn:hover{ color:var(--accent-work); }
 
+  /* ===== カレンダータブ ===== */
+  .calendar-tab-wrap{ flex:1; display:flex; }
+  .calendar-card{ flex:1; padding:22px 24px; display:flex; flex-direction:column; gap:14px; }
+  .calendar-header{ display:flex; align-items:center; justify-content:space-between; }
+  .calendar-title{ font-family:'Oswald',sans-serif; font-weight:600; font-size:20px; letter-spacing:1px; }
+  .calendar-nav-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
+    color:var(--panel-text); width:36px; height:36px; border-radius:50%; font-size:18px; display:flex; align-items:center; justify-content:center;
+  }
+  .calendar-nav-btn:hover{ background:rgba(128,128,128,0.22); }
+  .calendar-weekdays{ display:grid; grid-template-columns:repeat(7, 1fr); text-align:center; }
+  .calendar-weekdays span{ font-size:11.5px; font-weight:700; color:var(--panel-muted); letter-spacing:1px; padding-bottom:4px; }
+  .calendar-weekdays span:first-child{ color:var(--accent-work); }
+  .calendar-weekdays span:last-child{ color:var(--accent-rest); }
+  .calendar-grid{ display:grid; grid-template-columns:repeat(7, 1fr); grid-auto-rows:1fr; gap:6px; flex:1; }
+  .calendar-cell{
+    display:flex; align-items:flex-start; justify-content:flex-start; padding:8px;
+    border-radius:12px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06);
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; min-height:56px;
+  }
+  .calendar-cell.muted{ opacity:0.32; }
+  .calendar-cell.today{ background:rgba(168,85,247,0.16); border-color:var(--accent-amber); color:var(--accent-amber); }
+  .calendar-hint{ font-size:11.5px; color:var(--panel-muted); text-align:center; }
+
 
   #bgFileInputReplace, #bgFileInputAppend{ display:none; }
 
   .ring-svg{ width:min(70vh, 260px); height:auto; max-width:100%; }
   #ringNumber.countdown-pulse{ animation: countdownPulse 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  #ringNumber.finish-text{ font-size:44px; letter-spacing:1px; }
   @keyframes countdownPulse{
     0%{ transform: scale(1); opacity: 1; }
     30%{ transform: scale(1.07); opacity: 0.85; }
@@ -431,7 +465,7 @@
     .digital-week span{ padding:4px 8px; font-size:10.5px; }
     .clock-card{ min-height:200px; padding:16px; }
     .ring-svg{ width:min(60cqw, 210px); }
-    .settings-card, .weather-card, .memo-card{ padding:16px; }
+    .settings-card, .memo-card, .digital-card{ padding:16px; }
     .phase-badge{ font-size:15px; letter-spacing:3px; padding:6px 14px; }
     .brand span{ font-size:11px; letter-spacing:1.5px; }
     .tab-btn{ padding:8px 11px; font-size:12px; }
@@ -524,6 +558,7 @@
         <button class="tab-btn" data-tab="timer">インターバル</button>
         <button class="tab-btn" data-tab="sub">コンディション</button>
         <button class="tab-btn" data-tab="videos">参考動画</button>
+        <button class="tab-btn" data-tab="calendar">カレンダー</button>
       </nav>
       <div class="top-actions">
         <button class="icon-btn" id="panelThemeBtn" title="文字パネルの色を切り替え">
@@ -541,9 +576,30 @@
             <canvas id="analogClock" width="280" height="280" style="max-width:100%; height:auto;"></canvas>
           </div>
           <div class="panel digital-card">
-            <div class="digital-time num" id="digitalTime">00:00:00</div>
-            <div class="digital-date" id="digitalDate">----年--月--日</div>
-            <div class="digital-week" id="digitalWeek"></div>
+            <div class="digital-card-top">
+              <div class="digital-time num" id="digitalTime">00:00:00</div>
+              <div class="digital-date" id="digitalDate">----年--月--日</div>
+              <div class="digital-week" id="digitalWeek"></div>
+            </div>
+            <div class="digital-card-divider"></div>
+            <div class="digital-card-bottom">
+              <div class="weather-head">
+                <h3>今日の天気</h3>
+                <span class="weather-badge" id="weatherBadge">サンプルデータ</span>
+              </div>
+              <div class="weather-main">
+                <div class="weather-icon" id="weatherIcon">⛅</div>
+                <div>
+                  <div class="weather-temp num" id="weatherTemp">24°</div>
+                  <div class="weather-desc" id="weatherDesc">晴れ時々くもり</div>
+                </div>
+              </div>
+              <div class="weather-stats">
+                <div class="weather-stat"><div class="v num" id="weatherHumidity">58%</div><div class="l">湿度</div></div>
+                <div class="weather-stat"><div class="v num" id="weatherWind">2.1m</div><div class="l">風速</div></div>
+                <div class="weather-stat"><div class="v num" id="weatherFeels">26°</div><div class="l">体感</div></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -610,26 +666,7 @@
       <!-- ===== SUB TAB ===== -->
       <section class="tab-panel" id="tab-sub">
         <div class="sub-wrap">
-          <div class="panel weather-card">
-            <div class="weather-head">
-              <h3>今日の天気</h3>
-              <span class="weather-badge" id="weatherBadge">サンプルデータ</span>
-            </div>
-            <div class="weather-main">
-              <div class="weather-icon" id="weatherIcon">⛅</div>
-              <div>
-                <div class="weather-temp num" id="weatherTemp">24°</div>
-                <div class="weather-desc" id="weatherDesc">晴れ時々くもり</div>
-              </div>
-            </div>
-            <div class="weather-stats">
-              <div class="weather-stat"><div class="v num" id="weatherHumidity">58%</div><div class="l">湿度</div></div>
-              <div class="weather-stat"><div class="v num" id="weatherWind">2.1m</div><div class="l">風速</div></div>
-              <div class="weather-stat"><div class="v num" id="weatherFeels">26°</div><div class="l">体感</div></div>
-            </div>
-          </div>
-
-          <div class="panel memo-card">
+          <div class="panel memo-card memo-card-full">
             <div class="memo-head">
               <h3>トレーニングメモ</h3>
               <span class="memo-status" id="memoStatus"></span>
@@ -650,6 +687,24 @@
               <div class="video-ref-empty">まだ動画が登録されていません。「＋ 追加」から登録してください。</div>
             </div>
             <button class="modal-add-btn" id="videoAddBtn">＋ トレーニング/ストレッチを追加</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== カレンダータブ ===== -->
+      <section class="tab-panel" id="tab-calendar">
+        <div class="calendar-tab-wrap">
+          <div class="panel calendar-card">
+            <div class="calendar-header">
+              <button class="calendar-nav-btn" id="calendarPrevBtn" aria-label="前の月">‹</button>
+              <div class="calendar-title" id="calendarTitle">----年 --月</div>
+              <button class="calendar-nav-btn" id="calendarNextBtn" aria-label="次の月">›</button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+            <div class="calendar-hint">📌 今後、ここにトレーニングの実施ログを紐付ける予定です。</div>
           </div>
         </div>
       </section>
@@ -1597,7 +1652,7 @@ function resetTimer(){
   updatePhaseBadge('idle');
   startBtn.textContent = 'スタート';
   ringNumber.classList.remove('countdown-pulse');
-
+  ringNumber.classList.remove('finish-text');
   const preview = buildSequence();
   if(preview.length){
     const first = preview[0];
@@ -1663,7 +1718,8 @@ function finishTimer(){
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
   updatePhaseBadge('done');
   ringNumber.classList.remove('countdown-pulse');
-  ringNumber.textContent = '完了';
+  ringNumber.classList.add('finish-text');
+  ringNumber.textContent = 'FINISH!';
   stepLabel.textContent = '';
   setRingProgress(1, 'var(--accent-amber)');
   playFinishFanfare();
@@ -2151,6 +2207,53 @@ function closeReferenceVideo(){
 $('#videoCloseBtn').addEventListener('click', closeReferenceVideo);
 
 loadReferenceVideos();
+
+/* =========================================================
+   カレンダー（月表示）
+   ---------------------------------------------------------
+   今後、この日付セルにトレーニング実施ログを紐付ける予定。
+   現時点では月表示のみのシンプルなカレンダーです。
+========================================================= */
+let calendarViewDate = new Date();
+calendarViewDate.setDate(1);
+
+function renderCalendar(){
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  $('#calendarTitle').textContent = `${year}年 ${month+1}月`;
+
+  const startWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const today = new Date();
+  const isTodayInThisMonth = today.getFullYear()===year && today.getMonth()===month;
+
+  const cells = [];
+  for(let i=startWeekday-1; i>=0; i--){
+    cells.push({ day: daysInPrevMonth - i, muted:true });
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    cells.push({ day:d, muted:false, isToday: isTodayInThisMonth && d===today.getDate() });
+  }
+  const remainder = cells.length % 7;
+  const trailingCount = remainder === 0 ? 0 : 7 - remainder;
+  for(let d=1; d<=trailingCount; d++){
+    cells.push({ day:d, muted:true });
+  }
+
+  $('#calendarGrid').innerHTML = cells.map(c=>
+    `<div class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}">${c.day}</div>`
+  ).join('');
+}
+$('#calendarPrevBtn').addEventListener('click', ()=>{
+  calendarViewDate.setMonth(calendarViewDate.getMonth()-1);
+  renderCalendar();
+});
+$('#calendarNextBtn').addEventListener('click', ()=>{
+  calendarViewDate.setMonth(calendarViewDate.getMonth()+1);
+  renderCalendar();
+});
+renderCalendar();
 </script>
 </body>
 </html>
