@@ -420,6 +420,45 @@
   }
   .video-delete-btn:hover{ color:var(--accent-work); }
 
+  /* ===== 種目設定：種目リスト・タグ・動画（動画タブのアコーディオンスタイルを再利用） ===== */
+  .exercise-item-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1; min-height:0; }
+  .tag-chip{ flex:0 0 auto; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .tag-row{ display:flex; gap:8px; align-items:center; }
+  .tag-row .ei-tag-select{ flex:1; }
+  .tag-create-panel{
+    display:flex; gap:8px; align-items:center; background:rgba(128,128,128,0.08);
+    border:1px solid var(--panel-hairline); border-radius:12px; padding:10px;
+  }
+  .tag-name-input{
+    flex:1; padding:9px 10px; border-radius:9px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:12.5px;
+  }
+  .tag-color-input{
+    width:36px; height:36px; padding:2px; border-radius:8px; border:1px solid var(--panel-hairline);
+    background:transparent; cursor:pointer; flex:0 0 auto;
+  }
+  .ready-hint{
+    font-size:11px; color:var(--panel-muted); line-height:1.6; background:rgba(168,85,247,0.08);
+    border:1px solid rgba(168,85,247,0.25); border-radius:10px; padding:8px 10px;
+  }
+  .ei-video-section{ display:flex; flex-direction:column; gap:8px; }
+  .ei-video-label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase; }
+  .ei-video-list{ display:flex; flex-direction:column; gap:8px; }
+  .exercise-video-row{
+    display:flex; align-items:center; gap:8px; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline);
+    border-radius:12px; padding:8px;
+  }
+  .exercise-video-fields{ flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .exercise-video-fields input[type=text]{
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.12); color:var(--panel-text); font-size:12px;
+  }
+  .exercise-video-actions{ display:flex; gap:5px; flex:0 0 auto; }
+  .exercise-video-actions .video-play-btn{
+    width:32px; height:32px; padding:0; border-radius:8px; font-size:12px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+  }
+
   /* ===== カレンダータブ ===== */
   .calendar-tab-wrap{ flex:1; display:flex; }
   .calendar-card{ flex:1; padding:22px 24px; display:flex; flex-direction:column; gap:14px; }
@@ -556,8 +595,7 @@
       <nav class="tabs">
         <button class="tab-btn active" data-tab="clock">時計</button>
         <button class="tab-btn" data-tab="timer">インターバル</button>
-        <button class="tab-btn" data-tab="sub">コンディション</button>
-        <button class="tab-btn" data-tab="videos">参考動画</button>
+        <button class="tab-btn" data-tab="sub">種目設定</button>
         <button class="tab-btn" data-tab="calendar">カレンダー</button>
       </nav>
       <div class="top-actions">
@@ -668,25 +706,12 @@
         <div class="sub-wrap">
           <div class="panel memo-card memo-card-full">
             <div class="memo-head">
-              <h3>トレーニングメモ</h3>
-              <span class="memo-status" id="memoStatus"></span>
+              <h3>🏋️ トレーニングプラン</h3>
+              <span class="memo-status" id="planStatus"></span>
             </div>
-            <div class="weekday-pills" id="weekdayPills"></div>
-            <textarea id="memoArea" placeholder="この曜日の予定やコンディションを自由に入力..."></textarea>
-          </div>
-        </div>
-      </section>
-
-      <!-- ===== 参考動画タブ ===== -->
-      <section class="tab-panel" id="tab-videos">
-        <div class="video-tab-wrap">
-          <div class="panel video-list-card">
-            <div class="settings-title">🎬 参考動画リスト</div>
-            <div class="video-ref-hint">トレーニング名/ストレッチ名をタップすると詳細が開きます。YouTubeのリンクを貼って再生できます。</div>
-            <div class="video-ref-list" id="videoRefList">
-              <div class="video-ref-empty">まだ動画が登録されていません。「＋ 追加」から登録してください。</div>
-            </div>
-            <button class="modal-add-btn" id="videoAddBtn">＋ トレーニング/ストレッチを追加</button>
+            <div class="weekday-pills" id="planDayPills"></div>
+            <div class="exercise-item-list" id="exerciseItemList"></div>
+            <button class="modal-add-btn" id="exerciseAddBtn">＋ 種目を追加</button>
           </div>
         </div>
       </section>
@@ -2020,176 +2045,364 @@ renderWeather();
 setInterval(renderWeather, 30 * 60 * 1000);
 
 /* =========================================================
-   曜日ごとのトレーニングメモ ＋ 自由メモ（window.storage）
+   種目設定：曜日/休日/フリープランごとの種目データベース
+   ---------------------------------------------------------
+   各種目は「名称・回数orインターバル・タグ・参考動画」を持つ。
+   今後、インターバルページ／カレンダーページと連動予定。
 ========================================================= */
-const MEMO_KEY = 'weekly-memo';
-const weekdaysFull = ['月','火','水','木','金','土','日'];
-const FREE_MEMO_KEY = 'free';
-const memoTabs = [...weekdaysFull.map(d => ({ key: d, label: `${d}曜日` })), { key: FREE_MEMO_KEY, label: 'フリーメモ' }];
-let memoData = {};
-let currentMemoDay = weekdaysFull[(new Date().getDay()+6)%7];
-let memoSaveTimeout = null;
+const PLAN_KEY = 'training-plan';
+const TAGS_KEY = 'exercise-tags';
+const FREE_PLAN_KEY = 'freeplan';
+const planDayDefs = [
+  { key:'mon', label:'月曜' },
+  { key:'tue', label:'火曜' },
+  { key:'wed', label:'水曜' },
+  { key:'thu', label:'木曜' },
+  { key:'fri', label:'金曜' },
+  { key:'restday', label:'通常休み' },
+  { key:'holiday', label:'連休日' },
+];
 
-async function loadMemo(){
-  try{
-    const raw = await storageGet(MEMO_KEY);
-    memoData = raw ? JSON.parse(raw) : {};
-  }catch(err){
-    memoData = {};
-  }
-  renderWeekdayPills();
-  $('#memoArea').value = memoData[currentMemoDay] || '';
+let exerciseTags = [];   // [{id, name, color}]
+let trainingPlan = {};   // { dayKey: [exerciseItem, ...] }
+let selectedPlanDay = 'mon';
+let openExerciseItemId = null;
+let planSaveTimeout = null;
+
+function defaultPlanDay(){
+  const map = {1:'mon', 2:'tue', 3:'wed', 4:'thu', 5:'fri'};
+  return map[new Date().getDay()] || 'restday';
+}
+function makeExerciseItem(){
+  return {
+    id: mkId(), name:'', mode:'reps', tagId:'',
+    reps: { count: 10 },
+    interval: {
+      subType: 'simple',
+      simple: { work:40, rest:20, sets:8 },
+      circuit: { steps: [], repeat: 3 },
+    },
+    videos: [],
+  };
+}
+function getCurrentDayItems(){
+  if(!trainingPlan[selectedPlanDay]) trainingPlan[selectedPlanDay] = [];
+  return trainingPlan[selectedPlanDay];
+}
+function schedulePlanSave(){
+  if(planSaveTimeout) clearTimeout(planSaveTimeout);
+  $('#planStatus').textContent = '入力中…';
+  planSaveTimeout = setTimeout(async ()=>{
+    const ok = await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
+    $('#planStatus').textContent = ok ? '保存済み ✓' : '保存に失敗しました';
+  }, 600);
+}
+async function saveExerciseTagsToStorage(){
+  await storageSet(TAGS_KEY, JSON.stringify(exerciseTags));
 }
 
-function renderWeekdayPills(){
-  const wrap = $('#weekdayPills');
-  wrap.innerHTML = memoTabs.map(t=>
-    `<button data-day="${t.key}" class="${t.key===currentMemoDay?'active':''}${t.key===FREE_MEMO_KEY?' free-memo-btn':''}">${t.label}</button>`
+function renderPlanDayPills(){
+  const wrap = $('#planDayPills');
+  const tabs = [...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }];
+  wrap.innerHTML = tabs.map(t=>
+    `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${t.key===FREE_PLAN_KEY?' free-memo-btn':''}">${t.label}</button>`
   ).join('');
-  $$('#weekdayPills button').forEach(btn=>{
+  $$('#planDayPills button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      currentMemoDay = btn.dataset.day;
-      renderWeekdayPills();
-      $('#memoArea').value = memoData[currentMemoDay] || '';
-      $('#memoStatus').textContent = '';
+      selectedPlanDay = btn.dataset.day;
+      openExerciseItemId = null;
+      renderPlanDayPills();
+      renderExerciseItemList();
     });
   });
 }
 
-$('#memoArea').addEventListener('input', (e)=>{
-  memoData[currentMemoDay] = e.target.value;
-  $('#memoStatus').textContent = '入力中…';
-  if(memoSaveTimeout) clearTimeout(memoSaveTimeout);
-  memoSaveTimeout = setTimeout(async ()=>{
-    const ok = await storageSet(MEMO_KEY, JSON.stringify(memoData));
-    $('#memoStatus').textContent = ok ? '保存済み ✓' : '保存に失敗しました';
-  }, 600);
+function renderExerciseItemList(){
+  const wrap = $('#exerciseItemList');
+  const items = getCurrentDayItems();
+  if(!items.length){
+    wrap.innerHTML = '<div class="video-ref-empty">この日はまだ種目が登録されていません。「＋ 種目を追加」から作成してください。</div>';
+    return;
+  }
+  wrap.innerHTML = items.map(item => renderExerciseItemHTML(item)).join('');
+  items.forEach(item => attachExerciseItemEvents(item));
+}
+
+function renderExerciseItemHTML(item){
+  const isOpen = item.id === openExerciseItemId;
+  const hasName = item.name && item.name.trim();
+  const tag = exerciseTags.find(t=>t.id===item.tagId);
+  const tagChip = tag ? `<span class="tag-chip" style="background:${tag.color}26; color:${tag.color}; border:1px solid ${tag.color}66;">${escapeHTML(tag.name)}</span>` : '';
+  return `
+    <div class="video-ref-item${isOpen?' open':''}" data-id="${item.id}">
+      <button class="video-ref-header" data-act="toggle">
+        <span class="video-ref-chevron">▸</span>
+        ${tagChip}
+        <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(item.name) : '（種目名未設定）'}</span>
+      </button>
+      <div class="video-ref-body" style="display:${isOpen?'flex':'none'};">
+        ${isOpen ? renderExerciseItemBody(item) : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderExerciseItemBody(item){
+  const readyHint = `<div class="ready-hint">🔊 実行開始前に「Are You Ready?」の5秒間音声カウントダウンが入ります（インターバル画面との連携が有効になった際に反映されます）</div>`;
+  return `
+    <div class="field">
+      <label>種目名</label>
+      <input type="text" class="ei-name-input" value="${escapeHTML(item.name||'')}" placeholder="例）スクワット、肩甲骨ストレッチ">
+    </div>
+
+    <div class="mode-toggle ei-mode-toggle">
+      <button type="button" class="mode-btn ${item.mode==='reps'?'active':''}" data-mode="reps">回数</button>
+      <button type="button" class="mode-btn ${item.mode==='interval'?'active':''}" data-mode="interval">インターバル</button>
+    </div>
+
+    ${item.mode==='reps' ? `
+      <div class="field">
+        <label>回数</label>
+        <input type="number" class="ei-reps-input" min="1" value="${item.reps.count}">
+      </div>
+    ` : `
+      <div class="mode-toggle ei-subtype-toggle">
+        <button type="button" class="mode-btn ${item.interval.subType==='simple'?'active':''}" data-subtype="simple">シンプル</button>
+        <button type="button" class="mode-btn ${item.interval.subType==='circuit'?'active':''}" data-subtype="circuit">カスタムサーキット</button>
+      </div>
+      ${item.interval.subType==='simple' ? `
+        <div class="field-row">
+          <div class="field"><label>ワーク（秒）</label><input type="number" class="ei-simple-work" min="1" value="${item.interval.simple.work}"></div>
+          <div class="field"><label>休憩（秒）</label><input type="number" class="ei-simple-rest" min="0" value="${item.interval.simple.rest}"></div>
+          <div class="field"><label>セット数</label><input type="number" class="ei-simple-sets" min="1" value="${item.interval.simple.sets}"></div>
+        </div>
+      ` : `
+        <div class="circuit-steps-list ei-circuit-steps"></div>
+        <div class="circuit-actions-row">
+          <button type="button" class="circuit-add-btn ei-circuit-add">＋ ステップを追加</button>
+        </div>
+        <div class="field" style="margin-top:8px;">
+          <label>繰り返す回数</label>
+          <input type="number" class="ei-circuit-repeat" min="1" value="${item.interval.circuit.repeat}">
+        </div>
+      `}
+      ${readyHint}
+    `}
+
+    <div class="tag-row">
+      <select class="ei-tag-select">
+        <option value="">タグなし</option>
+        ${exerciseTags.map(t=>`<option value="${t.id}" ${item.tagId===t.id?'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
+      </select>
+      <button type="button" class="circuit-sample-btn ei-tag-new-btn">＋ 新規タグ</button>
+    </div>
+    <div class="tag-create-panel" style="display:none;">
+      <input type="text" class="tag-name-input" placeholder="タグ名（例：上半身、有酸素）">
+      <input type="color" class="tag-color-input" value="#a855f7">
+      <button type="button" class="preset-full-btn save tag-create-confirm">作成</button>
+    </div>
+
+    <div class="ei-video-section">
+      <label class="ei-video-label">参考動画</label>
+      <div class="ei-video-list"></div>
+      <button type="button" class="circuit-add-btn ei-video-add">＋ 動画を追加</button>
+    </div>
+
+    <button type="button" class="video-delete-btn ei-delete-btn">🗑 この種目を削除</button>
+  `;
+}
+
+function renderExerciseCircuitSteps(item){
+  const container = document.querySelector(`.video-ref-item[data-id="${item.id}"] .ei-circuit-steps`);
+  if(!container) return;
+  const steps = item.interval.circuit.steps;
+  if(!steps.length){
+    container.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。</div>';
+    return;
+  }
+  container.innerHTML = steps.map((s,i)=>`
+    <div class="circuit-step-row" data-sid="${s.id}">
+      <span class="circuit-step-idx">${i+1}</span>
+      <select class="circuit-step-type" data-field="type">
+        <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
+        <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
+      </select>
+      <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}">
+      <span class="circuit-step-unit">秒</span>
+      <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+      <button type="button" class="circuit-step-btn" data-act="down" ${i===steps.length-1?'disabled':''}>↓</button>
+      <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+    </div>
+  `).join('');
+  container.querySelectorAll('.circuit-step-row').forEach(row=>{
+    const sid = row.dataset.sid;
+    const step = steps.find(s=>s.id===sid);
+    row.querySelector('[data-field="type"]').addEventListener('change', e=>{ step.type=e.target.value; schedulePlanSave(); });
+    row.querySelector('[data-field="seconds"]').addEventListener('change', e=>{ step.seconds=Math.max(1,parseInt(e.target.value)||1); schedulePlanSave(); });
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = steps.findIndex(s=>s.id===sid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ steps.splice(idx,1); }
+        else if(act==='up' && idx>0){ [steps[idx-1],steps[idx]]=[steps[idx],steps[idx-1]]; }
+        else if(act==='down' && idx<steps.length-1){ [steps[idx+1],steps[idx]]=[steps[idx],steps[idx+1]]; }
+        renderExerciseCircuitSteps(item);
+        schedulePlanSave();
+      });
+    });
+  });
+}
+
+function renderExerciseVideos(item){
+  const container = document.querySelector(`.video-ref-item[data-id="${item.id}"] .ei-video-list`);
+  if(!container) return;
+  const videos = item.videos;
+  if(!videos.length){
+    container.innerHTML = '<div class="circuit-empty-hint">まだ動画がありません。</div>';
+    return;
+  }
+  container.innerHTML = videos.map((v,i)=>`
+    <div class="exercise-video-row" data-vid="${v.id}">
+      <div class="exercise-video-fields">
+        <input type="text" class="ev-name" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="動画名（任意）">
+        <input type="text" class="ev-url" data-field="url" value="${escapeHTML(v.url||'')}" placeholder="https://www.youtube.com/watch?v=...">
+      </div>
+      <div class="exercise-video-actions">
+        <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
+        <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+        <button type="button" class="circuit-step-btn" data-act="down" ${i===videos.length-1?'disabled':''}>↓</button>
+        <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+      </div>
+    </div>
+  `).join('');
+  container.querySelectorAll('.exercise-video-row').forEach(row=>{
+    const vid = row.dataset.vid;
+    const v = videos.find(x=>x.id===vid);
+    row.querySelector('[data-field="name"]').addEventListener('change', e=>{ v.name=e.target.value; schedulePlanSave(); });
+    row.querySelector('[data-field="url"]').addEventListener('change', e=>{
+      v.url = e.target.value.trim(); schedulePlanSave(); renderExerciseVideos(item);
+    });
+    row.querySelector('.ev-play').addEventListener('click', ()=> playReferenceVideo(v.url));
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = videos.findIndex(x=>x.id===vid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ videos.splice(idx,1); }
+        else if(act==='up' && idx>0){ [videos[idx-1],videos[idx]]=[videos[idx],videos[idx-1]]; }
+        else if(act==='down' && idx<videos.length-1){ [videos[idx+1],videos[idx]]=[videos[idx],videos[idx+1]]; }
+        renderExerciseVideos(item);
+        schedulePlanSave();
+      });
+    });
+  });
+}
+
+function attachExerciseItemEvents(item){
+  const root = document.querySelector(`.video-ref-item[data-id="${item.id}"]`);
+  if(!root) return;
+  root.querySelector('[data-act="toggle"]').addEventListener('click', ()=>{
+    openExerciseItemId = (openExerciseItemId === item.id) ? null : item.id;
+    renderExerciseItemList();
+  });
+  if(item.id !== openExerciseItemId) return;
+
+  const nameInput = root.querySelector('.ei-name-input');
+  if(nameInput) nameInput.addEventListener('change', ()=>{ item.name=nameInput.value; schedulePlanSave(); renderExerciseItemList(); });
+
+  root.querySelectorAll('.ei-mode-toggle .mode-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ item.mode=btn.dataset.mode; schedulePlanSave(); renderExerciseItemList(); });
+  });
+  const subtypeToggle = root.querySelector('.ei-subtype-toggle');
+  if(subtypeToggle){
+    subtypeToggle.querySelectorAll('.mode-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ item.interval.subType=btn.dataset.subtype; schedulePlanSave(); renderExerciseItemList(); });
+    });
+  }
+  const repsInput = root.querySelector('.ei-reps-input');
+  if(repsInput) repsInput.addEventListener('change', ()=>{ item.reps.count=Math.max(1,parseInt(repsInput.value)||1); schedulePlanSave(); });
+
+  const simpleWork = root.querySelector('.ei-simple-work');
+  const simpleRest = root.querySelector('.ei-simple-rest');
+  const simpleSets = root.querySelector('.ei-simple-sets');
+  if(simpleWork) simpleWork.addEventListener('change', ()=>{ item.interval.simple.work=Math.max(1,parseInt(simpleWork.value)||1); schedulePlanSave(); });
+  if(simpleRest) simpleRest.addEventListener('change', ()=>{ item.interval.simple.rest=Math.max(0,parseInt(simpleRest.value)||0); schedulePlanSave(); });
+  if(simpleSets) simpleSets.addEventListener('change', ()=>{ item.interval.simple.sets=Math.max(1,parseInt(simpleSets.value)||1); schedulePlanSave(); });
+
+  const circuitAddBtn = root.querySelector('.ei-circuit-add');
+  if(circuitAddBtn){
+    renderExerciseCircuitSteps(item);
+    circuitAddBtn.addEventListener('click', ()=>{
+      item.interval.circuit.steps.push({ id:mkId(), type:'work', seconds:30 });
+      renderExerciseCircuitSteps(item);
+      schedulePlanSave();
+    });
+  }
+  const circuitRepeat = root.querySelector('.ei-circuit-repeat');
+  if(circuitRepeat) circuitRepeat.addEventListener('change', ()=>{ item.interval.circuit.repeat=Math.max(1,parseInt(circuitRepeat.value)||1); schedulePlanSave(); });
+
+  const tagSelect = root.querySelector('.ei-tag-select');
+  if(tagSelect) tagSelect.addEventListener('change', ()=>{ item.tagId=tagSelect.value; schedulePlanSave(); renderExerciseItemList(); });
+
+  const tagNewBtn = root.querySelector('.ei-tag-new-btn');
+  const tagCreatePanel = root.querySelector('.tag-create-panel');
+  if(tagNewBtn && tagCreatePanel){
+    tagNewBtn.addEventListener('click', ()=>{
+      tagCreatePanel.style.display = tagCreatePanel.style.display==='none' ? 'flex' : 'none';
+    });
+    tagCreatePanel.querySelector('.tag-create-confirm').addEventListener('click', async ()=>{
+      const nameEl = tagCreatePanel.querySelector('.tag-name-input');
+      const colorEl = tagCreatePanel.querySelector('.tag-color-input');
+      const name = nameEl.value.trim();
+      if(!name){ nameEl.focus(); return; }
+      const newTag = { id: mkId(), name, color: colorEl.value };
+      exerciseTags.push(newTag);
+      item.tagId = newTag.id;
+      await saveExerciseTagsToStorage();
+      schedulePlanSave();
+      renderExerciseItemList();
+    });
+  }
+
+  const videoAddBtn = root.querySelector('.ei-video-add');
+  if(videoAddBtn){
+    renderExerciseVideos(item);
+    videoAddBtn.addEventListener('click', ()=>{
+      item.videos.push({ id:mkId(), name:'', url:'' });
+      renderExerciseVideos(item);
+      schedulePlanSave();
+    });
+  }
+
+  const deleteBtn = root.querySelector('.ei-delete-btn');
+  if(deleteBtn){
+    deleteBtn.addEventListener('click', ()=>{
+      const items = getCurrentDayItems();
+      const idx = items.findIndex(x=>x.id===item.id);
+      if(idx>=0) items.splice(idx,1);
+      openExerciseItemId = null;
+      schedulePlanSave();
+      renderExerciseItemList();
+    });
+  }
+}
+
+$('#exerciseAddBtn').addEventListener('click', ()=>{
+  const items = getCurrentDayItems();
+  const newItem = makeExerciseItem();
+  items.push(newItem);
+  openExerciseItemId = newItem.id;
+  renderExerciseItemList();
+  schedulePlanSave();
+  const nameInput = document.querySelector(`.video-ref-item[data-id="${newItem.id}"] .ei-name-input`);
+  if(nameInput) nameInput.focus();
 });
 
-loadMemo();
-
-/* =========================================================
-   参考動画（トレーニング/ストレッチのYouTube参考動画リスト）
-========================================================= */
-const VIDEOS_KEY = 'reference-videos';
-let referenceVideos = []; // [{id, name, youtubeUrl}]
-let openVideoItemId = null;
-let videoSaveTimeout = null;
-
+/* --- 参考動画の再生（画像ペイン内に表示、全画面表示にも対応） --- */
 function extractYouTubeId(url){
   if(!url) return null;
   const m = String(url).match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
 }
-
-async function loadReferenceVideos(){
-  try{
-    const raw = await storageGet(VIDEOS_KEY);
-    referenceVideos = raw ? JSON.parse(raw) : [];
-  }catch(err){
-    referenceVideos = [];
-  }
-  renderVideoRefList();
-}
-function scheduleVideoSave(){
-  if(videoSaveTimeout) clearTimeout(videoSaveTimeout);
-  videoSaveTimeout = setTimeout(async ()=>{
-    await storageSet(VIDEOS_KEY, JSON.stringify(referenceVideos));
-  }, 500);
-}
-
-function renderVideoRefList(){
-  const wrap = $('#videoRefList');
-  if(!referenceVideos.length){
-    wrap.innerHTML = '<div class="video-ref-empty">まだ動画が登録されていません。「＋ 追加」から登録してください。</div>';
-    return;
-  }
-  const collator = new Intl.Collator('ja', { usage: 'sort', sensitivity: 'base' });
-  const sorted = [...referenceVideos].sort((a, b) => collator.compare(a.name || '', b.name || ''));
-
-  wrap.innerHTML = sorted.map(v=>{
-    const isOpen = v.id === openVideoItemId;
-    const hasName = v.name && v.name.trim();
-    return `
-      <div class="video-ref-item${isOpen?' open':''}" data-id="${v.id}">
-        <button class="video-ref-header" data-act="toggle">
-          <span class="video-ref-chevron">▸</span>
-          <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(v.name) : '（名称未設定）'}</span>
-        </button>
-        <div class="video-ref-body" style="display:${isOpen?'flex':'none'};">
-          <button class="video-play-btn" data-act="play" ${extractYouTubeId(v.youtubeUrl) ? '' : 'disabled'}>▶ 再生する</button>
-          <div class="field">
-            <label>トレーニング/ストレッチ名</label>
-            <input type="text" class="video-name-input" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="例）プランク、肩甲骨ストレッチ">
-          </div>
-          <div class="field">
-            <label>YouTubeリンク</label>
-            <input type="text" class="video-url-input" data-field="youtubeUrl" value="${escapeHTML(v.youtubeUrl||'')}" placeholder="https://www.youtube.com/watch?v=...">
-          </div>
-          <button class="video-delete-btn" data-act="delete">🗑 このトレーニング/ストレッチを削除</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  wrap.querySelectorAll('.video-ref-item').forEach(item=>{
-    const id = item.dataset.id;
-    item.querySelector('[data-act="toggle"]').addEventListener('click', ()=>{
-      openVideoItemId = (openVideoItemId === id) ? null : id;
-      renderVideoRefList();
-      if(openVideoItemId === id){
-        const nameInput = wrap.querySelector(`.video-ref-item[data-id="${id}"] .video-name-input`);
-        if(nameInput && !nameInput.value) nameInput.focus();
-      }
-    });
-    const nameInput = item.querySelector('[data-field="name"]');
-    const urlInput = item.querySelector('[data-field="youtubeUrl"]');
-    if(nameInput){
-      nameInput.addEventListener('change', ()=>{
-        const entry = referenceVideos.find(v=>v.id===id);
-        entry.name = nameInput.value;
-        scheduleVideoSave();
-        renderVideoRefList();
-      });
-    }
-    if(urlInput){
-      urlInput.addEventListener('change', ()=>{
-        const entry = referenceVideos.find(v=>v.id===id);
-        entry.youtubeUrl = urlInput.value.trim();
-        scheduleVideoSave();
-        renderVideoRefList();
-      });
-    }
-    const playBtn = item.querySelector('[data-act="play"]');
-    if(playBtn){
-      playBtn.addEventListener('click', ()=>{
-        const entry = referenceVideos.find(v=>v.id===id);
-        playReferenceVideo(entry.youtubeUrl);
-      });
-    }
-    const deleteBtn = item.querySelector('[data-act="delete"]');
-    if(deleteBtn){
-      deleteBtn.addEventListener('click', ()=>{
-        referenceVideos = referenceVideos.filter(v=>v.id!==id);
-        if(openVideoItemId === id) openVideoItemId = null;
-        scheduleVideoSave();
-        renderVideoRefList();
-      });
-    }
-  });
-}
-
-$('#videoAddBtn').addEventListener('click', ()=>{
-  const entry = { id: mkId(), name:'', youtubeUrl:'' };
-  referenceVideos.push(entry);
-  openVideoItemId = entry.id;
-  renderVideoRefList();
-  scheduleVideoSave();
-  const nameInput = $(`.video-ref-item[data-id="${entry.id}"] .video-name-input`);
-  if(nameInput) nameInput.focus();
-});
-
-/* --- 動画の再生（画像ペイン内に表示、全画面表示にも対応） --- */
 function playReferenceVideo(youtubeUrl){
   const videoId = extractYouTubeId(youtubeUrl);
   if(!videoId) return;
@@ -2202,11 +2415,24 @@ function closeReferenceVideo(){
   $('#videoOverlay').classList.remove('show');
   $('#videoIframe').src = ''; // 再生を確実に停止
   imagePane.classList.remove('video-active');
-  onImagesChanged(); // 画像側のUI表示状態を再計算
+  onImagesChanged();
 }
 $('#videoCloseBtn').addEventListener('click', closeReferenceVideo);
 
-loadReferenceVideos();
+async function loadTrainingPlan(){
+  try{
+    const rawTags = await storageGet(TAGS_KEY);
+    exerciseTags = rawTags ? JSON.parse(rawTags) : [];
+  }catch(err){ exerciseTags = []; }
+  try{
+    const rawPlan = await storageGet(PLAN_KEY);
+    trainingPlan = rawPlan ? JSON.parse(rawPlan) : {};
+  }catch(err){ trainingPlan = {}; }
+  selectedPlanDay = defaultPlanDay();
+  renderPlanDayPills();
+  renderExerciseItemList();
+}
+loadTrainingPlan();
 
 /* =========================================================
    カレンダー（月表示）
