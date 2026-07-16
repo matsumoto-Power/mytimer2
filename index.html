@@ -382,6 +382,8 @@
   .weekday-pills button.active{ background:var(--accent-amber); color:#ffffff; border-color:transparent; }
   .weekday-pills button.free-memo-btn{ margin-left:8px; border-style:dashed; border-color:var(--accent-amber); color:var(--accent-amber); }
   .weekday-pills button.free-memo-btn.active{ border-style:solid; color:#ffffff; }
+  .weekday-pills button.routine-memo-btn{ margin-right:8px; border-style:dashed; border-color:var(--accent-rest); color:var(--accent-rest); }
+  .weekday-pills button.routine-memo-btn.active{ border-style:solid; background:var(--accent-rest); color:#ffffff; }
   textarea{
     flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); padding:14px; font-size:14px; font-family:'Inter',sans-serif; line-height:1.6;
@@ -443,9 +445,16 @@
     flex:3 1 140px; min-width:0; padding:9px 10px; border-radius:9px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:12.5px;
   }
-  .tag-color-input{
-    width:36px; height:36px; padding:2px; border-radius:8px; border:1px solid var(--panel-hairline);
-    background:transparent; cursor:pointer; flex:0 0 auto;
+  .tag-swatch-grid{ display:flex; flex-wrap:wrap; gap:8px; width:100%; }
+  .tag-swatch{
+    appearance:none; cursor:pointer; width:30px; height:30px; border-radius:50%;
+    border:2px solid transparent; transition: all .15s ease; position:relative; flex:0 0 auto;
+  }
+  .tag-swatch:hover{ transform:scale(1.08); }
+  .tag-swatch.selected{ border-color:currentColor; box-shadow:0 0 0 2px rgba(255,255,255,0.06); }
+  .tag-swatch.selected::after{
+    content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:800; color:currentColor;
   }
   .tag-create-panel .tag-create-confirm,
   .tag-edit-panel .tag-edit-save,
@@ -1827,7 +1836,7 @@ resetBtn.addEventListener('click', resetTimer);
 /* --- 実行する種目の選択（種目設定ページで登録した「インターバル」種目から選ぶ） --- */
 function getIntervalExercises(){
   const list = [];
-  planDayDefs.concat([{ key: FREE_PLAN_KEY, label:'フリープラン' }]).forEach(d=>{
+  [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }].forEach(d=>{
     (trainingPlan[d.key]||[]).forEach(item=>{
       if(item.name && item.name.trim()){
         list.push({ dayKey:d.key, dayLabel:d.label, item });
@@ -1985,6 +1994,7 @@ setInterval(renderWeather, 30 * 60 * 1000);
 const PLAN_KEY = 'training-plan';
 const TAGS_KEY = 'exercise-tags';
 const FREE_PLAN_KEY = 'freeplan';
+const ROUTINE_KEY = 'routine';
 const planDayDefs = [
   { key:'mon', label:'月曜' },
   { key:'tue', label:'火曜' },
@@ -1996,6 +2006,16 @@ const planDayDefs = [
 ];
 
 let exerciseTags = [];   // [{id, name, color}]
+
+/* タグの色プリセット（原色そのままだとどぎついので、選択パネル上ではすべて低めの不透明度で表示する） */
+const TAG_PRESET_COLORS = ['#A855F7','#EC4899','#F43F5E','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#6366F1','#06B6D4','#84CC16','#94A3B8'];
+function renderTagSwatchGrid(selectedHex){
+  const sel = String(selectedHex||'').toLowerCase();
+  return TAG_PRESET_COLORS.map(hex => `
+    <button type="button" class="tag-swatch ${hex.toLowerCase()===sel?'selected':''}"
+      style="background:${hex}29; border-color:${hex}80; color:${hex};" data-color="${hex}" title="${hex}"></button>
+  `).join('');
+}
 let trainingPlan = {};   // { dayKey: [exerciseItem, ...] }
 let selectedPlanDay = 'mon';
 let openExerciseItemId = null;
@@ -2035,9 +2055,9 @@ async function saveExerciseTagsToStorage(){
 
 function renderPlanDayPills(){
   const wrap = $('#planDayPills');
-  const tabs = [...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }];
+  const tabs = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }];
   wrap.innerHTML = tabs.map(t=>
-    `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${t.key===FREE_PLAN_KEY?' free-memo-btn':''}">${t.label}</button>`
+    `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${t.label}</button>`
   ).join('');
   $$('#planDayPills button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -2065,7 +2085,7 @@ function renderExerciseItemHTML(item){
   const isOpen = item.id === openExerciseItemId;
   const hasName = item.name && item.name.trim();
   const tag = exerciseTags.find(t=>t.id===item.tagId);
-  const tagChip = tag ? `<span class="tag-chip" style="background:${tag.color}26; color:${tag.color}; border:1px solid ${tag.color}66;">${escapeHTML(tag.name)}</span>` : '';
+  const tagChip = tag ? `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>` : '';
   return `
     <div class="video-ref-item${isOpen?' open':''}" data-id="${item.id}">
       <button class="video-ref-header" data-act="toggle">
@@ -2135,12 +2155,14 @@ function renderExerciseItemBody(item){
     </div>
     <div class="tag-create-panel" style="display:none;">
       <input type="text" class="tag-name-input" placeholder="タグ名（例：上半身、有酸素）">
-      <input type="color" class="tag-color-input" value="#a855f7">
+      <div class="tag-swatch-grid">${renderTagSwatchGrid('#A855F7')}</div>
+      <input type="hidden" class="tag-color-input" value="#A855F7">
       <button type="button" class="preset-full-btn save tag-create-confirm">作成</button>
     </div>
     <div class="tag-edit-panel" style="display:none;">
       <input type="text" class="tag-name-input tag-edit-name-input" placeholder="タグ名">
-      <input type="color" class="tag-color-input tag-edit-color-input">
+      <div class="tag-swatch-grid tag-edit-swatch-grid"></div>
+      <input type="hidden" class="tag-color-input tag-edit-color-input">
       <button type="button" class="preset-full-btn save tag-edit-save">保存</button>
       <button type="button" class="preset-full-btn del tag-edit-delete">削除</button>
     </div>
@@ -2301,6 +2323,12 @@ function attachExerciseItemEvents(item){
       if(tagEditPanel) tagEditPanel.style.display = 'none';
       tagCreatePanel.style.display = tagCreatePanel.style.display==='none' ? 'flex' : 'none';
     });
+    tagCreatePanel.addEventListener('click', (e)=>{
+      const swatch = e.target.closest('.tag-swatch');
+      if(!swatch) return;
+      tagCreatePanel.querySelector('.tag-color-input').value = swatch.dataset.color;
+      tagCreatePanel.querySelectorAll('.tag-swatch').forEach(s=>s.classList.toggle('selected', s===swatch));
+    });
     tagCreatePanel.querySelector('.tag-create-confirm').addEventListener('click', async ()=>{
       const nameEl = tagCreatePanel.querySelector('.tag-name-input');
       const colorEl = tagCreatePanel.querySelector('.tag-color-input');
@@ -2325,7 +2353,14 @@ function attachExerciseItemEvents(item){
       if(isOpening){
         tagEditPanel.querySelector('.tag-edit-name-input').value = tag.name;
         tagEditPanel.querySelector('.tag-edit-color-input').value = tag.color;
+        tagEditPanel.querySelector('.tag-edit-swatch-grid').innerHTML = renderTagSwatchGrid(tag.color);
       }
+    });
+    tagEditPanel.addEventListener('click', (e)=>{
+      const swatch = e.target.closest('.tag-swatch');
+      if(!swatch) return;
+      tagEditPanel.querySelector('.tag-edit-color-input').value = swatch.dataset.color;
+      tagEditPanel.querySelectorAll('.tag-swatch').forEach(s=>s.classList.toggle('selected', s===swatch));
     });
     tagEditPanel.querySelector('.tag-edit-save').addEventListener('click', async ()=>{
       const tag = exerciseTags.find(t=>t.id===item.tagId);
