@@ -270,6 +270,7 @@
   .ctrl-btn.start:hover{ filter:brightness(1.08); }
   .ctrl-btn.reset{ background:rgba(128,128,128,0.18); color:var(--panel-text); border:1px solid var(--panel-hairline); }
   .ctrl-btn.reset:hover{ background:rgba(128,128,128,0.3); }
+  .ctrl-btn.muted{ background:rgba(128,128,128,0.18) !important; color:var(--panel-muted) !important; border:1px solid var(--panel-hairline); }
   .ctrl-btn:disabled{ opacity:0.4; cursor:not-allowed; }
 
   .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
@@ -503,6 +504,7 @@
   .ring-svg{ width:min(70vh, 260px); height:auto; max-width:100%; }
   #ringNumber.countdown-pulse{ animation: countdownPulse 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
   #ringNumber.finish-text{ font-size:44px; letter-spacing:1px; }
+  #ringNumber.ready-text{ font-size:28px; letter-spacing:0.5px; }
   @keyframes countdownPulse{
     0%{ transform: scale(1); opacity: 1; }
     30%{ transform: scale(1.07); opacity: 0.85; }
@@ -1463,18 +1465,26 @@ function updatePhaseBadge(phase){
    全ステップ終了時     : ファンファーレ
 */
 let audioCtx = null;
+/* ブラウザの自動再生ポリシー対策：AudioContextはユーザー操作中に作成するだけでなく、
+   明示的にresume()しないと「作成はされるが音が鳴らない（suspended状態のまま）」ことがある。
+   毎回の再生前に必ず呼び出して、suspendedなら再開する。 */
+function ensureAudioContext(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
 function playBeep(freq=880, duration=0.16, delay=0, peakGain=0.55){
   try{
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const t0 = audioCtx.currentTime + delay;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const ctx = ensureAudioContext();
+    const t0 = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.type = 'sine';
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(peakGain, t0 + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-    osc.connect(gain).connect(audioCtx.destination);
+    osc.connect(gain).connect(ctx.destination);
     osc.start(t0);
     osc.stop(t0 + duration + 0.02);
   }catch(err){ console.error('audio error', err); }
@@ -1498,18 +1508,18 @@ function playCountdownTick(){
 /* WORK⇔REST切り替わりの「ポーン」チャイム（倍音を重ねたベル風の音） */
 function playTransitionChime(){
   try{
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const t0 = audioCtx.currentTime;
+    const ctx = ensureAudioContext();
+    const t0 = ctx.currentTime;
     const duration = 0.7;
     [ {mult:1, gain:0.5}, {mult:2.01, gain:0.22}, {mult:3.0, gain:0.12} ].forEach(({mult, gain: g})=>{
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.value = 523.25 * mult; // C5 を基音にしたベル風
       gain.gain.setValueAtTime(0.0001, t0);
       gain.gain.exponentialRampToValueAtTime(g, t0 + 0.03);
       gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-      osc.connect(gain).connect(audioCtx.destination);
+      osc.connect(gain).connect(ctx.destination);
       osc.start(t0);
       osc.stop(t0 + duration + 0.05);
     });
@@ -1557,23 +1567,61 @@ function primeSpeechSynthesis(){
   }catch(err){ /* noop */ }
 }
 
-function speakCountdownNumber(n){
+function speakText(text, rate=0.92){
   try{
-    if(!('speechSynthesis' in window) || !calmFemaleVoice){
-      playCountdownTick(); // フォールバック：音声合成が使えない場合はビープ音
-      return;
-    }
-    const utter = new SpeechSynthesisUtterance(COUNTDOWN_WORDS[n] || String(n));
+    if(!('speechSynthesis' in window) || !calmFemaleVoice) return false;
+    const utter = new SpeechSynthesisUtterance(text);
     utter.voice = calmFemaleVoice;
     utter.lang = calmFemaleVoice.lang || 'en-US';
-    utter.rate = 0.92;   // 自然に聞こえるやや落ち着いたテンポ
+    utter.rate = rate;   // 自然に聞こえるやや落ち着いたテンポ
     utter.pitch = 1.0;   // 自然なトーン（下げすぎるとロボット的になるため標準に近い値）
     utter.volume = 1;
     window.speechSynthesis.speak(utter);
+    return true;
   }catch(err){
     console.error('speech synthesis error', err);
-    playCountdownTick();
+    return false;
   }
+}
+
+function speakCountdownNumber(n){
+  const spoken = speakText(COUNTDOWN_WORDS[n] || String(n));
+  if(!spoken) playCountdownTick(); // フォールバック：音声合成が使えない場合はビープ音
+}
+
+/* --- スタート前の「Are You Ready?」5秒間カウントダウン --- */
+const READY_COUNTDOWN_WORDS = { 5:'Five', 4:'Four', 3:'Three', 2:'Two', 1:'One' };
+
+function runReadyCountdown(onComplete){
+  timerState.status = 'ready';
+  timerState.running = false;
+  startBtn.disabled = true;
+  setInputsDisabled(true);
+  updatePhaseBadge('ready');
+  ringNumber.classList.remove('finish-text');
+  ringNumber.classList.remove('countdown-pulse');
+  setLabel.textContent = 'Are You Ready?';
+  stepLabel.textContent = '';
+  setRingProgress(1, 'var(--accent-amber)');
+
+  let count = 5;
+  const tick = () => {
+    ringNumber.textContent = String(count);
+    ringNumber.classList.add('countdown-pulse');
+    setRingProgress(count/5, 'var(--accent-amber)');
+    const spoken = speakText(READY_COUNTDOWN_WORDS[count] || String(count), 0.95);
+    if(!spoken) playCountdownTick();
+    count--;
+    if(count >= 0){
+      timerState.readyTimeoutId = setTimeout(tick, 1000);
+    } else {
+      timerState.readyTimeoutId = null;
+      startBtn.disabled = false;
+      ringNumber.classList.remove('countdown-pulse');
+      onComplete();
+    }
+  };
+  tick();
 }
 
 
@@ -1616,18 +1664,27 @@ function updateSetStepLabels(step){
 }
 
 function startTimer(){
+  if(selectedTimerItem && selectedTimerItem.mode === 'reps') return; // 回数表示のみ：実行不可
   if(timerState.status === 'idle' || timerState.status === 'done'){
-    sequence = buildSequence();
-    if(!sequence.length) return; // ステップが1つもない場合は開始しない
-    timerState.index = 0;
-    const first = sequence[0];
-    timerState.phaseDuration = first.duration;
-    timerState.phaseEnd = Date.now() + first.duration*1000;
-    timerState.status = 'active';
-    timerState.lastWholeSecond = Math.ceil(first.duration);
-    playSessionStartBeep(); // スタート時の確認音（約1秒の「ピーッ」）
-    primeSpeechSynthesis();
+    runReadyCountdown(beginSequence);
+    return;
   }
+  timerState.running = true;
+  startBtn.textContent = '一時停止';
+  setInputsDisabled(true);
+  loopTimer();
+}
+
+function beginSequence(){
+  sequence = buildSequence();
+  if(!sequence.length){ resetTimer(); return; } // ステップが1つもない場合は開始しない
+  timerState.index = 0;
+  const first = sequence[0];
+  timerState.phaseDuration = first.duration;
+  timerState.phaseEnd = Date.now() + first.duration*1000;
+  timerState.status = 'active';
+  timerState.lastWholeSecond = Math.ceil(first.duration);
+  playSessionStartBeep(); // スタート時の確認音（約1秒の「ピーッ」）
   timerState.running = true;
   startBtn.textContent = '一時停止';
   setInputsDisabled(true);
@@ -1655,11 +1712,29 @@ function resetTimer(){
   timerState.remainingOnPause = undefined;
   timerState.lastWholeSecond = null;
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
+  if(timerState.readyTimeoutId){ clearTimeout(timerState.readyTimeoutId); timerState.readyTimeoutId = null; }
+  if('speechSynthesis' in window) window.speechSynthesis.cancel();
   setInputsDisabled(false);
   updatePhaseBadge('idle');
-  startBtn.textContent = 'スタート';
   ringNumber.classList.remove('countdown-pulse');
   ringNumber.classList.remove('finish-text');
+
+  const isRepsDisplay = selectedTimerItem && selectedTimerItem.mode === 'reps';
+  startBtn.classList.toggle('muted', isRepsDisplay);
+  resetBtn.classList.toggle('muted', isRepsDisplay);
+  startBtn.disabled = isRepsDisplay;
+
+  if(isRepsDisplay){
+    startBtn.textContent = 'スタート';
+    const r = selectedTimerItem.reps;
+    ringNumber.textContent = `${r.count}回`;
+    setLabel.textContent = `SET 1 / ${r.sets||1}`;
+    stepLabel.textContent = '';
+    setRingProgress(1, 'var(--panel-muted)');
+    return;
+  }
+
+  startBtn.textContent = 'スタート';
   const preview = buildSequence();
   if(preview.length){
     const first = preview[0];
@@ -1735,6 +1810,8 @@ function finishTimer(){
 }
 
 startBtn.addEventListener('click', ()=>{
+  ensureAudioContext();
+  primeSpeechSynthesis();
   if(!timerState.running){
     if(timerState.status === 'active' && timerState.remainingOnPause !== undefined){
       resumeFromPause();
@@ -1752,7 +1829,7 @@ function getIntervalExercises(){
   const list = [];
   planDayDefs.concat([{ key: FREE_PLAN_KEY, label:'フリープラン' }]).forEach(d=>{
     (trainingPlan[d.key]||[]).forEach(item=>{
-      if(item.mode === 'interval' && item.name && item.name.trim()){
+      if(item.name && item.name.trim()){
         list.push({ dayKey:d.key, dayLabel:d.label, item });
       }
     });
@@ -1764,7 +1841,7 @@ function populateTimerExerciseSelect(){
   const list = getIntervalExercises();
   const prevValue = timerExerciseSelect.value;
   timerExerciseSelect.innerHTML = '<option value="">-- 種目設定に登録した種目を選択 --</option>' +
-    list.map(({dayKey,dayLabel,item})=>`<option value="${dayKey}::${item.id}">${escapeHTML(dayLabel)} - ${escapeHTML(item.name)}</option>`).join('');
+    list.map(({dayKey,dayLabel,item})=>`<option value="${dayKey}::${item.id}">${escapeHTML(dayLabel)} - ${escapeHTML(item.name)}${item.mode==='reps'?'（回数）':''}</option>`).join('');
   const stillExists = list.some(({dayKey,item}) => `${dayKey}::${item.id}` === prevValue);
   if(stillExists){
     timerExerciseSelect.value = prevValue;
@@ -1776,10 +1853,14 @@ function populateTimerExerciseSelect(){
 
 function updateTimerExerciseSummary(){
   if(!selectedTimerItem){
-    timerExerciseSummary.textContent = '種目設定ページでインターバル種目を登録すると、ここで選んでタイマーを実行できます。';
+    timerExerciseSummary.textContent = '種目設定ページで種目を登録すると、ここで選んでタイマーを実行・表示できます。';
     return;
   }
   const it = selectedTimerItem;
+  if(it.mode === 'reps'){
+    timerExerciseSummary.textContent = `回数表示・${it.reps.count}回 × ${it.reps.sets||1}セット（カウントダウンは行われません）`;
+    return;
+  }
   if(it.interval.subType === 'circuit'){
     const steps = it.interval.circuit.steps || [];
     timerExerciseSummary.textContent = steps.length
@@ -1799,7 +1880,7 @@ timerExerciseSelect.addEventListener('change', ()=>{
     const [dayKey, itemId] = val.split('::');
     selectedTimerItem = (trainingPlan[dayKey]||[]).find(it=>it.id===itemId) || null;
   }
-  timerMode = (selectedTimerItem && selectedTimerItem.interval.subType) || 'simple';
+  timerMode = (selectedTimerItem && selectedTimerItem.mode === 'interval') ? selectedTimerItem.interval.subType : 'simple';
   updateTimerExerciseSummary();
   if(timerState.status==='idle') resetTimer();
 });
@@ -1927,7 +2008,7 @@ function defaultPlanDay(){
 function makeExerciseItem(){
   return {
     id: mkId(), name:'', mode:'reps', tagId:'',
-    reps: { count: 10 },
+    reps: { count: 10, sets: 3 },
     interval: {
       subType: 'simple',
       simple: { work:40, rest:20, sets:8 },
@@ -2013,10 +2094,12 @@ function renderExerciseItemBody(item){
     </div>
 
     ${item.mode==='reps' ? `
-      <div class="field">
-        <label>回数</label>
-        <input type="number" class="ei-reps-input" min="1" value="${item.reps.count}">
+      <div class="field-row">
+        <div class="field"><label>回数</label><input type="number" class="ei-reps-input" min="1" value="${item.reps.count}"></div>
+        <div class="field"><label>セット数</label><input type="number" class="ei-reps-sets" min="1" value="${item.reps.sets||1}"></div>
       </div>
+      <div class="ready-hint">インターバル画面で選択すると、回数とセット数がリングの中央に表示されます（カウントダウンは行われません）</div>
+      <button type="button" class="preset-full-btn save ei-run-interval-btn">▶ インターバル画面に表示</button>
     ` : `
       <div class="mode-toggle ei-subtype-toggle">
         <button type="button" class="mode-btn ${item.interval.subType==='simple'?'active':''}" data-subtype="simple">シンプル</button>
@@ -2180,6 +2263,8 @@ function attachExerciseItemEvents(item){
   }
   const repsInput = root.querySelector('.ei-reps-input');
   if(repsInput) repsInput.addEventListener('change', ()=>{ item.reps.count=Math.max(1,parseInt(repsInput.value)||1); schedulePlanSave(); });
+  const repsSetsInput = root.querySelector('.ei-reps-sets');
+  if(repsSetsInput) repsSetsInput.addEventListener('change', ()=>{ item.reps.sets=Math.max(1,parseInt(repsSetsInput.value)||1); schedulePlanSave(); });
 
   const simpleWork = root.querySelector('.ei-simple-work');
   const simpleRest = root.querySelector('.ei-simple-rest');
@@ -2294,7 +2379,7 @@ function attachExerciseItemEvents(item){
   if(runBtn){
     runBtn.addEventListener('click', ()=>{
       selectedTimerItem = item;
-      timerMode = item.interval.subType;
+      timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
       populateTimerExerciseSelect();
       timerExerciseSelect.value = `${selectedPlanDay}::${item.id}`;
       updateTimerExerciseSummary();
