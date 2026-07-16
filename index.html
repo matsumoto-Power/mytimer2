@@ -410,6 +410,7 @@
   .video-ref-item.open .video-ref-chevron{ transform:rotate(90deg); }
   .video-ref-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .video-ref-name.placeholder{ color:var(--panel-muted); font-weight:600; }
+  .video-ref-settings-summary{ flex:0 0 auto; font-size:11.5px; color:var(--panel-muted); font-weight:600; white-space:nowrap; }
   .video-ref-badge{ flex:0 0 auto; font-size:10px; padding:3px 8px; border-radius:999px; background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4); font-weight:700; }
   .video-ref-body{ padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
   .video-ref-body .field label{ font-size:10.5px; }
@@ -2081,17 +2082,33 @@ function renderExerciseItemList(){
   items.forEach(item => attachExerciseItemEvents(item));
 }
 
+function truncateName(name, max=10){
+  return name.length > max ? name.slice(0, max) + '...' : name;
+}
+function buildExerciseSettingsSummary(item){
+  if(item.mode === 'reps'){
+    return `${item.reps.count}回と${item.reps.sets||1}セット`;
+  }
+  if(item.interval.subType === 'circuit'){
+    const workCount = (item.interval.circuit.steps||[]).filter(s=>s.type==='work').length;
+    return `${workCount}種×${item.interval.circuit.repeat}セット`;
+  }
+  const s = item.interval.simple;
+  return `${s.work}秒+${s.rest}秒×${s.sets}セット`;
+}
 function renderExerciseItemHTML(item){
   const isOpen = item.id === openExerciseItemId;
   const hasName = item.name && item.name.trim();
   const tag = exerciseTags.find(t=>t.id===item.tagId);
   const tagChip = tag ? `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>` : '';
+  const settingsSummary = buildExerciseSettingsSummary(item);
   return `
     <div class="video-ref-item${isOpen?' open':''}" data-id="${item.id}">
       <button class="video-ref-header" data-act="toggle">
         <span class="video-ref-chevron">▸</span>
+        <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(truncateName(item.name)) : '（種目名未設定）'}</span>
+        <span class="video-ref-settings-summary">${escapeHTML(settingsSummary)}</span>
         ${tagChip}
-        <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(item.name) : '（種目名未設定）'}</span>
       </button>
       <div class="video-ref-body" style="display:${isOpen?'flex':'none'};">
         ${isOpen ? renderExerciseItemBody(item) : ''}
