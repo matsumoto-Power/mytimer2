@@ -274,6 +274,10 @@
 
   .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
   .settings-title{ font-weight:800; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:8px;}
+  .timer-exercise-summary{
+    font-size:11.5px; color:var(--panel-muted); line-height:1.7; background:rgba(168,85,247,0.08);
+    border:1px solid rgba(168,85,247,0.22); border-radius:10px; padding:10px 12px;
+  }
 
   .mode-toggle{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:12px; margin-top:-6px; }
   .mode-btn{
@@ -283,6 +287,9 @@
   }
   .mode-btn.active{ background:var(--accent-amber); color:#ffffff; }
   .mode-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .ei-subtype-toggle{ background:rgba(168,85,247,0.10); border:1px solid rgba(168,85,247,0.22); }
+  .ei-subtype-toggle .mode-btn{ color:var(--accent-amber); }
+  .ei-subtype-toggle .mode-btn.active{ background:rgba(168,85,247,0.32); color:var(--accent-amber); box-shadow:none; }
 
   .circuit-steps-list{ display:flex; flex-direction:column; gap:8px; }
   .circuit-empty-hint{ font-size:12px; color:var(--panel-muted); text-align:center; padding:16px 8px; }
@@ -670,40 +677,13 @@
           </div>
 
           <div class="panel settings-card">
-            <div class="settings-title">⏱ タイマー設定</div>
-            <div class="mode-toggle" id="timerModeToggle">
-              <button class="mode-btn active" data-mode="simple">シンプル</button>
-              <button class="mode-btn" data-mode="circuit">カスタムサーキット</button>
+            <div class="settings-title">▶ 実行する種目を選択</div>
+            <div class="field">
+              <select id="timerExerciseSelect">
+                <option value="">-- 種目設定に登録した種目を選択 --</option>
+              </select>
             </div>
-
-            <div class="field-row" id="simpleModeFields">
-              <div class="field"><label>ワーク（秒）</label><input type="number" id="workInput" min="1" value="40"></div>
-              <div class="field"><label>休憩（秒）</label><input type="number" id="restInput" min="0" value="20"></div>
-              <div class="field"><label>セット数</label><input type="number" id="setsInput" min="1" value="8"></div>
-            </div>
-
-            <div id="circuitModeFields" style="display:none;">
-              <div class="circuit-steps-list" id="circuitStepsList"></div>
-              <div class="circuit-actions-row">
-                <button class="circuit-add-btn" id="circuitAddStepBtn">＋ ステップを追加</button>
-                <button class="circuit-sample-btn" id="circuitSampleBtn">例を試す</button>
-              </div>
-              <div class="field-row" style="margin-top:12px;">
-                <div class="field"><label>サーキットを繰り返す回数</label><input type="number" id="circuitRepeatInput" min="1" value="3"></div>
-              </div>
-            </div>
-
-            <hr class="div">
-            <div class="settings-title">💾 プロジェクト保存</div>
-            <div class="preset-field">
-              <select id="presetSelect"><option value="">-- 保存済みメニューを選択 --</option></select>
-              <button class="preset-full-btn del" id="presetDeleteBtn">選択したメニューを削除</button>
-            </div>
-            <div class="preset-field">
-              <input type="text" id="presetNameInput" placeholder="例）プランク、スクワット">
-              <button class="preset-full-btn save" id="presetSaveBtn">この設定を保存</button>
-            </div>
-            <div class="preset-list-hint">選択すると、設定内容が即座に反映されます。データはこの端末に保存されます。</div>
+            <div class="timer-exercise-summary" id="timerExerciseSummary">種目設定ページでインターバル種目を登録すると、ここで選んでタイマーを実行できます。</div>
           </div>
         </div>
       </section>
@@ -1435,14 +1415,12 @@ const stepLabel = $('#stepLabel');
 const phaseBadge = $('#phaseBadge');
 const startBtn = $('#startBtn');
 const resetBtn = $('#resetBtn');
-const workInput = $('#workInput');
-const restInput = $('#restInput');
-const setsInput = $('#setsInput');
-const circuitRepeatInput = $('#circuitRepeatInput');
+const timerExerciseSelect = $('#timerExerciseSelect');
+const timerExerciseSummary = $('#timerExerciseSummary');
 
-/* --- タイマーモード：シンプル（ワーク/休憩/セット） or カスタムサーキット（自由な手順の繰り返し） --- */
-let timerMode = 'simple'; // 'simple' | 'circuit'
-let circuitSteps = [];    // [{id, type:'work'|'rest', seconds}]
+/* --- 実行する種目（種目設定ページで登録したインターバル種目）を選んでタイマーを動かす --- */
+let timerMode = 'simple'; // 'simple' | 'circuit'（選択した種目の設定から自動判定）
+let selectedTimerItem = null; // 種目設定で登録された item オブジェクトへの参照
 let sequence = [];        // スタート時に組み立てる実行順の配列
 
 const mkId = () => 'cs_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -1599,11 +1577,12 @@ function speakCountdownNumber(n){
 }
 
 
-/* --- 実行シーケンスの組み立て --- */
+/* --- 実行シーケンスの組み立て（種目設定で登録した種目の値を使用） --- */
 function buildSimpleSequence(){
-  const work = Math.max(1, parseInt(workInput.value)||40);
-  const rest = Math.max(0, parseInt(restInput.value)||0);
-  const sets = Math.max(1, parseInt(setsInput.value)||1);
+  const simple = (selectedTimerItem && selectedTimerItem.interval.simple) || { work:40, rest:20, sets:8 };
+  const work = Math.max(1, parseInt(simple.work)||40);
+  const rest = Math.max(0, parseInt(simple.rest)||0);
+  const sets = Math.max(1, parseInt(simple.sets)||1);
   const seq = [];
   for(let s=1; s<=sets; s++){
     seq.push({type:'work', duration:work, setNumber:s, totalSets:sets, stepInSet:1, totalStepsInSet: rest>0 ? 2 : 1});
@@ -1612,8 +1591,9 @@ function buildSimpleSequence(){
   return seq;
 }
 function buildCircuitSequence(){
-  const repeat = Math.max(1, parseInt(circuitRepeatInput.value)||1);
-  const steps = circuitSteps.filter(s => s.seconds > 0);
+  const circuit = (selectedTimerItem && selectedTimerItem.interval.circuit) || { steps: [], repeat: 1 };
+  const repeat = Math.max(1, parseInt(circuit.repeat)||1);
+  const steps = (circuit.steps||[]).filter(s => s.seconds > 0);
   const seq = [];
   for(let r=1; r<=repeat; r++){
     steps.forEach((st,i) => seq.push({
@@ -1627,12 +1607,7 @@ function buildSequence(){
 }
 
 function setInputsDisabled(disabled){
-  workInput.disabled = restInput.disabled = setsInput.disabled = disabled;
-  circuitRepeatInput.disabled = disabled;
-  $('#circuitAddStepBtn').disabled = disabled;
-  $('#circuitSampleBtn').disabled = disabled;
-  $$('.circuit-step-row select, .circuit-step-row input, .circuit-step-row button').forEach(el => el.disabled = disabled);
-  $$('.mode-btn').forEach(b => b.disabled = disabled);
+  timerExerciseSelect.disabled = disabled;
 }
 
 function updateSetStepLabels(step){
@@ -1771,200 +1746,69 @@ startBtn.addEventListener('click', ()=>{
   }
 });
 resetBtn.addEventListener('click', resetTimer);
-[workInput, restInput, setsInput, circuitRepeatInput].forEach(inp=>{
-  inp.addEventListener('change', ()=>{ if(timerState.status==='idle') resetTimer(); });
-});
 
-/* --- モード切り替え（シンプル / カスタムサーキット） --- */
-function setModeUI(mode){
-  timerMode = mode;
-  $$('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  $('#simpleModeFields').style.display = mode === 'simple' ? 'flex' : 'none';
-  $('#circuitModeFields').style.display = mode === 'circuit' ? 'block' : 'none';
-}
-$$('.mode-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    if(timerState.running) return;
-    setModeUI(btn.dataset.mode);
-    resetTimer();
+/* --- 実行する種目の選択（種目設定ページで登録した「インターバル」種目から選ぶ） --- */
+function getIntervalExercises(){
+  const list = [];
+  planDayDefs.concat([{ key: FREE_PLAN_KEY, label:'フリープラン' }]).forEach(d=>{
+    (trainingPlan[d.key]||[]).forEach(item=>{
+      if(item.mode === 'interval' && item.name && item.name.trim()){
+        list.push({ dayKey:d.key, dayLabel:d.label, item });
+      }
+    });
   });
-});
-
-/* --- カスタムサーキットのステップ編集 --- */
-function addCircuitStep(type='work', seconds=30){
-  circuitSteps.push({ id: mkId(), type, seconds });
-  renderCircuitSteps();
-  if(timerMode === 'circuit' && timerState.status === 'idle') resetTimer();
+  return list;
 }
-function renderCircuitSteps(){
-  const wrap = $('#circuitStepsList');
-  if(!circuitSteps.length){
-    wrap.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。「＋ ステップを追加」から作成するか、「例を試す」をタップしてください。</div>';
+
+function populateTimerExerciseSelect(){
+  const list = getIntervalExercises();
+  const prevValue = timerExerciseSelect.value;
+  timerExerciseSelect.innerHTML = '<option value="">-- 種目設定に登録した種目を選択 --</option>' +
+    list.map(({dayKey,dayLabel,item})=>`<option value="${dayKey}::${item.id}">${escapeHTML(dayLabel)} - ${escapeHTML(item.name)}</option>`).join('');
+  const stillExists = list.some(({dayKey,item}) => `${dayKey}::${item.id}` === prevValue);
+  if(stillExists){
+    timerExerciseSelect.value = prevValue;
+  } else if(timerState.status === 'idle') {
+    selectedTimerItem = null;
+    updateTimerExerciseSummary();
+  }
+}
+
+function updateTimerExerciseSummary(){
+  if(!selectedTimerItem){
+    timerExerciseSummary.textContent = '種目設定ページでインターバル種目を登録すると、ここで選んでタイマーを実行できます。';
     return;
   }
-  wrap.innerHTML = circuitSteps.map((s,i)=>`
-    <div class="circuit-step-row" data-id="${s.id}">
-      <span class="circuit-step-idx">${i+1}</span>
-      <select class="circuit-step-type" data-field="type">
-        <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
-        <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
-      </select>
-      <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}">
-      <span class="circuit-step-unit">秒</span>
-      <button class="circuit-step-btn" data-act="up" ${i===0?'disabled':''} title="上へ">↑</button>
-      <button class="circuit-step-btn" data-act="down" ${i===circuitSteps.length-1?'disabled':''} title="下へ">↓</button>
-      <button class="circuit-step-btn remove" data-act="remove" title="削除">✕</button>
-    </div>
-  `).join('');
-
-  wrap.querySelectorAll('.circuit-step-row').forEach(row=>{
-    const id = row.dataset.id;
-    const typeSel = row.querySelector('[data-field="type"]');
-    const secInput = row.querySelector('[data-field="seconds"]');
-    typeSel.addEventListener('change', e=>{
-      const step = circuitSteps.find(s=>s.id===id);
-      step.type = e.target.value;
-      if(timerMode==='circuit' && timerState.status==='idle') resetTimer();
-    });
-    secInput.addEventListener('change', e=>{
-      const step = circuitSteps.find(s=>s.id===id);
-      step.seconds = Math.max(1, parseInt(e.target.value)||1);
-      if(timerMode==='circuit' && timerState.status==='idle') resetTimer();
-    });
-    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const idx = circuitSteps.findIndex(s=>s.id===id);
-        const act = btn.dataset.act;
-        if(act==='remove'){
-          circuitSteps.splice(idx,1);
-        } else if(act==='up' && idx>0){
-          [circuitSteps[idx-1], circuitSteps[idx]] = [circuitSteps[idx], circuitSteps[idx-1]];
-        } else if(act==='down' && idx<circuitSteps.length-1){
-          [circuitSteps[idx+1], circuitSteps[idx]] = [circuitSteps[idx], circuitSteps[idx+1]];
-        }
-        renderCircuitSteps();
-        if(timerMode==='circuit' && timerState.status==='idle') resetTimer();
-      });
-    });
-  });
-}
-$('#circuitAddStepBtn').addEventListener('click', ()=> addCircuitStep());
-$('#circuitSampleBtn').addEventListener('click', ()=>{
-  circuitSteps = [
-    { id: mkId(), type:'work', seconds:45 },
-    { id: mkId(), type:'rest', seconds:10 },
-    { id: mkId(), type:'work', seconds:45 },
-    { id: mkId(), type:'rest', seconds:10 },
-    { id: mkId(), type:'work', seconds:30 },
-    { id: mkId(), type:'rest', seconds:10 },
-    { id: mkId(), type:'work', seconds:20 },
-    { id: mkId(), type:'rest', seconds:60 },
-  ];
-  circuitRepeatInput.value = 3;
-  renderCircuitSteps();
-  setModeUI('circuit');
-  resetTimer();
-});
-
-renderCircuitSteps();
-resetTimer();
-
-/* =========================================================
-   ワークアウトプリセット保存（window.storage）
-========================================================= */
-const PRESET_KEY = 'interval-presets';
-let presets = [];
-
-async function loadPresets(){
-  try{
-    const raw = await storageGet(PRESET_KEY);
-    presets = raw ? JSON.parse(raw) : [];
-  }catch(err){
-    presets = [];
+  const it = selectedTimerItem;
+  if(it.interval.subType === 'circuit'){
+    const steps = it.interval.circuit.steps || [];
+    timerExerciseSummary.textContent = steps.length
+      ? `カスタムサーキット・${steps.length}ステップ × ${it.interval.circuit.repeat}周`
+      : 'この種目にはまだサーキットのステップが登録されていません。種目設定ページで追加してください。';
+  } else {
+    const s = it.interval.simple;
+    timerExerciseSummary.textContent = `シンプル・ワーク${s.work}秒 / 休憩${s.rest}秒 × ${s.sets}セット`;
   }
-  renderPresetSelect();
 }
 
-function renderPresetSelect(){
-  const sel = $('#presetSelect');
-  const collator = new Intl.Collator('ja', { usage: 'sort', sensitivity: 'base' });
-  const sorted = [...presets].sort((a, b) => collator.compare(a.name, b.name));
-  sel.innerHTML = '<option value="">-- 保存済みメニューを選択 --</option>' +
-    sorted.map(p=>{
-      const detail = p.type === 'circuit'
-        ? `サーキット・${p.steps.length}ステップ×${p.repeat}周`
-        : `${p.work}秒/${p.rest}秒×${p.sets}`;
-      return `<option value="${p.id}">${escapeHTML(p.name)}（${detail}）</option>`;
-    }).join('');
-}
+timerExerciseSelect.addEventListener('change', ()=>{
+  const val = timerExerciseSelect.value;
+  if(!val){
+    selectedTimerItem = null;
+  } else {
+    const [dayKey, itemId] = val.split('::');
+    selectedTimerItem = (trainingPlan[dayKey]||[]).find(it=>it.id===itemId) || null;
+  }
+  timerMode = (selectedTimerItem && selectedTimerItem.interval.subType) || 'simple';
+  updateTimerExerciseSummary();
+  if(timerState.status==='idle') resetTimer();
+});
 
 function escapeHTML(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-async function savePresetsToStorage(){
-  await storageSet(PRESET_KEY, JSON.stringify(presets));
-}
-
-$('#presetSaveBtn').addEventListener('click', async ()=>{
-  const name = $('#presetNameInput').value.trim();
-  if(!name){ $('#presetNameInput').focus(); return; }
-
-  let preset;
-  if(timerMode === 'circuit'){
-    if(!circuitSteps.length){ $('#circuitAddStepBtn').focus(); return; }
-    preset = {
-      id: 'p_' + Date.now(),
-      name,
-      type: 'circuit',
-      steps: circuitSteps.map(s => ({ type: s.type, seconds: s.seconds })),
-      repeat: Math.max(1, parseInt(circuitRepeatInput.value)||1),
-    };
-  } else {
-    preset = {
-      id: 'p_' + Date.now(),
-      name,
-      type: 'simple',
-      work: Math.max(1, parseInt(workInput.value)||40),
-      rest: Math.max(0, parseInt(restInput.value)||0),
-      sets: Math.max(1, parseInt(setsInput.value)||1),
-    };
-  }
-  presets.push(preset);
-  await savePresetsToStorage();
-  renderPresetSelect();
-  $('#presetSelect').value = preset.id;
-  $('#presetNameInput').value = '';
-});
-
-$('#presetSelect').addEventListener('change', (e)=>{
-  const id = e.target.value;
-  const p = presets.find(x=>x.id===id);
-  if(!p) return;
-  const type = p.type || 'simple'; // 旧バージョンで保存されたプリセットはtype未設定 = simple扱い
-  if(type === 'circuit'){
-    circuitSteps = p.steps.map(s => ({ id: mkId(), type: s.type, seconds: s.seconds }));
-    circuitRepeatInput.value = p.repeat;
-    renderCircuitSteps();
-    setModeUI('circuit');
-  } else {
-    workInput.value = p.work;
-    restInput.value = p.rest;
-    setsInput.value = p.sets;
-    setModeUI('simple');
-  }
-  resetTimer();
-});
-
-$('#presetDeleteBtn').addEventListener('click', async ()=>{
-  const id = $('#presetSelect').value;
-  if(!id) return;
-  presets = presets.filter(p=>p.id!==id);
-  await savePresetsToStorage();
-  renderPresetSelect();
-});
-
-loadPresets();
+resetTimer();
 
 /* =========================================================
    天気エリア：Open-Meteo API（APIキー不要・無料）に接続
@@ -2125,6 +1969,7 @@ function renderPlanDayPills(){
 }
 
 function renderExerciseItemList(){
+  populateTimerExerciseSelect();
   const wrap = $('#exerciseItemList');
   const items = getCurrentDayItems();
   if(!items.length){
@@ -2194,6 +2039,7 @@ function renderExerciseItemBody(item){
         </div>
       `}
       ${readyHint}
+      <button type="button" class="preset-full-btn save ei-run-interval-btn">▶ このままインターバルを実行</button>
     `}
 
     <div class="tag-row">
@@ -2441,6 +2287,22 @@ function attachExerciseItemEvents(item){
       openExerciseItemId = null;
       schedulePlanSave();
       renderExerciseItemList();
+    });
+  }
+
+  const runBtn = root.querySelector('.ei-run-interval-btn');
+  if(runBtn){
+    runBtn.addEventListener('click', ()=>{
+      selectedTimerItem = item;
+      timerMode = item.interval.subType;
+      populateTimerExerciseSelect();
+      timerExerciseSelect.value = `${selectedPlanDay}::${item.id}`;
+      updateTimerExerciseSummary();
+      resetTimer();
+      $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+      $$('.tab-panel').forEach(p=>p.classList.remove('active'));
+      $('.tab-btn[data-tab="timer"]').classList.add('active');
+      $('#tab-timer').classList.add('active');
     });
   }
 }
