@@ -2129,7 +2129,7 @@ function renderExerciseItemHTML(item){
   const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
   const settingsSummary = buildExerciseSettingsSummary(item);
   const complete = isExerciseItemComplete(item);
-  const itemBgStyle = complete ? ` style="background:${tag.color}12;"` : '';
+  const itemBgStyle = complete ? ` style="background:${tag.color}29;"` : '';
   return `
     <div class="video-ref-item${isOpen?' open':''}" data-id="${item.id}"${itemBgStyle}>
       <div class="video-ref-header">
