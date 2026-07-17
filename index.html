@@ -275,10 +275,18 @@
 
   .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
   .settings-title{ font-weight:800; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:8px;}
-  .timer-exercise-summary{
-    font-size:11.5px; color:var(--panel-muted); line-height:1.7; background:rgba(168,85,247,0.08);
-    border:1px solid rgba(168,85,247,0.22); border-radius:10px; padding:10px 12px;
+  .timer-exercise-list{ display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto; }
+  .timer-exercise-list.locked{ opacity:0.55; pointer-events:none; }
+  .timer-exercise-empty{ font-size:12px; color:var(--panel-muted); line-height:1.7; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:10px; padding:14px; text-align:center; }
+  .timer-exercise-row{
+    appearance:none; cursor:pointer; width:100%; text-align:left; border:1px solid var(--panel-hairline); border-radius:12px;
+    background:rgba(128,128,128,0.08); padding:11px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    transition: all .15s ease;
   }
+  .timer-exercise-row:hover{ filter:brightness(1.06); }
+  .timer-exercise-row.active{ border-color:var(--accent-amber); box-shadow:0 0 0 1px var(--accent-amber) inset; }
+  .timer-exercise-row .video-ref-name{ font-weight:700; font-size:14px; color:var(--panel-text); flex:1; }
+  .timer-exercise-row .video-ref-settings-summary{ font-size:13px; }
 
   .mode-toggle{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:12px; margin-top:-6px; }
   .mode-btn{
@@ -700,12 +708,8 @@
 
           <div class="panel settings-card">
             <div class="settings-title">▶ 実行する種目を選択</div>
-            <div class="field">
-              <select id="timerExerciseSelect">
-                <option value="">-- 種目設定に登録した種目を選択 --</option>
-              </select>
-            </div>
-            <div class="timer-exercise-summary" id="timerExerciseSummary">種目設定ページでインターバル種目を登録すると、ここで選んでタイマーを実行できます。</div>
+            <div class="weekday-pills" id="timerDayPills"></div>
+            <div class="timer-exercise-list" id="timerExerciseListWrap"></div>
           </div>
         </div>
       </section>
@@ -1441,12 +1445,11 @@ const stepLabel = $('#stepLabel');
 const phaseBadge = $('#phaseBadge');
 const startBtn = $('#startBtn');
 const resetBtn = $('#resetBtn');
-const timerExerciseSelect = $('#timerExerciseSelect');
-const timerExerciseSummary = $('#timerExerciseSummary');
 
-/* --- 実行する種目（種目設定ページで登録したインターバル種目）を選んでタイマーを動かす --- */
+/* --- 実行する種目（種目設定ページで登録した種目）を選んでタイマーを動かす --- */
 let timerMode = 'simple'; // 'simple' | 'circuit'（選択した種目の設定から自動判定）
 let selectedTimerItem = null; // 種目設定で登録された item オブジェクトへの参照
+let selectedTimerDay = null; // インターバルページで選んでいる日程タブ（ルーティン/月〜金/フリープランなど）
 let sequence = [];        // スタート時に組み立てる実行順の配列
 
 const mkId = () => 'cs_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -1679,7 +1682,9 @@ function buildSequence(){
 }
 
 function setInputsDisabled(disabled){
-  timerExerciseSelect.disabled = disabled;
+  const wrap = $('#timerExerciseListWrap');
+  if(wrap) wrap.classList.toggle('locked', disabled);
+  $$('#timerDayPills button').forEach(b => b.disabled = disabled);
 }
 
 function updateSetStepLabels(step){
@@ -1863,66 +1868,62 @@ startBtn.addEventListener('click', ()=>{
 });
 resetBtn.addEventListener('click', resetTimer);
 
-/* --- 実行する種目の選択（種目設定ページで登録した「インターバル」種目から選ぶ） --- */
-function getIntervalExercises(){
-  const list = [];
-  [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }].forEach(d=>{
-    (trainingPlan[d.key]||[]).forEach(item=>{
-      if(item.name && item.name.trim()){
-        list.push({ dayKey:d.key, dayLabel:d.label, item });
-      }
+/* --- 実行する種目の選択（種目設定ページの日程タブ・トグルリストと同じ見た目でここに表示する） --- */
+function renderTimerDayPills(){
+  const wrap = $('#timerDayPills');
+  const tabs = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }];
+  if(!selectedTimerDay) selectedTimerDay = tabs[0].key;
+  wrap.innerHTML = tabs.map(t=>
+    `<button type="button" data-day="${t.key}" class="${t.key===selectedTimerDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${t.label}</button>`
+  ).join('');
+  wrap.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(timerState.status !== 'idle') return; // 実行中は日程切り替え不可
+      selectedTimerDay = btn.dataset.day;
+      renderTimerDayPills();
+      renderTimerExerciseList();
     });
   });
-  return list;
 }
 
-function populateTimerExerciseSelect(){
-  const list = getIntervalExercises();
-  const prevValue = timerExerciseSelect.value;
-  timerExerciseSelect.innerHTML = '<option value="">-- 種目設定に登録した種目を選択 --</option>' +
-    list.map(({dayKey,dayLabel,item})=>`<option value="${dayKey}::${item.id}">${escapeHTML(dayLabel)} - ${escapeHTML(item.name)}${item.mode==='reps'?'（回数）':''}</option>`).join('');
-  const stillExists = list.some(({dayKey,item}) => `${dayKey}::${item.id}` === prevValue);
-  if(stillExists){
-    timerExerciseSelect.value = prevValue;
-  } else if(timerState.status === 'idle') {
-    selectedTimerItem = null;
-    updateTimerExerciseSummary();
-  }
-}
-
-function updateTimerExerciseSummary(){
-  if(!selectedTimerItem){
-    timerExerciseSummary.textContent = '種目設定ページで種目を登録すると、ここで選んでタイマーを実行・表示できます。';
+function renderTimerExerciseList(){
+  const wrap = $('#timerExerciseListWrap');
+  const items = (trainingPlan[selectedTimerDay]||[]).filter(it => it.name && it.name.trim());
+  if(!items.length){
+    wrap.innerHTML = '<div class="timer-exercise-empty">この日程にはまだ種目が登録されていません。種目設定ページから追加してください。</div>';
     return;
   }
-  const it = selectedTimerItem;
-  if(it.mode === 'reps'){
-    timerExerciseSummary.textContent = `回数表示・${it.reps.count}回 × ${it.reps.sets||1}セット（カウントダウンは行われません）`;
-    return;
-  }
-  if(it.interval.subType === 'circuit'){
-    const steps = it.interval.circuit.steps || [];
-    timerExerciseSummary.textContent = steps.length
-      ? `カスタムサーキット・${steps.length}ステップ × ${it.interval.circuit.repeat}周`
-      : 'この種目にはまだサーキットのステップが登録されていません。種目設定ページで追加してください。';
-  } else {
-    const s = it.interval.simple;
-    timerExerciseSummary.textContent = `シンプル・ワーク${s.work}秒 / 休憩${s.rest}秒 × ${s.sets}セット`;
-  }
+  wrap.innerHTML = items.map(item=>{
+    const tag = resolveItemTag(item);
+    const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
+    const summary = buildExerciseSettingsSummary(item);
+    const isActive = selectedTimerItem && selectedTimerItem.id === item.id;
+    return `
+      <button type="button" class="timer-exercise-row${isActive?' active':''}" data-id="${item.id}">
+        <span class="video-ref-name">${escapeHTML(truncateName(item.name))}</span>
+        <span class="video-ref-settings-summary">${escapeHTML(summary)}</span>
+        ${tagChip}
+      </button>
+    `;
+  }).join('');
+  wrap.querySelectorAll('.timer-exercise-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      if(timerState.status !== 'idle') return; // 実行中はタップ無効
+      const item = (trainingPlan[selectedTimerDay]||[]).find(it=>it.id===row.dataset.id);
+      if(!item) return;
+      selectedTimerItem = item;
+      timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
+      renderTimerExerciseList();
+      resetTimer();
+      if(item.mode === 'interval') startTimer(); // タップした瞬間にタイマーを開始
+    });
+  });
 }
 
-timerExerciseSelect.addEventListener('change', ()=>{
-  const val = timerExerciseSelect.value;
-  if(!val){
-    selectedTimerItem = null;
-  } else {
-    const [dayKey, itemId] = val.split('::');
-    selectedTimerItem = (trainingPlan[dayKey]||[]).find(it=>it.id===itemId) || null;
-  }
-  timerMode = (selectedTimerItem && selectedTimerItem.mode === 'interval') ? selectedTimerItem.interval.subType : 'simple';
-  updateTimerExerciseSummary();
-  if(timerState.status==='idle') resetTimer();
-});
+function refreshTimerExercisePanel(){
+  renderTimerDayPills();
+  renderTimerExerciseList();
+}
 
 function escapeHTML(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2106,7 +2107,7 @@ function renderPlanDayPills(){
 }
 
 function renderExerciseItemList(){
-  populateTimerExerciseSelect();
+  refreshTimerExercisePanel();
   const wrap = $('#exerciseItemList');
   const items = getCurrentDayItems();
   if(!items.length){
@@ -2479,10 +2480,9 @@ function attachExerciseItemEvents(item){
   if(runBtn){
     runBtn.addEventListener('click', ()=>{
       selectedTimerItem = item;
+      selectedTimerDay = selectedPlanDay;
       timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
-      populateTimerExerciseSelect();
-      timerExerciseSelect.value = `${selectedPlanDay}::${item.id}`;
-      updateTimerExerciseSummary();
+      refreshTimerExercisePanel();
       resetTimer();
       $$('.tab-btn').forEach(b=>b.classList.remove('active'));
       $$('.tab-panel').forEach(p=>p.classList.remove('active'));
