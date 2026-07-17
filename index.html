@@ -425,6 +425,13 @@
   .video-ref-right-group{ display:flex; align-items:center; justify-content:flex-end; gap:8px; flex:0 0 auto; }
   .video-ref-settings-summary{ flex:0 0 auto; font-size:13.5px; color:var(--panel-muted); font-weight:700; white-space:nowrap; }
   .video-ref-badge{ flex:0 0 auto; font-size:10px; padding:3px 8px; border-radius:999px; background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4); font-weight:700; }
+  .video-ref-reorder-btn{
+    appearance:none; cursor:pointer; flex:0 0 auto; border:none; border-radius:9px; width:28px; height:28px;
+    background:rgba(128,128,128,0.14); color:var(--panel-muted); font-size:13px; line-height:1;
+    transition: background .2s ease;
+  }
+  .video-ref-reorder-btn:hover{ background:rgba(128,128,128,0.28); }
+  .video-ref-reorder-btn:disabled{ opacity:0.3; cursor:not-allowed; }
   .video-ref-delete-btn{
     appearance:none; cursor:pointer; flex:0 0 auto; border:none; border-radius:9px; padding:8px 10px;
     background:rgba(255,93,58,0.12); color:var(--accent-work); font-size:14px; line-height:1;
@@ -2116,7 +2123,7 @@ function renderExerciseItemList(){
     wrap.innerHTML = '<div class="video-ref-empty">この日はまだ種目が登録されていません。「＋ 種目を追加」から作成してください。</div>';
     return;
   }
-  wrap.innerHTML = items.map(item => renderExerciseItemHTML(item)).join('');
+  wrap.innerHTML = items.map((item, i) => renderExerciseItemHTML(item, i, items.length)).join('');
   items.forEach(item => attachExerciseItemEvents(item));
 }
 
@@ -2145,7 +2152,7 @@ function isExerciseItemComplete(item){
   }
   return true;
 }
-function renderExerciseItemHTML(item){
+function renderExerciseItemHTML(item, index, total){
   const isOpen = item.id === openExerciseItemId;
   const hasName = item.name && item.name.trim();
   const tag = resolveItemTag(item);
@@ -2163,6 +2170,8 @@ function renderExerciseItemHTML(item){
         <div class="video-ref-right-group">
           <span class="video-ref-settings-summary">${escapeHTML(settingsSummary)}</span>
           ${tagChip}
+          <button type="button" class="video-ref-reorder-btn" data-act="moveup" ${index===0?'disabled':''} title="上に移動">↑</button>
+          <button type="button" class="video-ref-reorder-btn" data-act="movedown" ${index===total-1?'disabled':''} title="下に移動">↓</button>
           <button type="button" class="video-ref-delete-btn" data-act="delete" title="この種目を削除">🗑</button>
         </div>
       </div>
@@ -2222,13 +2231,16 @@ function renderExerciseItemBody(item){
       `}
     `}
 
-    <div class="tag-row">
-      <select class="ei-tag-select">
-        <option value="">未分類</option>
-        ${exerciseTags.map(t=>`<option value="${t.id}" ${item.tagId===t.id?'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
-      </select>
-      <button type="button" class="circuit-sample-btn ei-tag-edit-btn" ${item.tagId?'':'disabled'}>✎ 編集</button>
-      <button type="button" class="circuit-sample-btn ei-tag-new-btn">＋ 新規タグ</button>
+    <div class="field">
+      <label>タグ選択</label>
+      <div class="tag-row">
+        <select class="ei-tag-select">
+          <option value="">未分類</option>
+          ${exerciseTags.map(t=>`<option value="${t.id}" ${item.tagId===t.id?'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
+        </select>
+        <button type="button" class="circuit-sample-btn ei-tag-edit-btn" ${item.tagId?'':'disabled'}>✎ 編集</button>
+        <button type="button" class="circuit-sample-btn ei-tag-new-btn">＋ 新規タグ</button>
+      </div>
     </div>
     <div class="tag-create-panel" style="display:none;">
       <input type="text" class="tag-name-input" placeholder="タグ名（例：上半身、有酸素）">
@@ -2357,6 +2369,28 @@ function attachExerciseItemEvents(item){
     if(openExerciseItemId === item.id) openExerciseItemId = null;
     schedulePlanSave();
     renderExerciseItemList();
+  });
+  const moveUpBtn = root.querySelector('[data-act="moveup"]');
+  if(moveUpBtn) moveUpBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const items = getCurrentDayItems();
+    const idx = items.findIndex(x=>x.id===item.id);
+    if(idx > 0){
+      [items[idx-1], items[idx]] = [items[idx], items[idx-1]];
+      schedulePlanSave();
+      renderExerciseItemList();
+    }
+  });
+  const moveDownBtn = root.querySelector('[data-act="movedown"]');
+  if(moveDownBtn) moveDownBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const items = getCurrentDayItems();
+    const idx = items.findIndex(x=>x.id===item.id);
+    if(idx >= 0 && idx < items.length-1){
+      [items[idx], items[idx+1]] = [items[idx+1], items[idx]];
+      schedulePlanSave();
+      renderExerciseItemList();
+    }
   });
   if(item.id !== openExerciseItemId) return;
 
