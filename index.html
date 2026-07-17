@@ -410,17 +410,19 @@
     background:rgba(128,128,128,0.08);
   }
   .video-ref-header{
-    width:100%; display:flex; align-items:center; gap:4px; padding:6px 8px 6px 14px;
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 8px 6px 14px;
   }
   .video-ref-header:hover{ background:rgba(128,128,128,0.08); }
   .video-ref-toggle-area{
     appearance:none; cursor:pointer; border:none; background:transparent; min-width:0;
-    color:var(--panel-text); padding:7px 6px; display:flex; align-items:center; gap:10px; font-weight:700; font-size:14px; flex:1;
+    color:var(--panel-text); padding:7px 6px; display:flex; align-items:center; justify-content:flex-start; gap:10px;
+    font-weight:700; font-size:14px; flex:1 1 auto; text-align:left;
   }
   .video-ref-chevron{ display:inline-flex; transition:transform .2s ease; color:var(--panel-muted); flex:0 0 auto; }
   .video-ref-item.open .video-ref-chevron{ transform:rotate(90deg); }
-  .video-ref-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .video-ref-name{ flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
   .video-ref-name.placeholder{ color:var(--panel-muted); font-weight:600; }
+  .video-ref-right-group{ display:flex; align-items:center; justify-content:flex-end; gap:8px; flex:0 0 auto; }
   .video-ref-settings-summary{ flex:0 0 auto; font-size:13.5px; color:var(--panel-muted); font-weight:700; white-space:nowrap; }
   .video-ref-badge{ flex:0 0 auto; font-size:10px; padding:3px 8px; border-radius:999px; background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4); font-weight:700; }
   .video-ref-delete-btn{
@@ -436,9 +438,9 @@
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
   }
   .ei-memo-input{
-    width:100%; min-height:64px; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px; font-family:inherit;
-    resize:vertical; line-height:1.6;
+    resize:none; overflow:hidden; line-height:1.6; display:block;
   }
   .video-play-btn{
     width:100%; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
@@ -2162,10 +2164,12 @@ function renderExerciseItemHTML(item){
         <button type="button" class="video-ref-toggle-area" data-act="toggle">
           <span class="video-ref-chevron">▸</span>
           <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(truncateName(item.name)) : '（種目名未設定）'}</span>
+        </button>
+        <div class="video-ref-right-group">
           <span class="video-ref-settings-summary">${escapeHTML(settingsSummary)}</span>
           ${tagChip}
-        </button>
-        <button type="button" class="video-ref-delete-btn" data-act="delete" title="この種目を削除">🗑</button>
+          <button type="button" class="video-ref-delete-btn" data-act="delete" title="この種目を削除">🗑</button>
+        </div>
       </div>
       <div class="video-ref-body" style="display:${isOpen?'flex':'none'};">
         ${isOpen ? renderExerciseItemBody(item) : ''}
@@ -2187,7 +2191,7 @@ function renderExerciseItemBody(item){
 
     <div class="field">
       <label>メモ</label>
-      <textarea class="ei-memo-input" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">${escapeHTML(item.memo||'')}</textarea>
+      <textarea class="ei-memo-input" rows="1" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">${escapeHTML(item.memo||'')}</textarea>
     </div>
 
     <div class="mode-toggle ei-mode-toggle">
@@ -2365,7 +2369,12 @@ function attachExerciseItemEvents(item){
   if(nameInput) nameInput.addEventListener('change', ()=>{ item.name=nameInput.value; schedulePlanSave(); renderExerciseItemList(); });
 
   const memoInput = root.querySelector('.ei-memo-input');
-  if(memoInput) memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
+  if(memoInput){
+    const autoResizeMemo = () => { memoInput.style.height = 'auto'; memoInput.style.height = memoInput.scrollHeight + 'px'; };
+    autoResizeMemo();
+    memoInput.addEventListener('input', autoResizeMemo);
+    memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
+  }
 
   root.querySelectorAll('.ei-mode-toggle .mode-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{ item.mode=btn.dataset.mode; schedulePlanSave(); renderExerciseItemList(); });
