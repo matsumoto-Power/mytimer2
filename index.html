@@ -437,11 +437,6 @@
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
   }
-  .ei-memo-input{
-    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
-    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px; font-family:inherit;
-    resize:none; overflow:hidden; line-height:1.6; display:block;
-  }
   .video-play-btn{
     width:100%; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
     padding:13px; border-radius:10px; font-weight:800; font-size:14px;
@@ -2191,7 +2186,7 @@ function renderExerciseItemBody(item){
 
     <div class="field">
       <label>メモ</label>
-      <textarea class="ei-memo-input" rows="1" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">${escapeHTML(item.memo||'')}</textarea>
+      <input type="text" class="ei-memo-input" value="${escapeHTML(item.memo||'')}" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">
     </div>
 
     <div class="mode-toggle ei-mode-toggle">
@@ -2369,12 +2364,7 @@ function attachExerciseItemEvents(item){
   if(nameInput) nameInput.addEventListener('change', ()=>{ item.name=nameInput.value; schedulePlanSave(); renderExerciseItemList(); });
 
   const memoInput = root.querySelector('.ei-memo-input');
-  if(memoInput){
-    const autoResizeMemo = () => { memoInput.style.height = 'auto'; memoInput.style.height = memoInput.scrollHeight + 'px'; };
-    autoResizeMemo();
-    memoInput.addEventListener('input', autoResizeMemo);
-    memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
-  }
+  if(memoInput) memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
 
   root.querySelectorAll('.ei-mode-toggle .mode-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{ item.mode=btn.dataset.mode; schedulePlanSave(); renderExerciseItemList(); });
