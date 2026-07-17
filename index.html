@@ -435,6 +435,11 @@
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
   }
+  .ei-memo-input{
+    width:100%; min-height:64px; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px; font-family:inherit;
+    resize:vertical; line-height:1.6;
+  }
   .video-play-btn{
     width:100%; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
     padding:13px; border-radius:10px; font-weight:800; font-size:14px;
@@ -2064,7 +2069,7 @@ function defaultPlanDay(){
 }
 function makeExerciseItem(){
   return {
-    id: mkId(), name:'', mode:'reps', tagId:'',
+    id: mkId(), name:'', memo:'', mode:'reps', tagId:'',
     reps: { count: 10, sets: 3 },
     interval: {
       subType: 'simple',
@@ -2170,11 +2175,19 @@ function renderExerciseItemHTML(item){
 }
 
 function renderExerciseItemBody(item){
-  const readyHint = `<div class="ready-hint">🔊 実行開始前に「Are You Ready?」の5秒間音声カウントダウンが入ります（インターバル画面との連携が有効になった際に反映されます）</div>`;
+  const readyHint = item.mode === 'reps'
+    ? `<div class="ready-hint">インターバル画面で選択すると、回数とセット数がリングの中央に表示されます（カウントダウンは行われません）</div>`
+    : `<div class="ready-hint">🔊 実行開始前に「Are You Ready?」の5秒間音声カウントダウンが入ります</div>`;
+  const runBtnLabel = item.mode === 'reps' ? '▶ インターバル画面に表示' : '▶ このままインターバルを実行';
   return `
     <div class="field">
       <label>種目名</label>
       <input type="text" class="ei-name-input" value="${escapeHTML(item.name||'')}" placeholder="例）スクワット、肩甲骨ストレッチ">
+    </div>
+
+    <div class="field">
+      <label>メモ</label>
+      <textarea class="ei-memo-input" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">${escapeHTML(item.memo||'')}</textarea>
     </div>
 
     <div class="mode-toggle ei-mode-toggle">
@@ -2187,8 +2200,6 @@ function renderExerciseItemBody(item){
         <div class="field"><label>回数</label><input type="number" class="ei-reps-input" min="1" value="${item.reps.count}"></div>
         <div class="field"><label>セット数</label><input type="number" class="ei-reps-sets" min="1" value="${item.reps.sets||1}"></div>
       </div>
-      <div class="ready-hint">インターバル画面で選択すると、回数とセット数がリングの中央に表示されます（カウントダウンは行われません）</div>
-      <button type="button" class="preset-full-btn save ei-run-interval-btn">▶ インターバル画面に表示</button>
     ` : `
       <div class="mode-toggle ei-subtype-toggle">
         <button type="button" class="mode-btn ${item.interval.subType==='simple'?'active':''}" data-subtype="simple">シンプル</button>
@@ -2210,8 +2221,6 @@ function renderExerciseItemBody(item){
           <input type="number" class="ei-circuit-repeat" min="1" value="${item.interval.circuit.repeat}">
         </div>
       `}
-      ${readyHint}
-      <button type="button" class="preset-full-btn save ei-run-interval-btn">▶ このままインターバルを実行</button>
     `}
 
     <div class="tag-row">
@@ -2235,6 +2244,9 @@ function renderExerciseItemBody(item){
       <button type="button" class="preset-full-btn save tag-edit-save">保存</button>
       <button type="button" class="preset-full-btn del tag-edit-delete">削除</button>
     </div>
+
+    ${readyHint}
+    <button type="button" class="preset-full-btn save ei-run-interval-btn">${runBtnLabel}</button>
 
     <div class="ei-video-section">
       <label class="ei-video-label">参考動画</label>
@@ -2351,6 +2363,9 @@ function attachExerciseItemEvents(item){
 
   const nameInput = root.querySelector('.ei-name-input');
   if(nameInput) nameInput.addEventListener('change', ()=>{ item.name=nameInput.value; schedulePlanSave(); renderExerciseItemList(); });
+
+  const memoInput = root.querySelector('.ei-memo-input');
+  if(memoInput) memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
 
   root.querySelectorAll('.ei-mode-toggle .mode-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{ item.mode=btn.dataset.mode; schedulePlanSave(); renderExerciseItemList(); });
