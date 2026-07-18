@@ -292,6 +292,7 @@
   .timer-exercise-list{ display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto; }
   .timer-exercise-list.locked{ opacity:0.55; pointer-events:none; }
   .timer-exercise-empty{ font-size:12px; color:var(--panel-muted); line-height:1.7; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:10px; padding:14px; text-align:center; }
+  .timer-adhoc-divider{ font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--panel-muted); margin:10px 0 2px; padding-left:2px; }
   .timer-exercise-row{
     width:100%; border:1px solid var(--panel-hairline); border-radius:12px;
     background:rgba(128,128,128,0.08); display:flex; align-items:center; gap:4px;
@@ -444,6 +445,15 @@
     background:rgba(128,128,128,0.06); padding:9px 12px; font-size:13px; font-weight:600; color:var(--panel-text);
   }
   .plan-day-inline-target-row:hover{ background:rgba(128,128,128,0.16); }
+  .recurrence-grid{ display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; }
+  .recurrence-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); border-radius:9px;
+    background:rgba(128,128,128,0.08); color:var(--panel-text); padding:9px 2px; font-size:10.5px; font-weight:700;
+    letter-spacing:-0.2px; white-space:nowrap; transition: all .15s ease;
+  }
+  .recurrence-btn:hover{ background:rgba(128,128,128,0.18); }
+  .recurrence-btn.active{ background:var(--accent-amber); color:#ffffff; border-color:transparent; }
+  @media (max-width:520px){ .recurrence-grid{ grid-template-columns:repeat(3, 1fr); } }
   .weekday-pills button{
     appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
     color:var(--panel-text); padding:8px 12px; border-radius:12px; font-weight:700; font-size:12px;
@@ -2049,35 +2059,46 @@ function renderTimerDayPills(){
   });
 }
 
-function renderTimerExerciseList(){
-  const wrap = $('#timerExerciseListWrap');
-  const items = (trainingPlan[selectedTimerDay]||[]).filter(it => it.name && it.name.trim());
-  if(!items.length){
-    wrap.innerHTML = '<div class="timer-exercise-empty">この日程にはまだ種目が登録されていません。種目設定ページから追加してください。</div>';
-    return;
-  }
-  wrap.innerHTML = items.map(item=>{
-    const tag = resolveItemTag(item);
-    const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
-    const summary = buildExerciseSettingsSummary(item);
-    const isActive = selectedTimerItem && selectedTimerItem.id === item.id;
-    return `
-      <div class="timer-exercise-row${isActive?' active':''}" data-id="${item.id}">
-        <button type="button" class="timer-exercise-tap-area" data-id="${item.id}">
-          <span class="video-ref-name">${escapeHTML(truncateName(item.name))}</span>
-          <span class="video-ref-settings-summary">${escapeHTML(summary)}</span>
-          ${tagChip}
-        </button>
-        <label class="timer-exercise-checklist" title="実行チェックリスト">
-          <input type="checkbox" class="timer-exercise-checkbox" data-id="${item.id}" ${item.checked?'checked':''}>
-        </label>
-      </div>
-    `;
-  }).join('');
+/* 「今日の追加メニュー」：常に実際の今日の日付に紐づく、突発的に追加する種目。日付指定の入り口として運用する */
+function getTodayDateKey(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function getTodayAdhocKey(){ return 'adhoc_' + getTodayDateKey(); }
+function getTodayAdhocItems(){
+  const key = getTodayAdhocKey();
+  if(!trainingPlan[key]) trainingPlan[key] = [];
+  return trainingPlan[key];
+}
+function resolveTimerRowItemsArray(source){
+  return source === 'adhoc' ? getTodayAdhocItems() : (trainingPlan[selectedTimerDay]||[]);
+}
+function buildTimerExerciseRowHTML(item, source){
+  const tag = resolveItemTag(item);
+  const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
+  const summary = buildExerciseSettingsSummary(item);
+  const isActive = selectedTimerItem && selectedTimerItem.id === item.id;
+  return `
+    <div class="timer-exercise-row${isActive?' active':''}" data-id="${item.id}" data-source="${source}">
+      <button type="button" class="timer-exercise-tap-area" data-id="${item.id}" data-source="${source}">
+        <span class="video-ref-name">${escapeHTML(truncateName(item.name))}</span>
+        <span class="video-ref-settings-summary">${escapeHTML(summary)}</span>
+        ${tagChip}
+      </button>
+      <label class="timer-exercise-checklist" title="実行チェックリスト">
+        <input type="checkbox" class="timer-exercise-checkbox" data-id="${item.id}" data-source="${source}" ${item.checked?'checked':''}>
+      </label>
+    </div>
+  `;
+}
+function attachTimerExerciseRowEvents(wrap){
   wrap.querySelectorAll('.timer-exercise-tap-area').forEach(row=>{
     row.addEventListener('click', ()=>{
       if(timerState.status !== 'idle') return; // 実行中はタップ無効
-      const item = (trainingPlan[selectedTimerDay]||[]).find(it=>it.id===row.dataset.id);
+      const items = resolveTimerRowItemsArray(row.dataset.source);
+      const item = items.find(it=>it.id===row.dataset.id);
       if(!item) return;
       selectedTimerItem = item;
       timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
@@ -2089,11 +2110,191 @@ function renderTimerExerciseList(){
   wrap.querySelectorAll('.timer-exercise-checkbox').forEach(cb=>{
     cb.addEventListener('click', (e)=> e.stopPropagation());
     cb.addEventListener('change', ()=>{
-      const item = (trainingPlan[selectedTimerDay]||[]).find(it=>it.id===cb.dataset.id);
+      const items = resolveTimerRowItemsArray(cb.dataset.source);
+      const item = items.find(it=>it.id===cb.dataset.id);
       if(!item) return;
       item.checked = cb.checked; // 今後カレンダー機能と連動予定。現時点ではON/OFFの保持のみ
       schedulePlanSave();
     });
+  });
+}
+
+function renderTimerExerciseList(){
+  const wrap = $('#timerExerciseListWrap');
+  const dayItems = (trainingPlan[selectedTimerDay]||[]).filter(it => it.name && it.name.trim());
+  const adhocItems = getTodayAdhocItems().filter(it => it.name && it.name.trim());
+
+  let html = dayItems.length
+    ? dayItems.map(item => buildTimerExerciseRowHTML(item, 'day')).join('')
+    : '<div class="timer-exercise-empty">この日程にはまだ種目が登録されていません。種目設定ページから追加してください。</div>';
+
+  html += '<div class="timer-adhoc-divider">今日の追加メニュー</div>';
+  html += adhocItems.map(item => buildTimerExerciseRowHTML(item, 'adhoc')).join('');
+  html += '<button type="button" class="modal-add-btn" id="timerAdhocAddBtn">＋ 追加メニュー</button>';
+  html += '<div class="plan-day-inline-panel" id="timerAdhocCreatePanel" style="display:none;"></div>';
+
+  wrap.innerHTML = html;
+  attachTimerExerciseRowEvents(wrap);
+  $('#timerAdhocAddBtn').addEventListener('click', openAdhocCreatePanel);
+}
+
+/* 「＋ 追加メニュー」：種目設定ページと共通の入力項目（名称・メモ・回数/インターバル・タグ）をその場で入力し、
+   常に今日の実際の日付（adhoc_YYYY-MM-DD）に紐づく種目として追加する */
+function openAdhocCreatePanel(){
+  const panel = $('#timerAdhocCreatePanel');
+  const newItem = makeExerciseItem();
+
+  panel.innerHTML = `
+    <div class="plan-day-inline-title">＋ 今日の追加メニュー</div>
+    <div class="plan-day-inline-row"><input type="text" id="adhocNameInput" placeholder="種目名"></div>
+    <div class="plan-day-inline-row"><input type="text" id="adhocMemoInput" placeholder="メモ（任意）"></div>
+    <div class="mode-toggle" id="adhocModeToggle">
+      <button type="button" class="mode-btn active" data-mode="reps">回数</button>
+      <button type="button" class="mode-btn" data-mode="interval">インターバル</button>
+    </div>
+    <div id="adhocModeFields"></div>
+    <div class="field">
+      <label>タグ選択</label>
+      <select id="adhocTagSelect">
+        <option value="">未分類</option>
+        ${exerciseTags.map(t=>`<option value="${t.id}">${escapeHTML(t.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="plan-day-inline-actions">
+      <button type="button" class="preset-full-btn save" id="adhocSaveBtn">追加</button>
+      <button type="button" class="preset-full-btn" id="adhocCancelBtn">キャンセル</button>
+    </div>
+  `;
+  panel.style.display = 'flex';
+
+  function renderSubtypeFields(){
+    const wrap2 = $('#adhocSubtypeFields');
+    if(!wrap2) return;
+    if(newItem.interval.subType === 'simple'){
+      wrap2.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>ワーク（秒）</label><input type="number" id="adhocWork" min="1" value="${newItem.interval.simple.work}"></div>
+          <div class="field"><label>休憩（秒）</label><input type="number" id="adhocRest" min="0" value="${newItem.interval.simple.rest}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="adhocSets" min="1" value="${newItem.interval.simple.sets}"></div>
+        </div>
+      `;
+      $('#adhocWork').addEventListener('change', e=>{ newItem.interval.simple.work = Math.max(1, parseInt(e.target.value)||1); });
+      $('#adhocRest').addEventListener('change', e=>{ newItem.interval.simple.rest = Math.max(0, parseInt(e.target.value)||0); });
+      $('#adhocSets').addEventListener('change', e=>{ newItem.interval.simple.sets = Math.max(1, parseInt(e.target.value)||1); });
+    } else {
+      wrap2.innerHTML = `
+        <div class="circuit-steps-list" id="adhocCircuitSteps"></div>
+        <div class="circuit-actions-row">
+          <button type="button" class="circuit-add-btn" id="adhocCircuitAdd">＋ ステップを追加</button>
+        </div>
+        <div class="field" style="margin-top:8px;">
+          <label>繰り返す回数</label>
+          <input type="number" id="adhocCircuitRepeat" min="1" value="${newItem.interval.circuit.repeat}">
+        </div>
+      `;
+      $('#adhocCircuitRepeat').addEventListener('change', e=>{ newItem.interval.circuit.repeat = Math.max(1, parseInt(e.target.value)||1); });
+      $('#adhocCircuitAdd').addEventListener('click', ()=>{
+        newItem.interval.circuit.steps.push({ id: mkId(), type:'work', seconds:30 });
+        renderAdhocCircuitSteps();
+      });
+      renderAdhocCircuitSteps();
+    }
+  }
+
+  function renderAdhocCircuitSteps(){
+    const container = $('#adhocCircuitSteps');
+    if(!container) return;
+    const steps = newItem.interval.circuit.steps;
+    if(!steps.length){
+      container.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。</div>';
+      return;
+    }
+    container.innerHTML = steps.map((s,i)=>`
+      <div class="circuit-step-row" data-sid="${s.id}">
+        <span class="circuit-step-idx">${i+1}</span>
+        <select class="circuit-step-type" data-field="type">
+          <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
+          <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
+        </select>
+        <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}">
+        <span class="circuit-step-unit">秒</span>
+        <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+        <button type="button" class="circuit-step-btn" data-act="down" ${i===steps.length-1?'disabled':''}>↓</button>
+        <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+      </div>
+    `).join('');
+    container.querySelectorAll('.circuit-step-row').forEach(row=>{
+      const sid = row.dataset.sid;
+      const step = steps.find(s=>s.id===sid);
+      row.querySelector('[data-field="type"]').addEventListener('change', e=>{ step.type=e.target.value; });
+      row.querySelector('[data-field="seconds"]').addEventListener('change', e=>{ step.seconds=Math.max(1,parseInt(e.target.value)||1); });
+      row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const idx = steps.findIndex(s=>s.id===sid);
+          const act = btn.dataset.act;
+          if(act==='remove'){ steps.splice(idx,1); }
+          else if(act==='up' && idx>0){ [steps[idx-1],steps[idx]]=[steps[idx],steps[idx-1]]; }
+          else if(act==='down' && idx<steps.length-1){ [steps[idx+1],steps[idx]]=[steps[idx],steps[idx+1]]; }
+          renderAdhocCircuitSteps();
+        });
+      });
+    });
+  }
+
+  function renderModeFields(){
+    const fieldsWrap = $('#adhocModeFields');
+    if(newItem.mode === 'reps'){
+      fieldsWrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>回数</label><input type="number" id="adhocRepsCount" min="1" value="${newItem.reps.count}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="adhocRepsSets" min="1" value="${newItem.reps.sets}"></div>
+        </div>
+      `;
+      $('#adhocRepsCount').addEventListener('change', e=>{ newItem.reps.count = Math.max(1, parseInt(e.target.value)||1); });
+      $('#adhocRepsSets').addEventListener('change', e=>{ newItem.reps.sets = Math.max(1, parseInt(e.target.value)||1); });
+    } else {
+      fieldsWrap.innerHTML = `
+        <div class="mode-toggle ei-subtype-toggle" id="adhocSubtypeToggle">
+          <button type="button" class="mode-btn ${newItem.interval.subType==='simple'?'active':''}" data-subtype="simple">シンプル</button>
+          <button type="button" class="mode-btn ${newItem.interval.subType==='circuit'?'active':''}" data-subtype="circuit">カスタムサーキット</button>
+        </div>
+        <div id="adhocSubtypeFields"></div>
+      `;
+      $('#adhocSubtypeToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          newItem.interval.subType = btn.dataset.subtype;
+          $('#adhocSubtypeToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+          renderSubtypeFields();
+        });
+      });
+      renderSubtypeFields();
+    }
+  }
+
+  $('#adhocModeToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      newItem.mode = btn.dataset.mode;
+      $('#adhocModeToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      renderModeFields();
+    });
+  });
+  renderModeFields();
+
+  $('#adhocNameInput').focus();
+  $('#adhocSaveBtn').addEventListener('click', async ()=>{
+    const nameInput = $('#adhocNameInput');
+    const name = nameInput.value.trim();
+    if(!name){ nameInput.focus(); return; }
+    newItem.name = name;
+    newItem.memo = $('#adhocMemoInput').value.trim();
+    newItem.tagId = $('#adhocTagSelect').value;
+    getTodayAdhocItems().push(newItem);
+    await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
+    renderTimerExerciseList();
+  });
+  $('#adhocCancelBtn').addEventListener('click', ()=>{
+    panel.style.display = 'none';
+    panel.innerHTML = '';
   });
 }
 
@@ -2204,6 +2405,7 @@ const TAGS_KEY = 'exercise-tags';
 const DELETED_DAYS_KEY = 'deleted-day-tabs';
 const CUSTOM_DAYS_KEY = 'custom-day-tabs';
 const DAY_LABEL_OVERRIDES_KEY = 'day-label-overrides';
+const DAY_TAG_RECURRENCE_KEY = 'day-tag-recurrence';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -2218,10 +2420,33 @@ const planDayDefs = [
 let deletedDayKeys = new Set(); // 削除済みの日程タブのkeyを保持（ルーティン/月〜金/通常休み/連休日/フリープラン すべて削除対象）
 let customDayTabs = [];         // ユーザーが「新規作成」で追加した日程タブ [{key, label}]
 let dayLabelOverrides = {};     // 「設定」で名称変更した既存タブの表示名 { key: label }
+let dayTagRecurrence = {};      // 日程タグごとの周期設定 { key: recurrenceValue }（今後インターバル／カレンダーと連動予定）
+
+/* 日程タグの「周期」選択肢：まずはこの一覧から単一選択できるようにする */
+const RECURRENCE_OPTIONS = [
+  { value:'everyday', label:'毎日' },
+  { value:'mon', label:'毎週月曜' },
+  { value:'tue', label:'毎週火曜' },
+  { value:'wed', label:'毎週水曜' },
+  { value:'thu', label:'毎週木曜' },
+  { value:'fri', label:'毎週金曜' },
+  { value:'sat', label:'毎週土曜' },
+  { value:'sun', label:'毎週日曜' },
+  { value:'once', label:'日付指定' },
+  { value:'freeplan', label:'フリープラン' },
+];
+async function saveDayTagRecurrence(){
+  await storageSet(DAY_TAG_RECURRENCE_KEY, JSON.stringify(dayTagRecurrence));
+}
+function renderRecurrenceGrid(selectedValue){
+  return RECURRENCE_OPTIONS.map(opt=>
+    `<button type="button" class="recurrence-btn${opt.value===selectedValue?' active':''}" data-recurrence="${opt.value}">${opt.label}</button>`
+  ).join('');
+}
 
 /* 現在表示すべき日程タブの一覧（削除されたものを除き、名称変更・新規作成タブを反映した状態）を返す */
 function getAllPlanDayTabs(){
-  const base = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }, ...customDayTabs];
+  const base = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, ...customDayTabs];
   return base
     .filter(t => !deletedDayKeys.has(t.key))
     .map(t => dayLabelOverrides[t.key] ? { key:t.key, label:dayLabelOverrides[t.key] } : t);
@@ -2265,6 +2490,10 @@ async function renamePlanDayTab(key, newLabel){
 async function deletePlanDayTab(key){
   deletedDayKeys.add(key);
   delete trainingPlan[key];
+  if(dayTagRecurrence[key] !== undefined){
+    delete dayTagRecurrence[key];
+    await saveDayTagRecurrence();
+  }
   await saveDeletedDayKeys();
   await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
 
@@ -2383,13 +2612,16 @@ function closeDayInlinePanel(){
   planDayInlinePanel.innerHTML = '';
 }
 
-/* 「＋ 新規作成」：日程タブ名を入力して作成する */
+/* 「＋ 新規作成」：日程タグ名と周期を設定して作成する */
 function openDayCreatePanel(){
+  let selectedRecurrence = null;
   planDayInlinePanel.innerHTML = `
-    <div class="plan-day-inline-title">＋ 新しい日程タブを作成</div>
+    <div class="plan-day-inline-title">＋ 新しい日程タグを作成</div>
     <div class="plan-day-inline-row">
       <input type="text" id="dayCreateInput" placeholder="例）土曜、遠征期間中">
     </div>
+    <div class="plan-day-inline-title">周期</div>
+    <div class="recurrence-grid" id="dayCreateRecurrenceGrid">${renderRecurrenceGrid(null)}</div>
     <div class="plan-day-inline-actions">
       <button type="button" class="preset-full-btn save" id="dayCreateConfirmBtn">作成</button>
       <button type="button" class="preset-full-btn" id="dayCreateCancelBtn">キャンセル</button>
@@ -2398,10 +2630,21 @@ function openDayCreatePanel(){
   planDayInlinePanel.style.display = 'flex';
   const input = $('#dayCreateInput');
   input.focus();
+  const grid = $('#dayCreateRecurrenceGrid');
+  grid.querySelectorAll('.recurrence-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedRecurrence = btn.dataset.recurrence;
+      grid.querySelectorAll('.recurrence-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    });
+  });
   $('#dayCreateConfirmBtn').addEventListener('click', async ()=>{
     const label = input.value.trim();
     if(!label){ input.focus(); return; }
     const key = await createPlanDayTab(label);
+    if(selectedRecurrence){
+      dayTagRecurrence[key] = selectedRecurrence;
+      await saveDayTagRecurrence();
+    }
     selectedPlanDay = key;
     renderPlanDayPills();
     renderExerciseItemList();
@@ -2432,13 +2675,16 @@ function openDayEditTargetPanel(){
   $('#dayEditCancelBtn').addEventListener('click', closeDayInlinePanel);
 }
 
-/* 選んだ日程タブの名称変更フォーム */
+/* 選んだ日程タグの名称・周期を変更 */
 function openDayRenamePanel(tab){
+  let selectedRecurrence = dayTagRecurrence[tab.key] || null;
   planDayInlinePanel.innerHTML = `
-    <div class="plan-day-inline-title">⚙ 「${escapeHTML(tab.label)}」の名称を変更</div>
+    <div class="plan-day-inline-title">⚙ 「${escapeHTML(tab.label)}」を編集</div>
     <div class="plan-day-inline-row">
       <input type="text" id="dayRenameInput" value="${escapeHTML(tab.label)}">
     </div>
+    <div class="plan-day-inline-title">周期</div>
+    <div class="recurrence-grid" id="dayRenameRecurrenceGrid">${renderRecurrenceGrid(selectedRecurrence)}</div>
     <div class="plan-day-inline-actions">
       <button type="button" class="preset-full-btn save" id="dayRenameConfirmBtn">保存</button>
       <button type="button" class="preset-full-btn" id="dayRenameBackBtn">戻る</button>
@@ -2447,10 +2693,21 @@ function openDayRenamePanel(tab){
   const input = $('#dayRenameInput');
   input.focus();
   input.select();
+  const grid = $('#dayRenameRecurrenceGrid');
+  grid.querySelectorAll('.recurrence-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedRecurrence = btn.dataset.recurrence;
+      grid.querySelectorAll('.recurrence-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    });
+  });
   $('#dayRenameConfirmBtn').addEventListener('click', async ()=>{
     const label = input.value.trim();
     if(!label){ input.focus(); return; }
     await renamePlanDayTab(tab.key, label);
+    if(selectedRecurrence){
+      dayTagRecurrence[tab.key] = selectedRecurrence;
+      await saveDayTagRecurrence();
+    }
     closeDayInlinePanel();
   });
   $('#dayRenameBackBtn').addEventListener('click', openDayEditTargetPanel);
@@ -2983,6 +3240,10 @@ async function loadTrainingPlan(){
     const rawOverrides = await storageGet(DAY_LABEL_OVERRIDES_KEY);
     dayLabelOverrides = rawOverrides ? JSON.parse(rawOverrides) : {};
   }catch(err){ dayLabelOverrides = {}; }
+  try{
+    const rawRecurrence = await storageGet(DAY_TAG_RECURRENCE_KEY);
+    dayTagRecurrence = rawRecurrence ? JSON.parse(rawRecurrence) : {};
+  }catch(err){ dayTagRecurrence = {}; }
   selectedPlanDay = defaultPlanDay();
   renderPlanDayPills();
   renderExerciseItemList();
