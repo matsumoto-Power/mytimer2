@@ -383,6 +383,26 @@
   .memo-head{ display:flex; align-items:center; justify-content:space-between; }
   .memo-head h3{ margin:0; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--panel-muted); font-weight:700;}
   .weekday-pills{ display:flex; gap:7px; flex-wrap:wrap; }
+  .plan-day-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .plan-day-row .weekday-pills{ flex:1; }
+  .plan-day-edit-wrap{ position:relative; flex:0 0 auto; }
+  .plan-day-edit-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); border-radius:9px;
+    background:rgba(128,128,128,0.1); color:var(--panel-muted); width:30px; height:30px; font-size:13px;
+    transition: background .2s ease;
+  }
+  .plan-day-edit-btn:hover{ background:rgba(128,128,128,0.22); }
+  .plan-day-edit-menu{
+    position:absolute; top:calc(100% + 6px); right:0; z-index:20; min-width:140px;
+    background:var(--panel-bg); border:1px solid var(--panel-hairline); border-radius:12px; padding:6px;
+    display:flex; flex-direction:column; gap:2px; box-shadow:0 8px 24px rgba(0,0,0,0.18);
+  }
+  .plan-day-edit-menu button{
+    appearance:none; cursor:pointer; border:none; background:transparent; text-align:left; border-radius:8px;
+    padding:9px 10px; font-size:12.5px; font-weight:600; color:var(--panel-text);
+  }
+  .plan-day-edit-menu button:hover{ background:rgba(128,128,128,0.14); }
+  .plan-day-edit-menu button[data-menu-act="delete"]{ color:var(--accent-work); }
   .weekday-pills button{
     appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
     color:var(--panel-text); padding:8px 12px; border-radius:12px; font-weight:700; font-size:12px;
@@ -731,7 +751,17 @@
               <h3>🏋️ トレーニングプラン</h3>
               <span class="memo-status" id="planStatus"></span>
             </div>
-            <div class="weekday-pills" id="planDayPills"></div>
+            <div class="plan-day-row">
+              <div class="weekday-pills" id="planDayPills"></div>
+              <div class="plan-day-edit-wrap">
+                <button type="button" class="plan-day-edit-btn" id="planDayEditBtn" title="日程タブを編集">⚙</button>
+                <div class="plan-day-edit-menu" id="planDayEditMenu" style="display:none;">
+                  <button type="button" data-menu-act="create">＋ 新規作成</button>
+                  <button type="button" data-menu-act="settings">⚙ 設定</button>
+                  <button type="button" data-menu-act="delete">🗑 削除</button>
+                </div>
+              </div>
+            </div>
             <div class="exercise-item-list" id="exerciseItemList"></div>
             <button class="modal-add-btn" id="exerciseAddBtn">＋ 種目を追加</button>
           </div>
@@ -2112,6 +2142,29 @@ function renderPlanDayPills(){
       renderPlanDayPills();
       renderExerciseItemList();
     });
+  });
+}
+
+/* --- 日程タブの編集メニュー（新規作成／設定／削除）：まずはボタンの開閉動作のみ実装 --- */
+const planDayEditBtn = $('#planDayEditBtn');
+const planDayEditMenu = $('#planDayEditMenu');
+if(planDayEditBtn && planDayEditMenu){
+  planDayEditBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    planDayEditMenu.style.display = planDayEditMenu.style.display === 'none' ? 'flex' : 'none';
+  });
+  planDayEditMenu.querySelectorAll('[data-menu-act]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const act = btn.dataset.menuAct; // 'create' | 'settings' | 'delete'（中身は今後実装）
+      planDayEditMenu.style.display = 'none';
+    });
+  });
+  document.addEventListener('click', (e)=>{
+    if(planDayEditMenu.style.display === 'none') return;
+    if(!planDayEditMenu.contains(e.target) && e.target !== planDayEditBtn){
+      planDayEditMenu.style.display = 'none';
+    }
   });
 }
 
