@@ -226,6 +226,20 @@
   }
   .icon-btn:hover{ background:rgba(128,128,128,0.22); }
   .icon-btn svg{ width:15px; height:15px; }
+  .accent-color-wrap{ position:relative; }
+  .accent-color-menu{
+    position:absolute; top:calc(100% + 8px); right:0; z-index:60; min-width:220px;
+    background:var(--panel-bg); border:1px solid var(--panel-hairline); border-radius:14px; padding:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.2);
+  }
+  .accent-color-menu-hint{ font-size:11px; color:var(--panel-muted); font-weight:700; letter-spacing:0.5px; margin-bottom:10px; }
+  .accent-color-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:9px; }
+  .accent-color-swatch{
+    appearance:none; cursor:pointer; width:30px; height:30px; border-radius:50%; border:2px solid transparent;
+    transition: transform .12s ease;
+  }
+  .accent-color-swatch:hover{ transform:scale(1.12); }
+  .accent-color-swatch.selected{ border-color:var(--panel-text); box-shadow:0 0 0 2px var(--panel-bg), 0 0 0 3px var(--panel-text); }
 
   main{ flex:1; display:flex; margin-top:16px; min-height:0; }
   .tab-panel{ display:none; width:100%; }
@@ -279,14 +293,23 @@
   .timer-exercise-list.locked{ opacity:0.55; pointer-events:none; }
   .timer-exercise-empty{ font-size:12px; color:var(--panel-muted); line-height:1.7; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:10px; padding:14px; text-align:center; }
   .timer-exercise-row{
-    appearance:none; cursor:pointer; width:100%; text-align:left; border:1px solid var(--panel-hairline); border-radius:12px;
-    background:rgba(128,128,128,0.08); padding:11px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    width:100%; border:1px solid var(--panel-hairline); border-radius:12px;
+    background:rgba(128,128,128,0.08); display:flex; align-items:center; gap:4px;
     transition: all .15s ease;
   }
   .timer-exercise-row:hover{ filter:brightness(1.06); }
   .timer-exercise-row.active{ border-color:var(--accent-amber); box-shadow:0 0 0 1px var(--accent-amber) inset; }
+  .timer-exercise-tap-area{
+    appearance:none; cursor:pointer; border:none; background:transparent; flex:1 1 auto; min-width:0;
+    text-align:left; padding:11px 4px 11px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
   .timer-exercise-row .video-ref-name{ font-weight:700; font-size:14px; color:var(--panel-text); flex:1; }
   .timer-exercise-row .video-ref-settings-summary{ font-size:13px; }
+  .timer-exercise-checklist{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    width:44px; height:44px; padding:0 12px 0 0;
+  }
+  .timer-exercise-checkbox{ width:20px; height:20px; cursor:pointer; accent-color:var(--accent-amber); }
 
   .mode-toggle{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:12px; margin-top:-6px; }
   .mode-btn{
@@ -403,6 +426,24 @@
   }
   .plan-day-edit-menu button:hover{ background:rgba(128,128,128,0.14); }
   .plan-day-edit-menu button[data-menu-act="delete"]{ color:var(--accent-work); }
+  .plan-day-inline-panel{
+    display:flex; flex-direction:column; gap:10px; background:rgba(128,128,128,0.08);
+    border:1px solid var(--panel-hairline); border-radius:12px; padding:14px;
+  }
+  .plan-day-inline-title{ font-size:12px; font-weight:800; letter-spacing:0.5px; color:var(--panel-muted); }
+  .plan-day-inline-row{ display:flex; gap:8px; align-items:center; }
+  .plan-day-inline-row input[type=text]{
+    flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
+  }
+  .plan-day-inline-actions{ display:flex; gap:8px; }
+  .plan-day-inline-actions .preset-full-btn{ flex:1; width:auto; }
+  .plan-day-inline-target-list{ display:flex; flex-direction:column; gap:6px; }
+  .plan-day-inline-target-row{
+    appearance:none; cursor:pointer; width:100%; text-align:left; border:1px solid var(--panel-hairline); border-radius:10px;
+    background:rgba(128,128,128,0.06); padding:9px 12px; font-size:13px; font-weight:600; color:var(--panel-text);
+  }
+  .plan-day-inline-target-row:hover{ background:rgba(128,128,128,0.16); }
   .weekday-pills button{
     appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
     color:var(--panel-text); padding:8px 12px; border-radius:12px; font-weight:700; font-size:12px;
@@ -684,10 +725,16 @@
         <button class="tab-btn" data-tab="calendar">カレンダー</button>
       </nav>
       <div class="top-actions">
-        <button class="icon-btn" id="panelThemeBtn" title="文字パネルの色を切り替え">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
-          パネル
-        </button>
+        <div class="accent-color-wrap">
+          <button class="icon-btn" id="accentColorBtn" title="ワンポイントカラーを変更">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
+            カラー
+          </button>
+          <div class="accent-color-menu" id="accentColorMenu" style="display:none;">
+            <div class="accent-color-menu-hint">ワンポイントカラーを選択</div>
+            <div class="accent-color-grid" id="accentColorGrid"></div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -774,6 +821,7 @@
                 </div>
               </div>
             </div>
+            <div class="plan-day-inline-panel" id="planDayInlinePanel" style="display:none;"></div>
             <div class="exercise-item-list" id="exerciseItemList"></div>
             <button class="modal-add-btn" id="exerciseAddBtn">＋ 種目を追加</button>
           </div>
@@ -982,11 +1030,54 @@ $$('.tab-btn').forEach(btn=>{
 });
 
 /* =========================================================
-   パネルの色（黒/白 座布団）切り替え
+   ワンポイントカラー（--accent-amber）の変更
+   ※ トレーニング種目のタグの色、および今後実装予定の曜日タグの色は
+     それぞれ個別に色を保持しているため、ここでの変更の影響を受けない。
 ========================================================= */
-$('#panelThemeBtn').addEventListener('click', ()=>{
-  document.body.classList.toggle('panel-light');
+const ACCENT_COLOR_KEY = 'accent-color';
+const ACCENT_PRESET_COLORS = ['#A855F7','#EC4899','#F43F5E','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#6366F1','#06B6D4','#84CC16','#94A3B8'];
+
+function applyAccentColor(hex){
+  document.documentElement.style.setProperty('--accent-amber', hex);
+}
+
+function renderAccentColorGrid(){
+  const grid = $('#accentColorGrid');
+  const current = getComputedStyle(document.documentElement).getPropertyValue('--accent-amber').trim().toLowerCase();
+  grid.innerHTML = ACCENT_PRESET_COLORS.map(hex=>
+    `<button type="button" class="accent-color-swatch${hex.toLowerCase()===current?' selected':''}" style="background:${hex};" data-color="${hex}" title="${hex}"></button>`
+  ).join('');
+  grid.querySelectorAll('.accent-color-swatch').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const hex = btn.dataset.color;
+      applyAccentColor(hex);
+      await storageSet(ACCENT_COLOR_KEY, hex);
+      renderAccentColorGrid();
+      accentColorMenu.style.display = 'none';
+    });
+  });
+}
+
+const accentColorBtn = $('#accentColorBtn');
+const accentColorMenu = $('#accentColorMenu');
+accentColorBtn.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const opening = accentColorMenu.style.display === 'none';
+  if(opening) renderAccentColorGrid();
+  accentColorMenu.style.display = opening ? 'block' : 'none';
 });
+document.addEventListener('click', (e)=>{
+  if(accentColorMenu.style.display === 'none') return;
+  if(!accentColorMenu.contains(e.target) && e.target !== accentColorBtn){
+    accentColorMenu.style.display = 'none';
+  }
+});
+(async ()=>{
+  try{
+    const saved = await storageGet(ACCENT_COLOR_KEY);
+    if(saved) applyAccentColor(saved);
+  }catch(err){ /* 未保存の場合はデフォルト色のまま */ }
+})();
 
 /* =========================================================
    画像ペイン：複数選択 → 30秒ごとスライドショー ＋ 手動送り ＋ 位置調整
@@ -1419,7 +1510,7 @@ function drawAnalogClock(now){
   const isLight = document.body.classList.contains('panel-light');
   const faceColor = isLight ? 'rgba(20,23,26,0.9)' : 'rgba(245,243,236,0.92)';
   const dimColor = isLight ? 'rgba(20,23,26,0.35)' : 'rgba(245,243,236,0.35)';
-  const amber = '#A855F7';
+  const amber = getComputedStyle(document.documentElement).getPropertyValue('--accent-amber').trim() || '#A855F7';
 
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI*2);
@@ -1971,14 +2062,19 @@ function renderTimerExerciseList(){
     const summary = buildExerciseSettingsSummary(item);
     const isActive = selectedTimerItem && selectedTimerItem.id === item.id;
     return `
-      <button type="button" class="timer-exercise-row${isActive?' active':''}" data-id="${item.id}">
-        <span class="video-ref-name">${escapeHTML(truncateName(item.name))}</span>
-        <span class="video-ref-settings-summary">${escapeHTML(summary)}</span>
-        ${tagChip}
-      </button>
+      <div class="timer-exercise-row${isActive?' active':''}" data-id="${item.id}">
+        <button type="button" class="timer-exercise-tap-area" data-id="${item.id}">
+          <span class="video-ref-name">${escapeHTML(truncateName(item.name))}</span>
+          <span class="video-ref-settings-summary">${escapeHTML(summary)}</span>
+          ${tagChip}
+        </button>
+        <label class="timer-exercise-checklist" title="実行チェックリスト">
+          <input type="checkbox" class="timer-exercise-checkbox" data-id="${item.id}" ${item.checked?'checked':''}>
+        </label>
+      </div>
     `;
   }).join('');
-  wrap.querySelectorAll('.timer-exercise-row').forEach(row=>{
+  wrap.querySelectorAll('.timer-exercise-tap-area').forEach(row=>{
     row.addEventListener('click', ()=>{
       if(timerState.status !== 'idle') return; // 実行中はタップ無効
       const item = (trainingPlan[selectedTimerDay]||[]).find(it=>it.id===row.dataset.id);
@@ -1988,6 +2084,15 @@ function renderTimerExerciseList(){
       renderTimerExerciseList();
       resetTimer();
       if(item.mode === 'interval') startTimer(); // タップした瞬間にタイマーを開始
+    });
+  });
+  wrap.querySelectorAll('.timer-exercise-checkbox').forEach(cb=>{
+    cb.addEventListener('click', (e)=> e.stopPropagation());
+    cb.addEventListener('change', ()=>{
+      const item = (trainingPlan[selectedTimerDay]||[]).find(it=>it.id===cb.dataset.id);
+      if(!item) return;
+      item.checked = cb.checked; // 今後カレンダー機能と連動予定。現時点ではON/OFFの保持のみ
+      schedulePlanSave();
     });
   });
 }
@@ -2097,6 +2202,8 @@ setInterval(renderWeather, 30 * 60 * 1000);
 const PLAN_KEY = 'training-plan';
 const TAGS_KEY = 'exercise-tags';
 const DELETED_DAYS_KEY = 'deleted-day-tabs';
+const CUSTOM_DAYS_KEY = 'custom-day-tabs';
+const DAY_LABEL_OVERRIDES_KEY = 'day-label-overrides';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -2109,15 +2216,49 @@ const planDayDefs = [
   { key:'holiday', label:'連休日' },
 ];
 let deletedDayKeys = new Set(); // 削除済みの日程タブのkeyを保持（ルーティン/月〜金/通常休み/連休日/フリープラン すべて削除対象）
+let customDayTabs = [];         // ユーザーが「新規作成」で追加した日程タブ [{key, label}]
+let dayLabelOverrides = {};     // 「設定」で名称変更した既存タブの表示名 { key: label }
 
-/* 現在表示すべき日程タブの一覧（削除されたものを除いた状態）を返す */
+/* 現在表示すべき日程タブの一覧（削除されたものを除き、名称変更・新規作成タブを反映した状態）を返す */
 function getAllPlanDayTabs(){
-  const all = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }];
-  return all.filter(t => !deletedDayKeys.has(t.key));
+  const base = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, { key: FREE_PLAN_KEY, label:'フリープラン' }, ...customDayTabs];
+  return base
+    .filter(t => !deletedDayKeys.has(t.key))
+    .map(t => dayLabelOverrides[t.key] ? { key:t.key, label:dayLabelOverrides[t.key] } : t);
 }
 
 async function saveDeletedDayKeys(){
   await storageSet(DELETED_DAYS_KEY, JSON.stringify([...deletedDayKeys]));
+}
+async function saveCustomDayTabs(){
+  await storageSet(CUSTOM_DAYS_KEY, JSON.stringify(customDayTabs));
+}
+async function saveDayLabelOverrides(){
+  await storageSet(DAY_LABEL_OVERRIDES_KEY, JSON.stringify(dayLabelOverrides));
+}
+
+/* 新しい日程タブを作成 */
+async function createPlanDayTab(label){
+  const key = 'custom_' + mkId();
+  customDayTabs.push({ key, label });
+  await saveCustomDayTabs();
+  renderPlanDayPills();
+  renderExerciseItemList();
+  return key;
+}
+
+/* 既存の日程タブの表示名を変更（固定タブ・カスタムタブどちらにも対応） */
+async function renamePlanDayTab(key, newLabel){
+  const custom = customDayTabs.find(t => t.key === key);
+  if(custom){
+    custom.label = newLabel;
+    await saveCustomDayTabs();
+  } else {
+    dayLabelOverrides[key] = newLabel;
+    await saveDayLabelOverrides();
+  }
+  renderPlanDayPills();
+  renderExerciseItemList();
 }
 
 /* 日程タブを削除：登録されていた種目データも一緒に削除し、選択中のタブが消えた場合は先頭のタブへフォールバックする */
@@ -2213,6 +2354,7 @@ function renderPlanDayPills(){
 /* --- 日程タブの編集メニュー（新規作成／設定／削除） --- */
 const planDayEditBtn = $('#planDayEditBtn');
 const planDayEditMenu = $('#planDayEditMenu');
+const planDayInlinePanel = $('#planDayInlinePanel');
 if(planDayEditBtn && planDayEditMenu){
   planDayEditBtn.addEventListener('click', (e)=>{
     e.stopPropagation();
@@ -2224,7 +2366,8 @@ if(planDayEditBtn && planDayEditMenu){
       const act = btn.dataset.menuAct; // 'create' | 'settings' | 'delete'
       planDayEditMenu.style.display = 'none';
       if(act === 'delete') openDayDeleteModal();
-      // 'create' / 'settings' は今後実装
+      if(act === 'create') openDayCreatePanel();
+      if(act === 'settings') openDayEditTargetPanel();
     });
   });
   document.addEventListener('click', (e)=>{
@@ -2233,6 +2376,84 @@ if(planDayEditBtn && planDayEditMenu){
       planDayEditMenu.style.display = 'none';
     }
   });
+}
+
+function closeDayInlinePanel(){
+  planDayInlinePanel.style.display = 'none';
+  planDayInlinePanel.innerHTML = '';
+}
+
+/* 「＋ 新規作成」：日程タブ名を入力して作成する */
+function openDayCreatePanel(){
+  planDayInlinePanel.innerHTML = `
+    <div class="plan-day-inline-title">＋ 新しい日程タブを作成</div>
+    <div class="plan-day-inline-row">
+      <input type="text" id="dayCreateInput" placeholder="例）土曜、遠征期間中">
+    </div>
+    <div class="plan-day-inline-actions">
+      <button type="button" class="preset-full-btn save" id="dayCreateConfirmBtn">作成</button>
+      <button type="button" class="preset-full-btn" id="dayCreateCancelBtn">キャンセル</button>
+    </div>
+  `;
+  planDayInlinePanel.style.display = 'flex';
+  const input = $('#dayCreateInput');
+  input.focus();
+  $('#dayCreateConfirmBtn').addEventListener('click', async ()=>{
+    const label = input.value.trim();
+    if(!label){ input.focus(); return; }
+    const key = await createPlanDayTab(label);
+    selectedPlanDay = key;
+    renderPlanDayPills();
+    renderExerciseItemList();
+    closeDayInlinePanel();
+  });
+  $('#dayCreateCancelBtn').addEventListener('click', closeDayInlinePanel);
+}
+
+/* 「⚙ 設定」：編集したい日程タブを選ぶ一覧 → 名称変更フォーム */
+function openDayEditTargetPanel(){
+  const tabs = getAllPlanDayTabs();
+  planDayInlinePanel.innerHTML = `
+    <div class="plan-day-inline-title">⚙ 編集する日程タブを選択</div>
+    <div class="plan-day-inline-target-list">
+      ${tabs.map(t=>`<button type="button" class="plan-day-inline-target-row" data-day="${t.key}">${escapeHTML(t.label)}</button>`).join('')}
+    </div>
+    <div class="plan-day-inline-actions">
+      <button type="button" class="preset-full-btn" id="dayEditCancelBtn">キャンセル</button>
+    </div>
+  `;
+  planDayInlinePanel.style.display = 'flex';
+  planDayInlinePanel.querySelectorAll('.plan-day-inline-target-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const tab = tabs.find(t=>t.key===row.dataset.day);
+      if(tab) openDayRenamePanel(tab);
+    });
+  });
+  $('#dayEditCancelBtn').addEventListener('click', closeDayInlinePanel);
+}
+
+/* 選んだ日程タブの名称変更フォーム */
+function openDayRenamePanel(tab){
+  planDayInlinePanel.innerHTML = `
+    <div class="plan-day-inline-title">⚙ 「${escapeHTML(tab.label)}」の名称を変更</div>
+    <div class="plan-day-inline-row">
+      <input type="text" id="dayRenameInput" value="${escapeHTML(tab.label)}">
+    </div>
+    <div class="plan-day-inline-actions">
+      <button type="button" class="preset-full-btn save" id="dayRenameConfirmBtn">保存</button>
+      <button type="button" class="preset-full-btn" id="dayRenameBackBtn">戻る</button>
+    </div>
+  `;
+  const input = $('#dayRenameInput');
+  input.focus();
+  input.select();
+  $('#dayRenameConfirmBtn').addEventListener('click', async ()=>{
+    const label = input.value.trim();
+    if(!label){ input.focus(); return; }
+    await renamePlanDayTab(tab.key, label);
+    closeDayInlinePanel();
+  });
+  $('#dayRenameBackBtn').addEventListener('click', openDayEditTargetPanel);
 }
 
 /* --- 日程タブの削除フロー：一覧 → タップ → 確認 → 削除 --- */
@@ -2244,6 +2465,7 @@ const dayDeleteConfirmText = $('#dayDeleteConfirmText');
 let dayDeletePendingKey = null;
 
 function openDayDeleteModal(){
+  closeDayInlinePanel();
   dayDeletePendingKey = null;
   dayDeleteConfirmBox.style.display = 'none';
   dayDeleteListBox.style.display = 'flex';
@@ -2753,6 +2975,14 @@ async function loadTrainingPlan(){
     const rawDeleted = await storageGet(DELETED_DAYS_KEY);
     deletedDayKeys = new Set(rawDeleted ? JSON.parse(rawDeleted) : []);
   }catch(err){ deletedDayKeys = new Set(); }
+  try{
+    const rawCustom = await storageGet(CUSTOM_DAYS_KEY);
+    customDayTabs = rawCustom ? JSON.parse(rawCustom) : [];
+  }catch(err){ customDayTabs = []; }
+  try{
+    const rawOverrides = await storageGet(DAY_LABEL_OVERRIDES_KEY);
+    dayLabelOverrides = rawOverrides ? JSON.parse(rawOverrides) : {};
+  }catch(err){ dayLabelOverrides = {}; }
   selectedPlanDay = defaultPlanDay();
   renderPlanDayPills();
   renderExerciseItemList();
