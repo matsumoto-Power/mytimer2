@@ -293,6 +293,7 @@
   .timer-exercise-list.locked{ opacity:0.55; pointer-events:none; }
   .timer-exercise-empty{ font-size:12px; color:var(--panel-muted); line-height:1.7; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:10px; padding:14px; text-align:center; }
   .timer-adhoc-divider{ font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--panel-muted); margin:10px 0 2px; padding-left:2px; }
+  .timer-freeplan-select{ width:100%; }
   .timer-exercise-row{
     width:100%; border:1px solid var(--panel-hairline); border-radius:12px;
     background:rgba(128,128,128,0.08); display:flex; align-items:center; gap:4px;
@@ -808,7 +809,6 @@
 
           <div class="panel settings-card">
             <div class="settings-title">▶ 実行する種目を選択</div>
-            <div class="weekday-pills" id="timerDayPills"></div>
             <div class="timer-exercise-list" id="timerExerciseListWrap"></div>
           </div>
         </div>
@@ -1636,7 +1636,6 @@ const resetBtn = $('#resetBtn');
 /* --- 実行する種目（種目設定ページで登録した種目）を選んでタイマーを動かす --- */
 let timerMode = 'simple'; // 'simple' | 'circuit'（選択した種目の設定から自動判定）
 let selectedTimerItem = null; // 種目設定で登録された item オブジェクトへの参照
-let selectedTimerDay = null; // インターバルページで選んでいる日程タブ（ルーティン/月〜金/フリープランなど）
 let sequence = [];        // スタート時に組み立てる実行順の配列
 
 const mkId = () => 'cs_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -1871,7 +1870,6 @@ function buildSequence(){
 function setInputsDisabled(disabled){
   const wrap = $('#timerExerciseListWrap');
   if(wrap) wrap.classList.toggle('locked', disabled);
-  $$('#timerDayPills button').forEach(b => b.disabled = disabled);
 }
 
 function updateSetStepLabels(step){
@@ -2055,22 +2053,17 @@ startBtn.addEventListener('click', ()=>{
 });
 resetBtn.addEventListener('click', resetTimer);
 
-/* --- 実行する種目の選択（種目設定ページの日程タブ・トグルリストと同じ見た目でここに表示する） --- */
-function renderTimerDayPills(){
-  const wrap = $('#timerDayPills');
-  const tabs = getAllPlanDayTabs();
-  if(!selectedTimerDay || !tabs.some(t=>t.key===selectedTimerDay)) selectedTimerDay = tabs[0] ? tabs[0].key : null;
-  wrap.innerHTML = tabs.map(t=>
-    `<button type="button" data-day="${t.key}" class="${t.key===selectedTimerDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${t.label}</button>`
-  ).join('');
-  wrap.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(timerState.status !== 'idle') return; // 実行中は日程切り替え不可
-      selectedTimerDay = btn.dataset.day;
-      renderTimerDayPills();
-      renderTimerExerciseList();
-    });
-  });
+/* --- 実行する種目の選択：種目設定ページで各日程タブに設定した「周期」に従い、自動的に該当する種目だけを集めて表示する --- */
+const DOW_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+function getTodayDowKey(){ return DOW_KEYS[new Date().getDay()]; }
+
+/* 周期が未設定のタブに対するスマートデフォルト：月〜金の固定タブはその曜日、ルーティンは毎日として扱う。
+   通常休み・連休日・カスタムタブは、ユーザーが明示的に周期を設定するまでは自動表示の対象にしない */
+function getEffectiveRecurrence(tabKey){
+  if(dayTagRecurrence[tabKey]) return dayTagRecurrence[tabKey];
+  if(['mon','tue','wed','thu','fri'].includes(tabKey)) return tabKey;
+  if(tabKey === ROUTINE_KEY) return 'everyday';
+  return null;
 }
 
 /* 「今日の追加メニュー」：常に実際の今日の日付に紐づく、突発的に追加する種目。日付指定の入り口として運用する */
@@ -2087,7 +2080,7 @@ function getTodayAdhocItems(){
   return trainingPlan[key];
 }
 function resolveTimerRowItemsArray(source){
-  return source === 'adhoc' ? getTodayAdhocItems() : (trainingPlan[selectedTimerDay]||[]);
+  return source === 'adhoc' ? getTodayAdhocItems() : (trainingPlan[source]||[]);
 }
 function buildTimerExerciseRowHTML(item, source){
   const tag = resolveItemTag(item);
@@ -2107,6 +2100,13 @@ function buildTimerExerciseRowHTML(item, source){
     </div>
   `;
 }
+function activateTimerItem(item){
+  selectedTimerItem = item;
+  timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
+  renderTimerExerciseList();
+  resetTimer();
+  if(item.mode === 'interval') startTimer(); // 選択した瞬間にタイマーを開始
+}
 function attachTimerExerciseRowEvents(wrap){
   wrap.querySelectorAll('.timer-exercise-tap-area').forEach(row=>{
     row.addEventListener('click', ()=>{
@@ -2114,11 +2114,7 @@ function attachTimerExerciseRowEvents(wrap){
       const items = resolveTimerRowItemsArray(row.dataset.source);
       const item = items.find(it=>it.id===row.dataset.id);
       if(!item) return;
-      selectedTimerItem = item;
-      timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
-      renderTimerExerciseList();
-      resetTimer();
-      if(item.mode === 'interval') startTimer(); // タップした瞬間にタイマーを開始
+      activateTimerItem(item);
     });
   });
   wrap.querySelectorAll('.timer-exercise-checkbox').forEach(cb=>{
@@ -2135,17 +2131,67 @@ function attachTimerExerciseRowEvents(wrap){
 
 function renderTimerExerciseList(){
   const wrap = $('#timerExerciseListWrap');
-  const dayItems = (trainingPlan[selectedTimerDay]||[]).filter(it => it.name && it.name.trim());
+  const tabs = getAllPlanDayTabs();
+  const todayDow = getTodayDowKey();
+
+  const everydayGroups = [];  // 周期=毎日のタブ
+  const weekdayGroups = [];   // 周期=今日の曜日のタブ
+  const freeplanGroups = [];  // 周期=フリープランのタブ
+  tabs.forEach(t=>{
+    const rec = getEffectiveRecurrence(t.key);
+    const items = (trainingPlan[t.key]||[]).filter(it => it.name && it.name.trim());
+    if(!items.length) return;
+    if(rec === 'everyday') everydayGroups.push({tab:t, items});
+    else if(rec === todayDow) weekdayGroups.push({tab:t, items});
+    else if(rec === 'freeplan') freeplanGroups.push({tab:t, items});
+  });
   const adhocItems = getTodayAdhocItems().filter(it => it.name && it.name.trim());
 
-  let html = dayItems.length
-    ? dayItems.map(item => buildTimerExerciseRowHTML(item, 'day')).join('')
-    : '<div class="timer-exercise-empty">この日程にはまだ種目が登録されていません。種目設定ページから追加してください。</div>';
+  let html = '';
+
+  if(everydayGroups.length){
+    html += '<div class="timer-adhoc-divider">毎日</div>';
+    everydayGroups.forEach(g=>{ html += g.items.map(item => buildTimerExerciseRowHTML(item, g.tab.key)).join(''); });
+  }
+
+  const todayLabel = RECURRENCE_OPTIONS.find(o=>o.value===todayDow)?.label || '';
+  if(weekdayGroups.length){
+    html += `<div class="timer-adhoc-divider">${escapeHTML(todayLabel)}</div>`;
+    weekdayGroups.forEach(g=>{ html += g.items.map(item => buildTimerExerciseRowHTML(item, g.tab.key)).join(''); });
+  }
+
+  if(!everydayGroups.length && !weekdayGroups.length){
+    html += '<div class="timer-exercise-empty">今日実行する種目がまだ登録されていません。種目設定ページの日程タブで「周期」を設定してください。</div>';
+  }
 
   html += '<div class="timer-adhoc-divider">今日の追加メニュー</div>';
   html += adhocItems.map(item => buildTimerExerciseRowHTML(item, 'adhoc')).join('');
   html += '<button type="button" class="modal-add-btn" id="timerAdhocAddBtn">＋ 追加メニュー</button>';
   html += '<div class="plan-day-inline-panel" id="timerAdhocCreatePanel" style="display:none;"></div>';
+
+  if(freeplanGroups.length){
+    const freeplanOptions = [];
+    freeplanGroups.forEach(g=>{
+      g.items.forEach(item=> freeplanOptions.push({item, tabLabel:g.tab.label}));
+    });
+    const currentVal = selectedTimerItem ? freeplanOptions.findIndex(o=>o.item.id===selectedTimerItem.id) : -1;
+    html += '<div class="timer-adhoc-divider">フリープランから選ぶ</div>';
+    html += `
+      <select class="timer-freeplan-select" id="timerFreeplanSelect">
+        <option value="">-- 種目を選択 --</option>
+        ${freeplanOptions.map((o,i)=>`<option value="${i}" ${i===currentVal?'selected':''}>${escapeHTML(o.tabLabel)} - ${escapeHTML(o.item.name)}</option>`).join('')}
+      </select>
+    `;
+    wrap.innerHTML = html;
+    attachTimerExerciseRowEvents(wrap);
+    $('#timerAdhocAddBtn').addEventListener('click', openAdhocCreatePanel);
+    $('#timerFreeplanSelect').addEventListener('change', (e)=>{
+      const idx = parseInt(e.target.value);
+      if(isNaN(idx)) return;
+      activateTimerItem(freeplanOptions[idx].item);
+    });
+    return;
+  }
 
   wrap.innerHTML = html;
   attachTimerExerciseRowEvents(wrap);
@@ -2313,7 +2359,6 @@ function openAdhocCreatePanel(){
 }
 
 function refreshTimerExercisePanel(){
-  renderTimerDayPills();
   renderTimerExerciseList();
 }
 
@@ -2526,9 +2571,6 @@ async function deletePlanDayTab(key){
   if(selectedPlanDay === key){
     selectedPlanDay = remaining.length ? remaining[0].key : '';
     openExerciseItemId = null;
-  }
-  if(selectedTimerDay === key){
-    selectedTimerDay = remaining.length ? remaining[0].key : '';
   }
   renderPlanDayPills();
   renderExerciseItemList();
@@ -3252,7 +3294,6 @@ function attachExerciseItemEvents(item){
   if(runBtn){
     runBtn.addEventListener('click', ()=>{
       selectedTimerItem = item;
-      selectedTimerDay = selectedPlanDay;
       timerMode = (item.mode === 'interval') ? item.interval.subType : 'simple';
       refreshTimerExercisePanel();
       resetTimer();
