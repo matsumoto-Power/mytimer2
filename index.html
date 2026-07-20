@@ -228,9 +228,9 @@
   .icon-btn svg{ width:15px; height:15px; }
   .accent-color-wrap{ position:relative; }
   .accent-color-menu{
-    position:absolute; top:calc(100% + 8px); right:0; z-index:60; min-width:220px;
+    position:fixed; z-index:9999; min-width:220px;
     background:var(--panel-bg); border:1px solid var(--panel-hairline); border-radius:14px; padding:14px;
-    box-shadow:0 8px 24px rgba(0,0,0,0.2);
+    box-shadow:0 8px 24px rgba(0,0,0,0.28);
   }
   .accent-color-menu-hint{ font-size:11px; color:var(--panel-muted); font-weight:700; letter-spacing:0.5px; margin-bottom:10px; }
   .accent-color-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:9px; }
@@ -302,10 +302,10 @@
   .timer-exercise-row.active{ border-color:var(--accent-amber); box-shadow:0 0 0 1px var(--accent-amber) inset; }
   .timer-exercise-tap-area{
     appearance:none; cursor:pointer; border:none; background:transparent; flex:1 1 auto; min-width:0;
-    text-align:left; padding:11px 4px 11px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    text-align:left; padding:11px 4px 11px 12px; display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
   }
-  .timer-exercise-row .video-ref-name{ font-weight:700; font-size:14px; color:var(--panel-text); flex:1; }
-  .timer-exercise-row .video-ref-settings-summary{ font-size:13px; }
+  .timer-exercise-row .video-ref-name{ font-weight:700; font-size:14px; color:var(--panel-text); flex:1 1 auto; min-width:44px; }
+  .timer-exercise-row .video-ref-settings-summary{ font-size:13px; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:clip; }
   .timer-exercise-checklist{
     flex:0 0 auto; display:flex; align-items:center; justify-content:center; cursor:pointer;
     width:44px; height:44px; padding:0 12px 0 0;
@@ -463,6 +463,8 @@
   .weekday-pills button.free-memo-btn.active{ border-style:solid; color:#ffffff; }
   .weekday-pills button.routine-memo-btn{ margin-right:8px; border-style:dashed; border-color:var(--accent-rest); color:var(--accent-rest); }
   .weekday-pills button.routine-memo-btn.active{ border-style:solid; background:var(--accent-rest); color:#ffffff; }
+  #planDayPills button{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
+  #planDayPills button.dragging{ opacity:0.55; box-shadow:0 4px 14px rgba(0,0,0,0.25); cursor:grabbing; position:relative; z-index:5; }
   textarea{
     flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); padding:14px; font-size:14px; font-family:'Inter',sans-serif; line-height:1.6;
@@ -1070,10 +1072,22 @@ function renderAccentColorGrid(){
 
 const accentColorBtn = $('#accentColorBtn');
 const accentColorMenu = $('#accentColorMenu');
+document.body.appendChild(accentColorMenu); // #controlPaneのcontainer-type containmentから逃がし、常に画面最前面に浮くようにする
+function positionAccentColorMenu(){
+  const rect = accentColorBtn.getBoundingClientRect();
+  const menuWidth = 220;
+  let left = rect.right - menuWidth;
+  left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+  accentColorMenu.style.top = (rect.bottom + 8) + 'px';
+  accentColorMenu.style.left = left + 'px';
+}
 accentColorBtn.addEventListener('click', (e)=>{
   e.stopPropagation();
   const opening = accentColorMenu.style.display === 'none';
-  if(opening) renderAccentColorGrid();
+  if(opening){
+    renderAccentColorGrid();
+    positionAccentColorMenu();
+  }
   accentColorMenu.style.display = opening ? 'block' : 'none';
 });
 document.addEventListener('click', (e)=>{
@@ -2404,6 +2418,7 @@ const PLAN_KEY = 'training-plan';
 const TAGS_KEY = 'exercise-tags';
 const DELETED_DAYS_KEY = 'deleted-day-tabs';
 const CUSTOM_DAYS_KEY = 'custom-day-tabs';
+const DAY_TAB_ORDER_KEY = 'day-tab-order';
 const DAY_LABEL_OVERRIDES_KEY = 'day-label-overrides';
 const DAY_TAG_RECURRENCE_KEY = 'day-tag-recurrence';
 const FREE_PLAN_KEY = 'freeplan';
@@ -2420,6 +2435,7 @@ const planDayDefs = [
 let deletedDayKeys = new Set(); // 削除済みの日程タブのkeyを保持（ルーティン/月〜金/通常休み/連休日/フリープラン すべて削除対象）
 let customDayTabs = [];         // ユーザーが「新規作成」で追加した日程タブ [{key, label}]
 let dayLabelOverrides = {};     // 「設定」で名称変更した既存タブの表示名 { key: label }
+let dayTabOrder = [];           // 日程タブの並び替え結果（key の配列）。並び替えを一度もしていない項目は自然な順で末尾に補われる
 let dayTagRecurrence = {};      // 日程タグごとの周期設定 { key: recurrenceValue }（今後インターバル／カレンダーと連動予定）
 
 /* 日程タグの「周期」選択肢：まずはこの一覧から単一選択できるようにする */
@@ -2444,12 +2460,21 @@ function renderRecurrenceGrid(selectedValue){
   ).join('');
 }
 
-/* 現在表示すべき日程タブの一覧（削除されたものを除き、名称変更・新規作成タブを反映した状態）を返す */
+/* 現在表示すべき日程タブの一覧（削除されたものを除き、名称変更・新規作成タブを反映し、並び替え結果を適用した状態）を返す */
 function getAllPlanDayTabs(){
   const base = [{ key: ROUTINE_KEY, label:'ルーティン' }, ...planDayDefs, ...customDayTabs];
-  return base
+  const visible = base
     .filter(t => !deletedDayKeys.has(t.key))
     .map(t => dayLabelOverrides[t.key] ? { key:t.key, label:dayLabelOverrides[t.key] } : t);
+  visible.sort((a, b)=>{
+    let ia = dayTabOrder.indexOf(a.key); if(ia === -1) ia = 1000 + base.findIndex(t=>t.key===a.key);
+    let ib = dayTabOrder.indexOf(b.key); if(ib === -1) ib = 1000 + base.findIndex(t=>t.key===b.key);
+    return ia - ib;
+  });
+  return visible;
+}
+async function saveDayTabOrder(){
+  await storageSet(DAY_TAB_ORDER_KEY, JSON.stringify(dayTabOrder));
 }
 
 async function saveDeletedDayKeys(){
@@ -2570,12 +2595,65 @@ function renderPlanDayPills(){
   wrap.innerHTML = tabs.map(t=>
     `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${t.label}</button>`
   ).join('');
+  let justDragged = false;
   $$('#planDayPills button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(justDragged){ justDragged = false; return; } // ドラッグ操作の直後のクリック（並び替え確定時）は無視する
       selectedPlanDay = btn.dataset.day;
       openExerciseItemId = null;
       renderPlanDayPills();
       renderExerciseItemList();
+    });
+  });
+  attachDayPillDragReorder(wrap, ()=>{ justDragged = true; });
+}
+
+/* 日程タブの並び替え：今の横並びピルの見た目のまま、指/マウスでドラッグして順番を入れ替えられるようにする */
+function attachDayPillDragReorder(wrap, onDragEnd){
+  let dragEl = null, startX = 0, moved = false, pointerId = null;
+  const THRESHOLD = 6;
+
+  function onPointerMove(e){
+    if(!dragEl) return;
+    if(!moved && Math.abs(e.clientX - startX) > THRESHOLD) moved = true;
+    if(!moved) return;
+    dragEl.classList.add('dragging');
+    const siblings = Array.from(wrap.children);
+    const dragIndex = siblings.indexOf(dragEl);
+    for(let i=0;i<siblings.length;i++){
+      const sib = siblings[i];
+      if(sib === dragEl) continue;
+      const r = sib.getBoundingClientRect();
+      const center = r.left + r.width/2;
+      if(i < dragIndex && e.clientX < center){ wrap.insertBefore(dragEl, sib); break; }
+      if(i > dragIndex && e.clientX > center){ wrap.insertBefore(dragEl, sib.nextSibling); break; }
+    }
+  }
+  function onPointerUp(){
+    if(!dragEl) return;
+    dragEl.classList.remove('dragging');
+    wrap.removeEventListener('pointermove', onPointerMove);
+    wrap.removeEventListener('pointerup', onPointerUp);
+    wrap.removeEventListener('pointercancel', onPointerUp);
+    const wasMoved = moved;
+    dragEl = null; moved = false;
+    if(wasMoved){
+      dayTabOrder = Array.from(wrap.children).map(el => el.dataset.day);
+      saveDayTabOrder();
+      onDragEnd();
+    }
+  }
+  wrap.querySelectorAll('button[data-day]').forEach(btn=>{
+    btn.addEventListener('pointerdown', (e)=>{
+      if(e.button !== 0 && e.pointerType === 'mouse') return;
+      dragEl = btn;
+      startX = e.clientX;
+      moved = false;
+      pointerId = e.pointerId;
+      try{ btn.setPointerCapture(pointerId); }catch(err){}
+      wrap.addEventListener('pointermove', onPointerMove);
+      wrap.addEventListener('pointerup', onPointerUp);
+      wrap.addEventListener('pointercancel', onPointerUp);
     });
   });
 }
@@ -3240,6 +3318,10 @@ async function loadTrainingPlan(){
     const rawOverrides = await storageGet(DAY_LABEL_OVERRIDES_KEY);
     dayLabelOverrides = rawOverrides ? JSON.parse(rawOverrides) : {};
   }catch(err){ dayLabelOverrides = {}; }
+  try{
+    const rawOrder = await storageGet(DAY_TAB_ORDER_KEY);
+    dayTabOrder = rawOrder ? JSON.parse(rawOrder) : [];
+  }catch(err){ dayTabOrder = []; }
   try{
     const rawRecurrence = await storageGet(DAY_TAG_RECURRENCE_KEY);
     dayTagRecurrence = rawRecurrence ? JSON.parse(rawRecurrence) : {};
