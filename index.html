@@ -409,6 +409,10 @@
   .memo-head h3{ margin:0; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--panel-muted); font-weight:700;}
   .weekday-pills{ display:flex; gap:7px; flex-wrap:wrap; }
   .plan-day-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .plan-day-section-label{
+    display:block; font-size:10.5px; font-weight:700; letter-spacing:1px; color:var(--panel-muted);
+    text-transform:uppercase; margin-bottom:2px;
+  }
   .plan-day-row .weekday-pills{ flex:1; }
   .plan-day-edit-wrap{ position:relative; flex:0 0 auto; }
   .plan-day-edit-btn{
@@ -514,9 +518,17 @@
   .video-ref-delete-btn:hover{ background:rgba(255,93,58,0.24); }
   .video-ref-body{ padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
   .video-ref-body .field label{ font-size:10.5px; }
+  .video-ref-body input[type=text],
+  .video-ref-body input[type=number],
+  .video-ref-body select,
+  .video-ref-body textarea{
+    background:var(--panel-bg-strong);
+  }
+  .video-ref-body .mode-toggle:not(.ei-subtype-toggle){ background:var(--panel-bg-strong); }
+  .video-ref-body .circuit-step-row{ background:var(--panel-bg-strong); }
   .video-ref-body input[type=text]{
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
-    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px;
+    color:var(--panel-text); font-size:13px;
   }
   .video-play-btn{
     width:100%; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
@@ -822,6 +834,7 @@
               <h3>🏋️ トレーニングプラン</h3>
               <span class="memo-status" id="planStatus"></span>
             </div>
+            <label class="plan-day-section-label">日程</label>
             <div class="plan-day-row">
               <div class="weekday-pills" id="planDayPills"></div>
               <div class="plan-day-edit-wrap">
