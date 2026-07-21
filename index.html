@@ -289,7 +289,7 @@
 
   .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
   .settings-title{ font-weight:800; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:8px;}
-  .timer-exercise-list{ display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto; }
+  .timer-exercise-list{ display:flex; flex-direction:column; gap:8px; }
   .timer-exercise-list.locked{ opacity:0.55; pointer-events:none; }
   .timer-exercise-empty{ font-size:12px; color:var(--panel-muted); line-height:1.7; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:10px; padding:14px; text-align:center; }
   .timer-adhoc-divider{ font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--panel-muted); margin:10px 0 2px; padding-left:2px; }
@@ -535,6 +535,11 @@
   .video-ref-body input[type=text]{
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     color:var(--panel-text); font-size:13px;
+  }
+  .ei-memo-input{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
+    color:var(--panel-text); font-size:13px; font-family:inherit; line-height:1.6;
+    resize:none; overflow:hidden; display:block;
   }
   .video-play-btn{
     width:100%; appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff;
@@ -3014,7 +3019,7 @@ function renderExerciseItemBody(item){
 
     <div class="field">
       <label>メモ</label>
-      <input type="text" class="ei-memo-input" value="${escapeHTML(item.memo||'')}" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">
+      <textarea class="ei-memo-input" rows="1" placeholder="具体的にどんなことをするのか自由に入力（フォームの注意点、負荷、参考メモなど）">${escapeHTML(item.memo||'')}</textarea>
     </div>
 
     <div class="mode-toggle ei-mode-toggle">
@@ -3217,7 +3222,12 @@ function attachExerciseItemEvents(item){
   if(nameInput) nameInput.addEventListener('change', ()=>{ item.name=nameInput.value; schedulePlanSave(); renderExerciseItemList(); });
 
   const memoInput = root.querySelector('.ei-memo-input');
-  if(memoInput) memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
+  if(memoInput){
+    const autoResizeMemo = () => { memoInput.style.height = 'auto'; memoInput.style.height = memoInput.scrollHeight + 'px'; };
+    autoResizeMemo();
+    memoInput.addEventListener('input', autoResizeMemo);
+    memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
+  }
 
   root.querySelectorAll('.ei-mode-toggle .mode-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{ item.mode=btn.dataset.mode; schedulePlanSave(); renderExerciseItemList(); });
