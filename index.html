@@ -623,10 +623,13 @@
   .calendar-weekdays span:last-child{ color:var(--accent-rest); }
   .calendar-grid{ display:grid; grid-template-columns:repeat(7, 1fr); grid-auto-rows:1fr; gap:6px; flex:1; }
   .calendar-cell{
-    display:flex; align-items:flex-start; justify-content:flex-start; padding:8px;
+    display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px;
     border-radius:12px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06);
-    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; min-height:56px;
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; min-height:56px; gap:5px;
   }
+  .calendar-daynum{ display:block; }
+  .calendar-dots{ display:flex; flex-wrap:wrap; gap:3px; }
+  .calendar-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
   .calendar-cell.muted{ opacity:0.32; }
   .calendar-cell.today{ background:rgba(168,85,247,0.16); border-color:var(--accent-amber); color:var(--accent-amber); }
   .calendar-hint{ font-size:11.5px; color:var(--panel-muted); text-align:center; }
@@ -877,7 +880,7 @@
               <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
-            <div class="calendar-hint">📌 今後、ここにトレーニングの実施ログを紐付ける予定です。</div>
+            <div class="calendar-hint">📌 インターバル画面でチェックを入れた種目が、タグの色のドットとしてここに表示されます。</div>
           </div>
         </div>
       </section>
@@ -2106,6 +2109,55 @@ function getTodayAdhocItems(){
 function resolveTimerRowItemsArray(source){
   return source === 'adhoc' ? getTodayAdhocItems() : (trainingPlan[source]||[]);
 }
+
+/* --- 実施ログ（日付ごとの実施記録） ---
+   { "2026-07-20": { itemId: true, itemId2: true } } という形で、日付とその日にチェックした種目IDを保持する。
+   同じ種目（毎週月曜など）が複数の日付に繰り返し登場しても、日付ごとに独立してON/OFFを持てるようにするための構造。
+   カレンダー側は、この実施ログ内の各itemIdから種目のタグ色を逆引きしてドットを表示する。 */
+let trainingLog = {};
+async function saveTrainingLog(){
+  await storageSet(TRAINING_LOG_KEY, JSON.stringify(trainingLog));
+}
+function isItemCheckedOnDate(itemId, dateKey){
+  return !!(trainingLog[dateKey] && trainingLog[dateKey][itemId]);
+}
+function isItemCheckedToday(itemId){
+  return isItemCheckedOnDate(itemId, getTodayDateKey());
+}
+async function setItemCheckedToday(itemId, checked){
+  const dateKey = getTodayDateKey();
+  if(checked){
+    if(!trainingLog[dateKey]) trainingLog[dateKey] = {};
+    trainingLog[dateKey][itemId] = true;
+  } else if(trainingLog[dateKey]){
+    delete trainingLog[dateKey][itemId];
+    if(Object.keys(trainingLog[dateKey]).length === 0) delete trainingLog[dateKey];
+  }
+  await saveTrainingLog();
+}
+/* 種目IDから、日程タブ・今日の追加メニューを問わず全データを横断して種目本体を探す（実施ログにはIDしか残らないため） */
+function findExerciseItemById(id){
+  for(const key in trainingPlan){
+    const arr = trainingPlan[key];
+    if(!Array.isArray(arr)) continue;
+    const found = arr.find(it=>it.id===id);
+    if(found) return found;
+  }
+  return null;
+}
+/* 指定日に実施した種目のタグ色を、重複を除いて返す（同じタグの種目を何個実施しても、ドットは1色1つにまとめる） */
+function getCalendarDotColorsForDate(dateKey){
+  const log = trainingLog[dateKey];
+  if(!log) return [];
+  const colors = [];
+  Object.keys(log).forEach(itemId=>{
+    const item = findExerciseItemById(itemId);
+    if(!item) return;
+    const tag = resolveItemTag(item);
+    if(!colors.includes(tag.color)) colors.push(tag.color);
+  });
+  return colors;
+}
 function buildTimerExerciseRowHTML(item, source){
   const tag = resolveItemTag(item);
   const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
@@ -2123,7 +2175,7 @@ function buildTimerExerciseRowHTML(item, source){
       </button>
       ${editBtn}
       <label class="timer-exercise-checklist" title="実行チェックリスト">
-        <input type="checkbox" class="timer-exercise-checkbox" data-id="${item.id}" data-source="${source}" ${item.checked?'checked':''}>
+        <input type="checkbox" class="timer-exercise-checkbox" data-id="${item.id}" data-source="${source}" ${isItemCheckedToday(item.id)?'checked':''}>
       </label>
     </div>
   `;
@@ -2147,12 +2199,12 @@ function attachTimerExerciseRowEvents(wrap){
   });
   wrap.querySelectorAll('.timer-exercise-checkbox').forEach(cb=>{
     cb.addEventListener('click', (e)=> e.stopPropagation());
-    cb.addEventListener('change', ()=>{
+    cb.addEventListener('change', async ()=>{
       const items = resolveTimerRowItemsArray(cb.dataset.source);
       const item = items.find(it=>it.id===cb.dataset.id);
       if(!item) return;
-      item.checked = cb.checked; // 今後カレンダー機能と連動予定。現時点ではON/OFFの保持のみ
-      schedulePlanSave();
+      await setItemCheckedToday(item.id, cb.checked);
+      if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
     });
   });
   wrap.querySelectorAll('.timer-exercise-edit-btn').forEach(btn=>{
@@ -2524,6 +2576,8 @@ const CUSTOM_DAYS_KEY = 'custom-day-tabs';
 const DAY_TAB_ORDER_KEY = 'day-tab-order';
 const DAY_LABEL_OVERRIDES_KEY = 'day-label-overrides';
 const DAY_TAG_RECURRENCE_KEY = 'day-tag-recurrence';
+const DAY_TAG_COLOR_KEY = 'day-tag-color';
+const TRAINING_LOG_KEY = 'training-log';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -2540,6 +2594,22 @@ let customDayTabs = [];         // ユーザーが「新規作成」で追加し
 let dayLabelOverrides = {};     // 「設定」で名称変更した既存タブの表示名 { key: label }
 let dayTabOrder = [];           // 日程タブの並び替え結果（key の配列）。並び替えを一度もしていない項目は自然な順で末尾に補われる
 let dayTagRecurrence = {};      // 日程タグごとの周期設定 { key: recurrenceValue }（今後インターバル／カレンダーと連動予定）
+let dayTagColor = {};           // 日程タグごとのカラー設定 { key: hex }。周期が「毎日／日付指定／フリープラン」のタグのみ持つ。
+                                 // 「各曜日」は個別に持たず、常にワンポイントカラー（--accent-amber）の設定を引き継ぐ。
+
+/* 周期の種類ごとに、カレンダー上での表示方法を決める（今後のカレンダー連動の土台）：
+   everyday = 常時塗りつぶし／各曜日 = 該当曜日のみ塗りつぶし（色はワンポイントカラーを継承）／
+   once(日付指定) = 該当日のみ塗りつぶし／freeplan = 常時破線 */
+function recurrenceHasOwnColor(rec){ return rec === 'everyday' || rec === 'once' || rec === 'freeplan'; }
+async function saveDayTagColor(){
+  await storageSet(DAY_TAG_COLOR_KEY, JSON.stringify(dayTagColor));
+}
+function renderDayTagColorGrid(selectedHex){
+  const sel = String(selectedHex||'').toLowerCase();
+  return ACCENT_PRESET_COLORS.map(hex=>
+    `<button type="button" class="accent-color-swatch${hex.toLowerCase()===sel?' selected':''}" style="background:${hex};" data-color="${hex}" title="${hex}"></button>`
+  ).join('');
+}
 
 /* 日程タグの「周期」選択肢：まずはこの一覧から単一選択できるようにする */
 const RECURRENCE_OPTIONS = [
@@ -2621,6 +2691,10 @@ async function deletePlanDayTab(key){
   if(dayTagRecurrence[key] !== undefined){
     delete dayTagRecurrence[key];
     await saveDayTagRecurrence();
+  }
+  if(dayTagColor[key] !== undefined){
+    delete dayTagColor[key];
+    await saveDayTagColor();
   }
   await saveDeletedDayKeys();
   await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
@@ -2793,6 +2867,7 @@ function closeDayInlinePanel(){
 /* 「＋ 新規作成」：日程タグ名と周期を設定して作成する */
 function openDayCreatePanel(){
   let selectedRecurrence = null;
+  let selectedColor = ACCENT_PRESET_COLORS[0];
   planDayInlinePanel.innerHTML = `
     <div class="plan-day-inline-title">＋ 新しい日程タグを作成</div>
     <div class="plan-day-inline-row">
@@ -2800,6 +2875,7 @@ function openDayCreatePanel(){
     </div>
     <div class="plan-day-inline-title">周期</div>
     <div class="recurrence-grid" id="dayCreateRecurrenceGrid">${renderRecurrenceGrid(null)}</div>
+    <div id="dayCreateColorSection"></div>
     <div class="plan-day-inline-actions">
       <button type="button" class="preset-full-btn save" id="dayCreateConfirmBtn">作成</button>
       <button type="button" class="preset-full-btn" id="dayCreateCancelBtn">キャンセル</button>
@@ -2809,10 +2885,30 @@ function openDayCreatePanel(){
   const input = $('#dayCreateInput');
   input.focus();
   const grid = $('#dayCreateRecurrenceGrid');
+  function renderColorSection(){
+    const wrap = $('#dayCreateColorSection');
+    if(recurrenceHasOwnColor(selectedRecurrence)){
+      wrap.innerHTML = `
+        <div class="plan-day-inline-title">カラー</div>
+        <div class="accent-color-grid" id="dayCreateColorGrid">${renderDayTagColorGrid(selectedColor)}</div>
+      `;
+      $('#dayCreateColorGrid').querySelectorAll('.accent-color-swatch').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectedColor = btn.dataset.color;
+          $('#dayCreateColorGrid').querySelectorAll('.accent-color-swatch').forEach(b=>b.classList.toggle('selected', b===btn));
+        });
+      });
+    } else if(selectedRecurrence && !recurrenceHasOwnColor(selectedRecurrence)){
+      wrap.innerHTML = `<div class="ready-hint">この周期は「カラー」ボタンで設定したワンポイントカラーがそのまま使われます。</div>`;
+    } else {
+      wrap.innerHTML = '';
+    }
+  }
   grid.querySelectorAll('.recurrence-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       selectedRecurrence = btn.dataset.recurrence;
       grid.querySelectorAll('.recurrence-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      renderColorSection();
     });
   });
   $('#dayCreateConfirmBtn').addEventListener('click', async ()=>{
@@ -2822,6 +2918,10 @@ function openDayCreatePanel(){
     if(selectedRecurrence){
       dayTagRecurrence[key] = selectedRecurrence;
       await saveDayTagRecurrence();
+    }
+    if(recurrenceHasOwnColor(selectedRecurrence)){
+      dayTagColor[key] = selectedColor;
+      await saveDayTagColor();
     }
     selectedPlanDay = key;
     renderPlanDayPills();
@@ -2853,9 +2953,10 @@ function openDayEditTargetPanel(){
   $('#dayEditCancelBtn').addEventListener('click', closeDayInlinePanel);
 }
 
-/* 選んだ日程タグの名称・周期を変更 */
+/* 選んだ日程タグの名称・周期・カラーを変更 */
 function openDayRenamePanel(tab){
   let selectedRecurrence = dayTagRecurrence[tab.key] || null;
+  let selectedColor = dayTagColor[tab.key] || ACCENT_PRESET_COLORS[0];
   planDayInlinePanel.innerHTML = `
     <div class="plan-day-inline-title">⚙ 「${escapeHTML(tab.label)}」を編集</div>
     <div class="plan-day-inline-row">
@@ -2863,6 +2964,7 @@ function openDayRenamePanel(tab){
     </div>
     <div class="plan-day-inline-title">周期</div>
     <div class="recurrence-grid" id="dayRenameRecurrenceGrid">${renderRecurrenceGrid(selectedRecurrence)}</div>
+    <div id="dayRenameColorSection"></div>
     <div class="plan-day-inline-actions">
       <button type="button" class="preset-full-btn save" id="dayRenameConfirmBtn">保存</button>
       <button type="button" class="preset-full-btn" id="dayRenameBackBtn">戻る</button>
@@ -2872,10 +2974,31 @@ function openDayRenamePanel(tab){
   input.focus();
   input.select();
   const grid = $('#dayRenameRecurrenceGrid');
+  function renderColorSection(){
+    const wrap = $('#dayRenameColorSection');
+    if(recurrenceHasOwnColor(selectedRecurrence)){
+      wrap.innerHTML = `
+        <div class="plan-day-inline-title">カラー</div>
+        <div class="accent-color-grid" id="dayRenameColorGrid">${renderDayTagColorGrid(selectedColor)}</div>
+      `;
+      $('#dayRenameColorGrid').querySelectorAll('.accent-color-swatch').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectedColor = btn.dataset.color;
+          $('#dayRenameColorGrid').querySelectorAll('.accent-color-swatch').forEach(b=>b.classList.toggle('selected', b===btn));
+        });
+      });
+    } else if(selectedRecurrence){
+      wrap.innerHTML = `<div class="ready-hint">この周期は「カラー」ボタンで設定したワンポイントカラーがそのまま使われます。</div>`;
+    } else {
+      wrap.innerHTML = '';
+    }
+  }
+  renderColorSection();
   grid.querySelectorAll('.recurrence-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       selectedRecurrence = btn.dataset.recurrence;
       grid.querySelectorAll('.recurrence-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      renderColorSection();
     });
   });
   $('#dayRenameConfirmBtn').addEventListener('click', async ()=>{
@@ -2886,6 +3009,12 @@ function openDayRenamePanel(tab){
       dayTagRecurrence[tab.key] = selectedRecurrence;
       await saveDayTagRecurrence();
     }
+    if(recurrenceHasOwnColor(selectedRecurrence)){
+      dayTagColor[tab.key] = selectedColor;
+    } else if(dayTagColor[tab.key]){
+      delete dayTagColor[tab.key]; // 曜日周期に変更した場合は個別カラーを持たせず、ワンポイントカラーに一本化する
+    }
+    await saveDayTagColor();
     closeDayInlinePanel();
   });
   $('#dayRenameBackBtn').addEventListener('click', openDayEditTargetPanel);
@@ -3430,20 +3559,35 @@ async function loadTrainingPlan(){
     const rawRecurrence = await storageGet(DAY_TAG_RECURRENCE_KEY);
     dayTagRecurrence = rawRecurrence ? JSON.parse(rawRecurrence) : {};
   }catch(err){ dayTagRecurrence = {}; }
+  try{
+    const rawColor = await storageGet(DAY_TAG_COLOR_KEY);
+    dayTagColor = rawColor ? JSON.parse(rawColor) : {};
+  }catch(err){ dayTagColor = {}; }
+  try{
+    const rawLog = await storageGet(TRAINING_LOG_KEY);
+    trainingLog = rawLog ? JSON.parse(rawLog) : {};
+  }catch(err){ trainingLog = {}; }
   selectedPlanDay = defaultPlanDay();
   renderPlanDayPills();
   renderExerciseItemList();
+  if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
 }
 loadTrainingPlan();
 
 /* =========================================================
    カレンダー（月表示）
    ---------------------------------------------------------
-   今後、この日付セルにトレーニング実施ログを紐付ける予定。
-   現時点では月表示のみのシンプルなカレンダーです。
+   インターバル画面でチェックした種目のタグ色を、日付ごとにドットで表示する。
+   （日程タグ自体のカラー設定はここでは使わない。あくまで種目のタグ色のみを反映する）
 ========================================================= */
 let calendarViewDate = new Date();
 calendarViewDate.setDate(1);
+
+function formatDateKey(y, m, d){
+  const mm = String(m+1).padStart(2,'0');
+  const dd = String(d).padStart(2,'0');
+  return `${y}-${mm}-${dd}`;
+}
 
 function renderCalendar(){
   const year = calendarViewDate.getFullYear();
@@ -3455,23 +3599,33 @@ function renderCalendar(){
   const daysInPrevMonth = new Date(year, month, 0).getDate();
   const today = new Date();
   const isTodayInThisMonth = today.getFullYear()===year && today.getMonth()===month;
+  const prevMonth = month === 0 ? 11 : month - 1;
+  const prevYear = month === 0 ? year - 1 : year;
+  const nextMonth = month === 11 ? 0 : month + 1;
+  const nextYear = month === 11 ? year + 1 : year;
 
   const cells = [];
   for(let i=startWeekday-1; i>=0; i--){
-    cells.push({ day: daysInPrevMonth - i, muted:true });
+    const d = daysInPrevMonth - i;
+    cells.push({ day:d, muted:true, year:prevYear, month:prevMonth });
   }
   for(let d=1; d<=daysInMonth; d++){
-    cells.push({ day:d, muted:false, isToday: isTodayInThisMonth && d===today.getDate() });
+    cells.push({ day:d, muted:false, isToday: isTodayInThisMonth && d===today.getDate(), year, month });
   }
   const remainder = cells.length % 7;
   const trailingCount = remainder === 0 ? 0 : 7 - remainder;
   for(let d=1; d<=trailingCount; d++){
-    cells.push({ day:d, muted:true });
+    cells.push({ day:d, muted:true, year:nextYear, month:nextMonth });
   }
 
-  $('#calendarGrid').innerHTML = cells.map(c=>
-    `<div class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}">${c.day}</div>`
-  ).join('');
+  $('#calendarGrid').innerHTML = cells.map(c=>{
+    const dateKey = formatDateKey(c.year, c.month, c.day);
+    const dotColors = getCalendarDotColorsForDate(dateKey);
+    const dotsHtml = dotColors.length
+      ? `<div class="calendar-dots">${dotColors.map(hex=>`<span class="calendar-dot" style="background:${hex};"></span>`).join('')}</div>`
+      : '';
+    return `<div class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}"><span class="calendar-daynum">${c.day}</span>${dotsHtml}</div>`;
+  }).join('');
 }
 $('#calendarPrevBtn').addEventListener('click', ()=>{
   calendarViewDate.setMonth(calendarViewDate.getMonth()-1);
