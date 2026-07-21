@@ -312,6 +312,12 @@
     width:44px; height:44px; padding:0 12px 0 0;
   }
   .timer-exercise-checkbox{ width:20px; height:20px; cursor:pointer; accent-color:var(--accent-amber); }
+  .timer-exercise-edit-btn{
+    appearance:none; cursor:pointer; flex:0 0 auto; border:none; border-radius:8px; width:30px; height:30px;
+    background:rgba(128,128,128,0.14); color:var(--panel-muted); font-size:13px; line-height:1;
+    transition: background .2s ease;
+  }
+  .timer-exercise-edit-btn:hover{ background:rgba(128,128,128,0.28); }
 
   .mode-toggle{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:12px; margin-top:-6px; }
   .mode-btn{
@@ -2100,6 +2106,9 @@ function buildTimerExerciseRowHTML(item, source){
   const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
   const summary = buildExerciseSettingsSummary(item);
   const isActive = selectedTimerItem && selectedTimerItem.id === item.id;
+  const editBtn = source === 'adhoc'
+    ? `<button type="button" class="timer-exercise-edit-btn" data-id="${item.id}" title="編集">✎</button>`
+    : '';
   return `
     <div class="timer-exercise-row${isActive?' active':''}" data-id="${item.id}" data-source="${source}">
       <button type="button" class="timer-exercise-tap-area" data-id="${item.id}" data-source="${source}">
@@ -2107,6 +2116,7 @@ function buildTimerExerciseRowHTML(item, source){
         <span class="video-ref-settings-summary">${escapeHTML(summary)}</span>
         ${tagChip}
       </button>
+      ${editBtn}
       <label class="timer-exercise-checklist" title="実行チェックリスト">
         <input type="checkbox" class="timer-exercise-checkbox" data-id="${item.id}" data-source="${source}" ${item.checked?'checked':''}>
       </label>
@@ -2138,6 +2148,15 @@ function attachTimerExerciseRowEvents(wrap){
       if(!item) return;
       item.checked = cb.checked; // 今後カレンダー機能と連動予定。現時点ではON/OFFの保持のみ
       schedulePlanSave();
+    });
+  });
+  wrap.querySelectorAll('.timer-exercise-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(timerState.status !== 'idle') return; // 実行中は編集不可
+      const item = getTodayAdhocItems().find(it=>it.id===btn.dataset.id);
+      if(!item) return;
+      openAdhocPanel(item);
     });
   });
 }
@@ -2197,7 +2216,7 @@ function renderTimerExerciseList(){
     `;
     wrap.innerHTML = html;
     attachTimerExerciseRowEvents(wrap);
-    $('#timerAdhocAddBtn').addEventListener('click', openAdhocCreatePanel);
+    $('#timerAdhocAddBtn').addEventListener('click', () => openAdhocPanel());
     $('#timerFreeplanSelect').addEventListener('change', (e)=>{
       const idx = parseInt(e.target.value);
       if(isNaN(idx)) return;
@@ -2208,35 +2227,38 @@ function renderTimerExerciseList(){
 
   wrap.innerHTML = html;
   attachTimerExerciseRowEvents(wrap);
-  $('#timerAdhocAddBtn').addEventListener('click', openAdhocCreatePanel);
+  $('#timerAdhocAddBtn').addEventListener('click', () => openAdhocPanel());
 }
 
 /* 「＋ 追加メニュー」：種目設定ページと共通の入力項目（名称・メモ・回数/インターバル・タグ）をその場で入力し、
    常に今日の実際の日付（adhoc_YYYY-MM-DD）に紐づく種目として追加する */
-function openAdhocCreatePanel(){
+function openAdhocPanel(existingItem){
   const panel = $('#timerAdhocCreatePanel');
-  const newItem = makeExerciseItem();
+  const isEdit = !!existingItem;
+  // 編集時は元データを書き換えないよう複製してから編集する（キャンセル時に元に戻せるように）
+  const newItem = isEdit ? JSON.parse(JSON.stringify(existingItem)) : makeExerciseItem();
 
   panel.innerHTML = `
-    <div class="plan-day-inline-title">＋ 今日の追加メニュー</div>
-    <div class="plan-day-inline-row"><input type="text" id="adhocNameInput" placeholder="種目名"></div>
-    <div class="plan-day-inline-row"><input type="text" id="adhocMemoInput" placeholder="メモ（任意）"></div>
+    <div class="plan-day-inline-title">${isEdit ? '✎ 追加メニューを編集' : '＋ 今日の追加メニュー'}</div>
+    <div class="plan-day-inline-row"><input type="text" id="adhocNameInput" placeholder="種目名" value="${escapeHTML(newItem.name||'')}"></div>
+    <div class="plan-day-inline-row"><input type="text" id="adhocMemoInput" placeholder="メモ（任意）" value="${escapeHTML(newItem.memo||'')}"></div>
     <div class="mode-toggle" id="adhocModeToggle">
-      <button type="button" class="mode-btn active" data-mode="reps">回数</button>
-      <button type="button" class="mode-btn" data-mode="interval">インターバル</button>
+      <button type="button" class="mode-btn ${newItem.mode==='reps'?'active':''}" data-mode="reps">回数</button>
+      <button type="button" class="mode-btn ${newItem.mode==='interval'?'active':''}" data-mode="interval">インターバル</button>
     </div>
     <div id="adhocModeFields"></div>
     <div class="field">
       <label>タグ選択</label>
       <select id="adhocTagSelect">
         <option value="">未分類</option>
-        ${exerciseTags.map(t=>`<option value="${t.id}">${escapeHTML(t.name)}</option>`).join('')}
+        ${exerciseTags.map(t=>`<option value="${t.id}" ${newItem.tagId===t.id?'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
       </select>
     </div>
     <div class="plan-day-inline-actions">
-      <button type="button" class="preset-full-btn save" id="adhocSaveBtn">追加</button>
+      <button type="button" class="preset-full-btn save" id="adhocSaveBtn">${isEdit ? '保存' : '追加'}</button>
       <button type="button" class="preset-full-btn" id="adhocCancelBtn">キャンセル</button>
     </div>
+    ${isEdit ? '<button type="button" class="preset-full-btn del" id="adhocDeleteBtn">🗑 この追加メニューを削除</button>' : ''}
   `;
   panel.style.display = 'flex';
 
@@ -2361,7 +2383,13 @@ function openAdhocCreatePanel(){
     newItem.name = name;
     newItem.memo = $('#adhocMemoInput').value.trim();
     newItem.tagId = $('#adhocTagSelect').value;
-    getTodayAdhocItems().push(newItem);
+    const items = getTodayAdhocItems();
+    if(isEdit){
+      const idx = items.findIndex(it=>it.id===existingItem.id);
+      if(idx>=0) items[idx] = newItem;
+    } else {
+      items.push(newItem);
+    }
     await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
     renderTimerExerciseList();
   });
@@ -2369,6 +2397,18 @@ function openAdhocCreatePanel(){
     panel.style.display = 'none';
     panel.innerHTML = '';
   });
+  if(isEdit){
+    $('#adhocDeleteBtn').addEventListener('click', async ()=>{
+      if(!confirm(`「${existingItem.name}」を削除しますか？`)) return;
+      const items = getTodayAdhocItems();
+      const idx = items.findIndex(it=>it.id===existingItem.id);
+      if(idx>=0) items.splice(idx,1);
+      await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      renderTimerExerciseList();
+    });
+  }
 }
 
 function refreshTimerExercisePanel(){
