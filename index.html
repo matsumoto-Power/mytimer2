@@ -631,8 +631,12 @@
   }
   .calendar-cell:hover{ background:rgba(128,128,128,0.14); }
   .calendar-daynum{ display:block; }
-  .calendar-dots{ display:flex; flex-wrap:wrap; gap:3px; }
-  .calendar-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .calendar-dots{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .calendar-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
+  .calendar-dot-more{
+    font-size:9.5px; font-weight:700; color:var(--panel-muted); line-height:1;
+    padding:1px 4px; border-radius:999px; background:rgba(128,128,128,0.18); flex:0 0 auto;
+  }
   .calendar-cell.muted{ opacity:0.32; }
   .calendar-cell.today{ background:rgba(168,85,247,0.16); border-color:var(--accent-amber); color:var(--accent-amber); }
   .calendar-hint{ font-size:11.5px; color:var(--panel-muted); text-align:center; }
@@ -715,15 +719,18 @@
   .day-detail-list{ display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
   .day-detail-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px 8px; }
   .day-detail-row{
-    display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px;
+    display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; flex-wrap:wrap;
     border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.08);
   }
   .day-detail-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
-  .day-detail-name{ flex:1; font-size:14px; font-weight:700; color:var(--panel-text); }
+  .day-detail-text{ display:flex; flex-direction:column; gap:2px; flex:1 1 120px; min-width:100px; }
+  .day-detail-name{ font-size:14px; font-weight:700; color:var(--panel-text); }
+  .day-detail-summary{ font-size:12px; font-weight:600; color:var(--panel-muted); }
   .day-detail-source-badge{
     flex:0 0 auto; font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px;
     background:rgba(128,128,128,0.16); color:var(--panel-muted);
   }
+  .day-detail-source-badge.custom{ background:rgba(168,85,247,0.18); color:var(--accent-amber); }
   .day-detail-row-btn{
     appearance:none; cursor:pointer; flex:0 0 auto; border:none; border-radius:8px; width:28px; height:28px;
     background:rgba(128,128,128,0.14); color:var(--panel-muted); font-size:12.5px; line-height:1;
@@ -2149,7 +2156,8 @@ function resolveTimerRowItemsArray(source){
 /* --- 実施ログ（日付ごとの実施記録） ---
    { "2026-07-20": { itemId: true, itemId2: true } } という形で、日付とその日にチェックした種目IDを保持する。
    同じ種目（毎週月曜など）が複数の日付に繰り返し登場しても、日付ごとに独立してON/OFFを持てるようにするための構造。
-   カレンダー側は、この実施ログ内の各itemIdから種目のタグ色を逆引きしてドットを表示する。 */
+   チェックした瞬間の名称・タグを記録に焼き付けて保存するため、後から種目設定側でその種目を削除・改名しても、
+   過去にチェックした日の記録はそのままカレンダーに残り続ける。 */
 let trainingLog = {};
 async function saveTrainingLog(){
   await storageSet(TRAINING_LOG_KEY, JSON.stringify(trainingLog));
@@ -2160,24 +2168,52 @@ function isItemCheckedOnDate(itemId, dateKey){
 function isItemCheckedToday(itemId){
   return isItemCheckedOnDate(itemId, getTodayDateKey());
 }
-async function setItemCheckedToday(itemId, checked){
+async function setItemCheckedToday(item, checked){
   const dateKey = getTodayDateKey();
   if(checked){
     if(!trainingLog[dateKey]) trainingLog[dateKey] = {};
-    trainingLog[dateKey][itemId] = true;
+    const tag = resolveItemTag(item);
+    // チェック時点のスナップショットを保存（種目名・タグ・実施内容）。後から種目を削除/変更しても記録はそのまま残る。
+    trainingLog[dateKey][item.id] = {
+      name: item.name, tagColor: tag.color, tagName: tag.name,
+      summary: buildExerciseSettingsSummary(item),
+    };
   } else if(trainingLog[dateKey]){
-    delete trainingLog[dateKey][itemId];
+    delete trainingLog[dateKey][item.id];
     if(Object.keys(trainingLog[dateKey]).length === 0) delete trainingLog[dateKey];
   }
   await saveTrainingLog();
 }
-/* 種目IDから、日程タブ・今日の追加メニューを問わず全データを横断して種目本体を探す（実施ログにはIDしか残らないため） */
+/* 間違えてチェックしてしまった等、インターバル記録側の1件を実施ログから取り消す */
+async function deleteTrainingLogEntry(dateKey, itemId){
+  if(!trainingLog[dateKey]) return;
+  delete trainingLog[dateKey][itemId];
+  if(Object.keys(trainingLog[dateKey]).length === 0) delete trainingLog[dateKey];
+  await saveTrainingLog();
+}
+/* 種目IDから、日程タブ・今日の追加メニューを問わず全データを横断して種目本体を探す（旧形式データのフォールバック用） */
 function findExerciseItemById(id){
   for(const key in trainingPlan){
     const arr = trainingPlan[key];
     if(!Array.isArray(arr)) continue;
     const found = arr.find(it=>it.id===id);
     if(found) return found;
+  }
+  return null;
+}
+/* 実施ログの1件を表示用に解決する：スナップショットがあればそれを優先し（種目が削除されていても表示できる）、
+   スナップショットの無い旧形式データのみ、現在の種目設定から逆引きするフォールバックを行う */
+function resolveLogEntryDisplay(itemId, entry){
+  if(entry && typeof entry === 'object' && entry.name){
+    return {
+      name: entry.name, tagColor: entry.tagColor || UNCATEGORIZED_TAG.color, tagName: entry.tagName || UNCATEGORIZED_TAG.name,
+      summary: entry.summary || '',
+    };
+  }
+  const item = findExerciseItemById(itemId);
+  if(item){
+    const tag = resolveItemTag(item);
+    return { name: item.name, tagColor: tag.color, tagName: tag.name, summary: buildExerciseSettingsSummary(item) };
   }
   return null;
 }
@@ -2191,16 +2227,16 @@ async function saveManualTrainingLog(){
 function getManualEntriesForDate(dateKey){
   return manualTrainingLog[dateKey] || [];
 }
-async function addManualEntry(dateKey, name, tagId){
+async function addManualEntry(dateKey, name, tagId, summary){
   if(!manualTrainingLog[dateKey]) manualTrainingLog[dateKey] = [];
-  manualTrainingLog[dateKey].push({ id: mkId(), name, tagId });
+  manualTrainingLog[dateKey].push({ id: mkId(), name, tagId, summary: summary||'' });
   await saveManualTrainingLog();
 }
-async function updateManualEntry(dateKey, entryId, name, tagId){
+async function updateManualEntry(dateKey, entryId, name, tagId, summary){
   const list = manualTrainingLog[dateKey];
   if(!list) return;
   const entry = list.find(e=>e.id===entryId);
-  if(entry){ entry.name = name; entry.tagId = tagId; }
+  if(entry){ entry.name = name; entry.tagId = tagId; entry.summary = summary||''; }
   await saveManualTrainingLog();
 }
 async function deleteManualEntry(dateKey, entryId){
@@ -2218,10 +2254,9 @@ function getCalendarDotColorsForDate(dateKey){
   const log = trainingLog[dateKey];
   if(log){
     Object.keys(log).forEach(itemId=>{
-      const item = findExerciseItemById(itemId);
-      if(!item) return;
-      const tag = resolveItemTag(item);
-      if(!colors.includes(tag.color)) colors.push(tag.color);
+      const resolved = resolveLogEntryDisplay(itemId, log[itemId]);
+      if(!resolved) return;
+      if(!colors.includes(resolved.tagColor)) colors.push(resolved.tagColor);
     });
   }
   getManualEntriesForDate(dateKey).forEach(entry=>{
@@ -2275,7 +2310,7 @@ function attachTimerExerciseRowEvents(wrap){
       const items = resolveTimerRowItemsArray(cb.dataset.source);
       const item = items.find(it=>it.id===cb.dataset.id);
       if(!item) return;
-      await setItemCheckedToday(item.id, cb.checked);
+      await setItemCheckedToday(item, cb.checked);
       if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
     });
   });
@@ -3695,12 +3730,16 @@ function renderCalendar(){
     cells.push({ day:d, muted:true, year:nextYear, month:nextMonth });
   }
 
+  const MAX_VISIBLE_DOTS = 4;
   $('#calendarGrid').innerHTML = cells.map(c=>{
     const dateKey = formatDateKey(c.year, c.month, c.day);
     const dotColors = getCalendarDotColorsForDate(dateKey);
-    const dotsHtml = dotColors.length
-      ? `<div class="calendar-dots">${dotColors.map(hex=>`<span class="calendar-dot" style="background:${hex};"></span>`).join('')}</div>`
-      : '';
+    let dotsHtml = '';
+    if(dotColors.length){
+      const visible = dotColors.slice(0, MAX_VISIBLE_DOTS);
+      const overflow = dotColors.length - visible.length;
+      dotsHtml = `<div class="calendar-dots">${visible.map(hex=>`<span class="calendar-dot" style="background:${hex};"></span>`).join('')}${overflow>0?`<span class="calendar-dot-more">+${overflow}</span>`:''}</div>`;
+    }
     return `<button type="button" class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}" data-date="${dateKey}"><span class="calendar-daynum">${c.day}</span>${dotsHtml}</button>`;
   }).join('');
   $('#calendarGrid').querySelectorAll('.calendar-cell').forEach(cell=>{
@@ -3750,42 +3789,61 @@ function renderDayDetailList(){
   const log = trainingLog[dateKey];
   if(log){
     Object.keys(log).forEach(itemId=>{
-      const item = findExerciseItemById(itemId);
-      if(!item) return;
-      const tag = resolveItemTag(item);
+      const resolved = resolveLogEntryDisplay(itemId, log[itemId]);
+      if(!resolved) return;
+      const tagChip = `<span class="tag-chip" style="background:${resolved.tagColor}40; color:${resolved.tagColor}; border:1px solid ${resolved.tagColor}59;">${escapeHTML(resolved.tagName)}</span>`;
       autoRows.push(`
         <div class="day-detail-row">
-          <span class="day-detail-dot" style="background:${tag.color};"></span>
-          <span class="day-detail-name">${escapeHTML(item.name)}</span>
+          <span class="day-detail-dot" style="background:${resolved.tagColor};"></span>
+          <div class="day-detail-text">
+            <span class="day-detail-name">${escapeHTML(resolved.name)}</span>
+            ${resolved.summary ? `<span class="day-detail-summary">${escapeHTML(resolved.summary)}</span>` : ''}
+          </div>
+          ${tagChip}
           <span class="day-detail-source-badge">インターバル記録</span>
+          <button type="button" class="day-detail-row-btn del" data-act="delete-auto" data-id="${itemId}" title="この記録を削除（間違えてチェックした場合など）">🗑</button>
         </div>
       `);
     });
   }
   const manualRows = getManualEntriesForDate(dateKey).map(entry=>{
     const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
+    const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
     return `
       <div class="day-detail-row">
         <span class="day-detail-dot" style="background:${tag.color};"></span>
-        <span class="day-detail-name">${escapeHTML(entry.name)}</span>
-        <button type="button" class="day-detail-row-btn" data-act="edit" data-id="${entry.id}" title="編集">✎</button>
-        <button type="button" class="day-detail-row-btn del" data-act="delete" data-id="${entry.id}" title="削除">🗑</button>
+        <div class="day-detail-text">
+          <span class="day-detail-name">${escapeHTML(entry.name)}</span>
+          ${entry.summary ? `<span class="day-detail-summary">${escapeHTML(entry.summary)}</span>` : ''}
+        </div>
+        ${tagChip}
+        <span class="day-detail-source-badge custom">カスタム記録</span>
+        <button type="button" class="day-detail-row-btn" data-act="edit-manual" data-id="${entry.id}" title="編集">✎</button>
+        <button type="button" class="day-detail-row-btn del" data-act="delete-manual" data-id="${entry.id}" title="削除">🗑</button>
       </div>
     `;
   });
   const allRows = autoRows.join('') + manualRows.join('');
   dayDetailList.innerHTML = allRows || '<div class="day-detail-empty">この日の記録はまだありません。</div>';
 
-  dayDetailList.querySelectorAll('[data-act="edit"]').forEach(btn=>{
+  dayDetailList.querySelectorAll('[data-act="edit-manual"]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const entry = getManualEntriesForDate(dateKey).find(e=>e.id===btn.dataset.id);
       if(entry) openDayDetailForm(entry);
     });
   });
-  dayDetailList.querySelectorAll('[data-act="delete"]').forEach(btn=>{
+  dayDetailList.querySelectorAll('[data-act="delete-manual"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(!confirm('この記録を削除しますか？')) return;
       await deleteManualEntry(dateKey, btn.dataset.id);
+      renderDayDetailList();
+      renderCalendar();
+    });
+  });
+  dayDetailList.querySelectorAll('[data-act="delete-auto"]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('この記録を削除しますか？（間違えてチェックしていた場合などにお使いください）')) return;
+      await deleteTrainingLogEntry(dateKey, btn.dataset.id);
       renderDayDetailList();
       renderCalendar();
     });
@@ -3802,6 +3860,9 @@ function openDayDetailForm(existingEntry){
     <div class="plan-day-inline-title">${isEdit ? '✎ 記録を編集' : '＋ 記録を追加'}</div>
     <div class="plan-day-inline-row">
       <input type="text" id="dayDetailNameInput" placeholder="例）スクワット、ウォーキング" value="${isEdit ? escapeHTML(existingEntry.name) : ''}">
+    </div>
+    <div class="plan-day-inline-row">
+      <input type="text" id="dayDetailSummaryInput" placeholder="実施内容（任意）例）10回×3、40秒+20秒×8" value="${isEdit ? escapeHTML(existingEntry.summary||'') : ''}">
     </div>
     <div class="field">
       <label>タグ選択</label>
@@ -3822,10 +3883,11 @@ function openDayDetailForm(existingEntry){
     const name = nameInput.value.trim();
     if(!name){ nameInput.focus(); return; }
     const tagId = $('#dayDetailTagSelect').value;
+    const summary = $('#dayDetailSummaryInput').value.trim();
     if(isEdit){
-      await updateManualEntry(dayDetailCurrentDateKey, existingEntry.id, name, tagId);
+      await updateManualEntry(dayDetailCurrentDateKey, existingEntry.id, name, tagId, summary);
     } else {
-      await addManualEntry(dayDetailCurrentDateKey, name, tagId);
+      await addManualEntry(dayDetailCurrentDateKey, name, tagId, summary);
     }
     dayDetailFormPanel.style.display = 'none';
     dayDetailFormPanel.innerHTML = '';
