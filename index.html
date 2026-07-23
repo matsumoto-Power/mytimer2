@@ -596,11 +596,18 @@
   .ei-video-label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase; }
   .ei-video-list{ display:flex; flex-direction:column; gap:8px; }
   .exercise-video-row{
-    display:flex; align-items:center; gap:8px; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline);
+    display:flex; flex-direction:column; gap:8px; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline);
     border-radius:12px; padding:8px;
   }
-  .exercise-video-fields{ flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
-  .exercise-video-fields input[type=text]{
+  .exercise-video-header{ display:flex; align-items:center; gap:8px; }
+  .ev-name-btn{
+    appearance:none; cursor:pointer; border:none; background:transparent; flex:1; min-width:0; text-align:left;
+    padding:6px 8px; color:var(--panel-text); font-size:13px; font-weight:600;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .ev-name-btn.placeholder{ color:var(--panel-muted); font-weight:500; }
+  .exercise-video-url-panel{ display:flex; flex-direction:column; gap:6px; padding:0 2px; }
+  .exercise-video-url-panel input[type=text]{
     width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.12); color:var(--panel-text); font-size:12px;
   }
@@ -792,8 +799,8 @@
       <div class="brand"><span class="dot"></span><span>MY TIMER</span></div>
       <nav class="tabs">
         <button class="tab-btn active" data-tab="clock">時計</button>
-        <button class="tab-btn" data-tab="timer">インターバル</button>
         <button class="tab-btn" data-tab="sub">種目設定</button>
+        <button class="tab-btn" data-tab="timer">インターバル</button>
         <button class="tab-btn" data-tab="calendar">カレンダー</button>
       </nav>
       <div class="top-actions">
@@ -3479,6 +3486,8 @@ function renderExerciseCircuitSteps(item){
   });
 }
 
+let openVideoRowId = null; // 現在URL編集欄が開いている動画行のID（一度に1件だけ開く）
+
 function renderExerciseVideos(item){
   const container = document.querySelector(`.video-ref-item[data-id="${item.id}"] .ei-video-list`);
   if(!container) return;
@@ -3487,33 +3496,45 @@ function renderExerciseVideos(item){
     container.innerHTML = '<div class="circuit-empty-hint">まだ動画がありません。</div>';
     return;
   }
-  container.innerHTML = videos.map((v,i)=>`
+  container.innerHTML = videos.map((v,i)=>{
+    const hasName = v.name && v.name.trim();
+    const isOpen = v.id === openVideoRowId;
+    return `
     <div class="exercise-video-row" data-vid="${v.id}">
-      <div class="exercise-video-fields">
+      <div class="exercise-video-header">
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
+        <div class="exercise-video-actions">
+          <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
+          <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+          <button type="button" class="circuit-step-btn" data-act="down" ${i===videos.length-1?'disabled':''}>↓</button>
+          <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+        </div>
+      </div>
+      <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
         <input type="text" class="ev-name" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="動画名（任意）">
         <input type="text" class="ev-url" data-field="url" value="${escapeHTML(v.url||'')}" placeholder="https://www.youtube.com/watch?v=...">
       </div>
-      <div class="exercise-video-actions">
-        <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
-        <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
-        <button type="button" class="circuit-step-btn" data-act="down" ${i===videos.length-1?'disabled':''}>↓</button>
-        <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
-      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   container.querySelectorAll('.exercise-video-row').forEach(row=>{
     const vid = row.dataset.vid;
     const v = videos.find(x=>x.id===vid);
-    row.querySelector('[data-field="name"]').addEventListener('change', e=>{ v.name=e.target.value; schedulePlanSave(); });
+    row.querySelector('[data-act="toggle-url"]').addEventListener('click', ()=>{
+      openVideoRowId = (openVideoRowId === vid) ? null : vid;
+      renderExerciseVideos(item);
+    });
+    row.querySelector('[data-field="name"]').addEventListener('change', e=>{ v.name=e.target.value; schedulePlanSave(); renderExerciseVideos(item); });
     row.querySelector('[data-field="url"]').addEventListener('change', e=>{
       v.url = e.target.value.trim(); schedulePlanSave(); renderExerciseVideos(item);
     });
-    row.querySelector('.ev-play').addEventListener('click', ()=> playReferenceVideo(v.url));
+    row.querySelector('.ev-play').addEventListener('click', (e)=>{ e.stopPropagation(); playReferenceVideo(v.url); });
     row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
         const idx = videos.findIndex(x=>x.id===vid);
         const act = btn.dataset.act;
-        if(act==='remove'){ videos.splice(idx,1); }
+        if(act==='remove'){ videos.splice(idx,1); if(openVideoRowId===vid) openVideoRowId=null; }
         else if(act==='up' && idx>0){ [videos[idx-1],videos[idx]]=[videos[idx],videos[idx-1]]; }
         else if(act==='down' && idx<videos.length-1){ [videos[idx+1],videos[idx]]=[videos[idx],videos[idx+1]]; }
         renderExerciseVideos(item);
@@ -3694,7 +3715,9 @@ function attachExerciseItemEvents(item){
   if(videoAddBtn){
     renderExerciseVideos(item);
     videoAddBtn.addEventListener('click', ()=>{
-      item.videos.push({ id:mkId(), name:'', url:'' });
+      const newVideo = { id:mkId(), name:'', url:'' };
+      item.videos.push(newVideo);
+      openVideoRowId = newVideo.id;
       renderExerciseVideos(item);
       schedulePlanSave();
     });
