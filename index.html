@@ -83,6 +83,9 @@
     position:absolute; inset:0; background-size:cover; background-position:50% 50%;
     opacity:0; transition:opacity 1.6s ease;
   }
+  #imagePane.transition-slide .slide{ transition:transform 1s cubic-bezier(.4,0,.2,1); }
+  #imagePane.transition-zoom .slide{ transition:opacity 1.6s ease, transform linear; transform:scale(1); }
+  #imagePane.transition-zoom .slide.zoom-grow{ transform:scale(1.08); }
   #imagePane.position-mode .slide{ transition:opacity 1.6s ease; }
   #imagePane.position-mode{ cursor:grab; }
   #imagePane.position-mode.dragging{ cursor:grabbing; }
@@ -1041,6 +1044,20 @@
     <div class="group-hint">気分に合わせて複数のグループを作っておけば、あとで下のセレクターからワンタップで切り替えられます。</div>
     <hr class="div">
 
+    <div class="field">
+      <label>表示秒数</label>
+      <input type="number" id="slideshowIntervalInput" min="3" max="300" value="30">
+    </div>
+    <div class="field">
+      <label>切り替えパターン</label>
+      <div class="mode-toggle slideshow-transition-toggle" id="slideshowTransitionToggle">
+        <button type="button" class="mode-btn active" data-transition="fade">フェード</button>
+        <button type="button" class="mode-btn" data-transition="slide">スライド</button>
+        <button type="button" class="mode-btn" data-transition="zoom">ズーム</button>
+      </div>
+    </div>
+    <hr class="div">
+
     <button class="modal-add-btn" id="modalAddBtn">＋ 画像を追加</button>
     <div class="modal-list" id="modalList">
       <div class="modal-list-empty">画像がまだありません。「画像を追加」から選んでください。</div>
@@ -1117,6 +1134,10 @@ $$('.tab-btn').forEach(btn=>{
      それぞれ個別に色を保持しているため、ここでの変更の影響を受けない。
 ========================================================= */
 const ACCENT_COLOR_KEY = 'accent-color';
+const SLIDESHOW_INTERVAL_KEY = 'slideshow-interval-sec';
+const SLIDESHOW_TRANSITION_KEY = 'slideshow-transition';
+let slideshowIntervalSec = 30;      // 画像を表示する秒数
+let slideshowTransition = 'fade';   // 'fade' | 'slide' | 'zoom'
 const ACCENT_PRESET_COLORS = ['#A855F7','#EC4899','#F43F5E','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#6366F1','#06B6D4','#84CC16','#94A3B8'];
 
 function applyAccentColor(hex){
@@ -1171,15 +1192,29 @@ document.addEventListener('click', (e)=>{
     const saved = await storageGet(ACCENT_COLOR_KEY);
     if(saved) applyAccentColor(saved);
   }catch(err){ /* 未保存の場合はデフォルト色のまま */ }
+  try{
+    const savedSec = await storageGet(SLIDESHOW_INTERVAL_KEY);
+    if(savedSec){ slideshowIntervalSec = Math.max(3, parseInt(savedSec)||30); $('#slideshowIntervalInput').value = slideshowIntervalSec; }
+  }catch(err){ /* 未保存の場合はデフォルト30秒のまま */ }
+  try{
+    const savedTransition = await storageGet(SLIDESHOW_TRANSITION_KEY);
+    if(savedTransition){
+      slideshowTransition = savedTransition;
+      $$('#slideshowTransitionToggle .mode-btn').forEach(b=>b.classList.toggle('active', b.dataset.transition===savedTransition));
+      imagePane.classList.remove('transition-fade','transition-slide','transition-zoom');
+      imagePane.classList.add(`transition-${savedTransition}`);
+    }
+  }catch(err){ /* 未保存の場合はデフォルト「フェード」のまま */ }
 })();
 
 /* =========================================================
-   画像ペイン：複数選択 → 30秒ごとスライドショー ＋ 手動送り ＋ 位置調整
+   画像ペイン：複数選択 → 設定した秒数ごとにスライドショー ＋ 手動送り ＋ 位置調整
 ========================================================= */
 let bgImages = [];       // dataURLの配列
 let bgPositions = [];    // {landscape:{x,y}, portrait:{x,y}} の配列（bgImagesと同じ順）
 let bgIndex = -1;
-let bgTimer = null;
+let bgLastAdvanceAt = 0;   // 最後にスライドを切り替えた時刻（実時刻ベースで判定するため）
+let bgWatchdogId = null;   // requestAnimationFrameのID
 const imagePane = $('#imagePane');
 const slideA = $('#slideA');
 const slideB = $('#slideB');
@@ -1304,19 +1339,65 @@ function showImage(index){
   if(!bgImages.length) return;
   bgIndex = ((index % bgImages.length) + bgImages.length) % bgImages.length;
   const nextSlide = activeSlide === slideA ? slideB : slideA;
+  const prevSlide = activeSlide;
   nextSlide.style.backgroundImage = `url(${bgImages[bgIndex]})`;
   applyPositionToSlide(nextSlide, bgIndex);
-  nextSlide.style.opacity = '1';
-  activeSlide.style.opacity = '0';
+
+  if(slideshowTransition === 'slide'){
+    // 次の画像を右側に置いておき、両方を同時に左へスライドさせて入れ替える
+    nextSlide.style.transition = 'none';
+    nextSlide.style.transform = 'translateX(100%)';
+    nextSlide.style.opacity = '1';
+    void nextSlide.offsetWidth; // 強制リフローでtransitionなしの初期位置を確定させる
+    nextSlide.style.transition = '';
+    prevSlide.style.transition = '';
+    nextSlide.style.transform = 'translateX(0)';
+    prevSlide.style.transform = 'translateX(-100%)';
+    setTimeout(()=>{
+      prevSlide.style.opacity = '0';
+      prevSlide.style.transition = 'none';
+      prevSlide.style.transform = 'translateX(0)';
+    }, 1050);
+  } else if(slideshowTransition === 'zoom'){
+    nextSlide.classList.remove('zoom-grow');
+    nextSlide.style.transitionDuration = '1.6s, 0s';
+    nextSlide.style.transform = 'scale(1)';
+    void nextSlide.offsetWidth;
+    nextSlide.style.opacity = '1';
+    prevSlide.style.opacity = '0';
+    requestAnimationFrame(()=>{
+      nextSlide.style.transitionDuration = `1.6s, ${Math.max(slideshowIntervalSec, 4)}s`;
+      nextSlide.classList.add('zoom-grow');
+    });
+  } else {
+    nextSlide.style.transform = 'none';
+    nextSlide.style.opacity = '1';
+    prevSlide.style.opacity = '0';
+  }
+
   activeSlide = nextSlide;
   renderDots();
 }
 
-function restartSlideshow(){
-  if(bgTimer) clearInterval(bgTimer);
+/* スライドショーの自動送り：setIntervalではなく、実時刻を毎フレーム確認する自己修復型の仕組みにしている。
+   インターバルタイマーの音声・カウントダウン処理で負荷が高い時にsetIntervalの発火が遅延/スキップされても、
+   次に描画される瞬間に「本来もう切り替わっているべきだった」と気づいて追いつけるようにするための対策。 */
+function slideshowWatchdog(){
   if(bgImages.length > 1){
-    bgTimer = setInterval(()=> showImage(bgIndex+1), 30000);
+    const now = Date.now();
+    if(now - bgLastAdvanceAt >= slideshowIntervalSec * 1000){
+      showImage(bgIndex+1);
+      bgLastAdvanceAt = now;
+    }
+    bgWatchdogId = requestAnimationFrame(slideshowWatchdog);
+  } else {
+    bgWatchdogId = null;
   }
+}
+function restartSlideshow(){
+  bgLastAdvanceAt = Date.now();
+  if(bgWatchdogId) cancelAnimationFrame(bgWatchdogId);
+  bgWatchdogId = bgImages.length > 1 ? requestAnimationFrame(slideshowWatchdog) : null;
 }
 
 $('#imagePrevBtn').addEventListener('click', ()=>{ showImage(bgIndex-1); restartSlideshow(); });
@@ -1522,6 +1603,22 @@ loadSlideshowGroups();
 const slideshowModal = $('#slideshowModal');
 function openSlideshowModal(){ renderModalList(); slideshowModal.classList.add('show'); }
 function closeSlideshowModal(){ slideshowModal.classList.remove('show'); }
+
+$('#slideshowIntervalInput').addEventListener('change', async (e)=>{
+  slideshowIntervalSec = Math.max(3, parseInt(e.target.value)||30);
+  e.target.value = slideshowIntervalSec;
+  await storageSet(SLIDESHOW_INTERVAL_KEY, String(slideshowIntervalSec));
+  restartSlideshow(); // 表示中なら新しい秒数をすぐ反映
+});
+$$('#slideshowTransitionToggle .mode-btn').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    slideshowTransition = btn.dataset.transition;
+    $$('#slideshowTransitionToggle .mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    imagePane.classList.remove('transition-fade','transition-slide','transition-zoom');
+    imagePane.classList.add(`transition-${slideshowTransition}`);
+    await storageSet(SLIDESHOW_TRANSITION_KEY, slideshowTransition);
+  });
+});
 $('#slideshowOpenBtn').addEventListener('click', openSlideshowModal);
 $('#slideshowOpenBtnEmpty').addEventListener('click', openSlideshowModal);
 $('#modalCloseBtn').addEventListener('click', closeSlideshowModal);
@@ -2106,6 +2203,7 @@ function finishTimer(){
   playFinishFanfare();
   startBtn.textContent = 'スタート';
   setInputsDisabled(false);
+  if(document.body.classList.contains('fullscreen-image')) exitImageFullscreen(); // 全画面表示中に終了したら、タイマー画面に戻す
 }
 
 startBtn.addEventListener('click', ()=>{
@@ -2227,16 +2325,28 @@ async function saveManualTrainingLog(){
 function getManualEntriesForDate(dateKey){
   return manualTrainingLog[dateKey] || [];
 }
-async function addManualEntry(dateKey, name, tagId, summary){
+/* 手動記録の実施内容を、種目設定と同じ3パターンの表記で組み立てる（旧形式のフリーテキストsummaryも後方互換で表示できるようにする） */
+function buildManualEntrySummary(entry){
+  if(!entry.mode) return entry.summary || ''; // 旧形式（フリーテキストのみ）のフォールバック
+  if(entry.mode === 'reps'){
+    return `${entry.reps.count}回と${entry.reps.sets}セット`;
+  }
+  if(entry.interval.subType === 'circuit'){
+    return `${entry.interval.circuit.workCount}種×${entry.interval.circuit.repeat}セット`;
+  }
+  const s = entry.interval.simple;
+  return `${s.work}秒+${s.rest}秒×${s.sets}セット`;
+}
+async function addManualEntry(dateKey, data){
   if(!manualTrainingLog[dateKey]) manualTrainingLog[dateKey] = [];
-  manualTrainingLog[dateKey].push({ id: mkId(), name, tagId, summary: summary||'' });
+  manualTrainingLog[dateKey].push({ id: mkId(), ...data });
   await saveManualTrainingLog();
 }
-async function updateManualEntry(dateKey, entryId, name, tagId, summary){
+async function updateManualEntry(dateKey, entryId, data){
   const list = manualTrainingLog[dateKey];
   if(!list) return;
-  const entry = list.find(e=>e.id===entryId);
-  if(entry){ entry.name = name; entry.tagId = tagId; entry.summary = summary||''; }
+  const idx = list.findIndex(e=>e.id===entryId);
+  if(idx>=0) list[idx] = { id: entryId, ...data };
   await saveManualTrainingLog();
 }
 async function deleteManualEntry(dateKey, entryId){
@@ -3809,12 +3919,13 @@ function renderDayDetailList(){
   const manualRows = getManualEntriesForDate(dateKey).map(entry=>{
     const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
     const tagChip = `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
+    const summaryText = buildManualEntrySummary(entry);
     return `
       <div class="day-detail-row">
         <span class="day-detail-dot" style="background:${tag.color};"></span>
         <div class="day-detail-text">
           <span class="day-detail-name">${escapeHTML(entry.name)}</span>
-          ${entry.summary ? `<span class="day-detail-summary">${escapeHTML(entry.summary)}</span>` : ''}
+          ${summaryText ? `<span class="day-detail-summary">${escapeHTML(summaryText)}</span>` : ''}
         </div>
         ${tagChip}
         <span class="day-detail-source-badge custom">カスタム記録</span>
@@ -3856,19 +3967,29 @@ $('#dayDetailAddBtn').addEventListener('click', ()=> openDayDetailForm(null));
    閲覧できるステータスと同じ「名称＋タグ」を入力できるが、種目設定ページには一切反映されない。 */
 function openDayDetailForm(existingEntry){
   const isEdit = !!existingEntry;
+  // 編集時は既存データを引き継ぎ、新規時はデフォルト値で初期化する
+  const data = isEdit ? JSON.parse(JSON.stringify(existingEntry)) : {
+    name: '', tagId: '', mode: 'reps',
+    reps: { count: 10, sets: 3 },
+    interval: { subType: 'simple', simple: { work:40, rest:20, sets:8 }, circuit: { workCount:5, repeat:3 } },
+  };
+  delete data.id; // addManualEntry/updateManualEntry側でidを付与するため
+
   dayDetailFormPanel.innerHTML = `
     <div class="plan-day-inline-title">${isEdit ? '✎ 記録を編集' : '＋ 記録を追加'}</div>
     <div class="plan-day-inline-row">
-      <input type="text" id="dayDetailNameInput" placeholder="例）スクワット、ウォーキング" value="${isEdit ? escapeHTML(existingEntry.name) : ''}">
+      <input type="text" id="dayDetailNameInput" placeholder="例）スクワット、ウォーキング" value="${escapeHTML(data.name)}">
     </div>
-    <div class="plan-day-inline-row">
-      <input type="text" id="dayDetailSummaryInput" placeholder="実施内容（任意）例）10回×3、40秒+20秒×8" value="${isEdit ? escapeHTML(existingEntry.summary||'') : ''}">
+    <div class="mode-toggle" id="dayDetailModeToggle">
+      <button type="button" class="mode-btn ${data.mode==='reps'?'active':''}" data-mode="reps">回数</button>
+      <button type="button" class="mode-btn ${data.mode==='interval'?'active':''}" data-mode="interval">インターバル</button>
     </div>
+    <div id="dayDetailModeFields"></div>
     <div class="field">
       <label>タグ選択</label>
       <select id="dayDetailTagSelect">
         <option value="">未分類</option>
-        ${exerciseTags.map(t=>`<option value="${t.id}" ${isEdit && existingEntry.tagId===t.id ? 'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
+        ${exerciseTags.map(t=>`<option value="${t.id}" ${data.tagId===t.id ? 'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
       </select>
     </div>
     <div class="plan-day-inline-actions">
@@ -3877,17 +3998,81 @@ function openDayDetailForm(existingEntry){
     </div>
   `;
   dayDetailFormPanel.style.display = 'flex';
+
+  function renderSubtypeFields(){
+    const wrap = $('#dayDetailSubtypeFields');
+    if(!wrap) return;
+    if(data.interval.subType === 'simple'){
+      wrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>ワーク（秒）</label><input type="number" id="ddWork" min="1" value="${data.interval.simple.work}"></div>
+          <div class="field"><label>休憩（秒）</label><input type="number" id="ddRest" min="0" value="${data.interval.simple.rest}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="ddSimpleSets" min="1" value="${data.interval.simple.sets}"></div>
+        </div>
+      `;
+      $('#ddWork').addEventListener('change', e=>{ data.interval.simple.work = Math.max(1, parseInt(e.target.value)||1); });
+      $('#ddRest').addEventListener('change', e=>{ data.interval.simple.rest = Math.max(0, parseInt(e.target.value)||0); });
+      $('#ddSimpleSets').addEventListener('change', e=>{ data.interval.simple.sets = Math.max(1, parseInt(e.target.value)||1); });
+    } else {
+      wrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>実施ワーク数</label><input type="number" id="ddWorkCount" min="1" value="${data.interval.circuit.workCount}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="ddCircuitRepeat" min="1" value="${data.interval.circuit.repeat}"></div>
+        </div>
+      `;
+      $('#ddWorkCount').addEventListener('change', e=>{ data.interval.circuit.workCount = Math.max(1, parseInt(e.target.value)||1); });
+      $('#ddCircuitRepeat').addEventListener('change', e=>{ data.interval.circuit.repeat = Math.max(1, parseInt(e.target.value)||1); });
+    }
+  }
+  function renderModeFields(){
+    const wrap = $('#dayDetailModeFields');
+    if(data.mode === 'reps'){
+      wrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>回数</label><input type="number" id="ddRepsCount" min="1" value="${data.reps.count}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="ddRepsSets" min="1" value="${data.reps.sets}"></div>
+        </div>
+      `;
+      $('#ddRepsCount').addEventListener('change', e=>{ data.reps.count = Math.max(1, parseInt(e.target.value)||1); });
+      $('#ddRepsSets').addEventListener('change', e=>{ data.reps.sets = Math.max(1, parseInt(e.target.value)||1); });
+    } else {
+      wrap.innerHTML = `
+        <div class="mode-toggle ei-subtype-toggle" id="dayDetailSubtypeToggle">
+          <button type="button" class="mode-btn ${data.interval.subType==='simple'?'active':''}" data-subtype="simple">シンプル</button>
+          <button type="button" class="mode-btn ${data.interval.subType==='circuit'?'active':''}" data-subtype="circuit">カスタムサーキット</button>
+        </div>
+        <div id="dayDetailSubtypeFields"></div>
+      `;
+      $('#dayDetailSubtypeToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          data.interval.subType = btn.dataset.subtype;
+          $('#dayDetailSubtypeToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+          renderSubtypeFields();
+        });
+      });
+      renderSubtypeFields();
+    }
+  }
+  $('#dayDetailModeToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      data.mode = btn.dataset.mode;
+      $('#dayDetailModeToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      renderModeFields();
+    });
+  });
+  renderModeFields();
+
   const nameInput = $('#dayDetailNameInput');
   nameInput.focus();
   $('#dayDetailSaveBtn').addEventListener('click', async ()=>{
     const name = nameInput.value.trim();
     if(!name){ nameInput.focus(); return; }
-    const tagId = $('#dayDetailTagSelect').value;
-    const summary = $('#dayDetailSummaryInput').value.trim();
+    data.name = name;
+    data.tagId = $('#dayDetailTagSelect').value;
     if(isEdit){
-      await updateManualEntry(dayDetailCurrentDateKey, existingEntry.id, name, tagId, summary);
+      await updateManualEntry(dayDetailCurrentDateKey, existingEntry.id, data);
     } else {
-      await addManualEntry(dayDetailCurrentDateKey, name, tagId, summary);
+      await addManualEntry(dayDetailCurrentDateKey, data);
     }
     dayDetailFormPanel.style.display = 'none';
     dayDetailFormPanel.innerHTML = '';
