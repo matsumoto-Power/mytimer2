@@ -201,33 +201,26 @@
   .position-toast .reset-btn{ background:rgba(245,243,236,0.18); color:#F5F3EC; }
   .position-toast .done-btn{ background:var(--accent-amber); color:#ffffff; }
 
-  /* ===== トップバー ===== */
+  /* ===== トップバー（タブのみの1段構成） ===== */
   .topbar{
-    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; row-gap:8px; column-gap:12px;
-    padding:10px 16px; border-radius:28px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    padding:8px 12px; border-radius:999px; flex:0 0 auto;
     background:var(--panel-bg); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
     border:1px solid var(--panel-hairline);
     box-shadow: 0 8px 30px rgba(0,0,0,0.18);
   }
-  .brand{ display:flex; align-items:center; gap:10px; padding-left:2px; flex:0 0 auto; order:1; }
-  .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 10px var(--accent-amber);}
-  .brand span{ font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:2.5px; font-size:13px; opacity:0.9; white-space:nowrap;}
-
-  /* 時計/種目設定/インターバル/カレンダー/メディアは1つのまとまり（薄い背景のピル）としてグループ化し、
-     ブランド＋カラーの行とは別の専用行を丸ごと使うことで、横幅が狭い端末でも文字が枠からはみ出さないようにする */
   .tabs{
-    display:flex; gap:1px; background:rgba(128,128,128,0.14); padding:2px; border-radius:999px;
-    order:3; flex:1 1 100%; justify-content:center; overflow-x:auto; scrollbar-width:none;
+    display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:999px;
+    width:100%; justify-content:flex-start; overflow-x:auto; scrollbar-width:none;
   }
   .tabs::-webkit-scrollbar{ display:none; }
   .tab-btn{
-    appearance:none; border:none; cursor:pointer; padding:6px 6px; border-radius:999px;
-    font-family:'Inter',sans-serif; font-weight:600; font-size:10px; letter-spacing:0; white-space:nowrap; flex:0 0 auto;
-    background:transparent; color:var(--panel-muted); transition: all .25s ease;
+    appearance:none; border:none; cursor:pointer; padding:9px 7px; border-radius:999px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:12px; letter-spacing:0; white-space:nowrap; flex:0 0 auto;
+    background:transparent; color:var(--panel-muted); transition: all .25s ease; text-align:center;
   }
   .tab-btn.active{ background:var(--accent-amber); color:#ffffff; box-shadow:0 4px 14px rgba(168,85,247,0.4);}
 
-  .top-actions{ display:flex; align-items:center; gap:8px; flex:0 0 auto; order:2; }
   .icon-btn{
     appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
     color:var(--panel-text); border-radius:999px; padding:8px 14px; font-size:12px; font-weight:600;
@@ -235,11 +228,10 @@
   }
   .icon-btn:hover{ background:rgba(128,128,128,0.22); }
   .icon-btn svg{ width:15px; height:15px; }
-  /* カラー切り替えボタンは、タブのまとまりから独立させ、背景の括り枠を持たせない軽量な見た目にする */
-  .icon-btn-plain{ background:transparent; border:none; padding:8px 10px; }
-  .icon-btn-plain:hover{ background:rgba(128,128,128,0.14); }
   .media-head-actions{ display:flex; align-items:center; gap:10px; }
   .accent-color-wrap{ position:relative; }
+  /* 時計カード右上に置くカラーボタン用の配置（カード自体のレイアウトを崩さないよう絶対配置にする） */
+  /* カラーボタン等をヘッダー行の右端に添えるための共通レイアウト */
   .accent-color-menu{
     position:fixed; z-index:9999; min-width:220px;
     background:var(--panel-bg); border:1px solid var(--panel-hairline); border-radius:14px; padding:14px;
@@ -691,11 +683,7 @@
     .ring-svg{ width:min(60cqw, 210px); }
     .settings-card, .memo-card, .digital-card{ padding:16px; }
     .phase-badge{ font-size:15px; letter-spacing:3px; padding:6px 14px; }
-    .brand span{ font-size:11px; letter-spacing:1.5px; }
     .icon-btn{ padding:7px 10px; font-size:11px; }
-  }
-  @container control (max-width: 300px){
-    .brand span{ display:none; }
   }
   @container control (max-width: 420px){
     .digital-time{ font-size: clamp(26px, 13cqw, 42px); }
@@ -762,6 +750,27 @@
   .day-copy-actions{ display:flex; gap:10px; }
   .day-copy-actions .preset-full-btn{ flex:1; }
   .day-copy-actions .preset-full-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  /* --- タグで検索モーダル --- */
+  .tag-search-hint{ font-size:12px; color:var(--panel-muted); line-height:1.6; }
+  .tag-search-chip-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tag-search-chip{
+    appearance:none; cursor:pointer; border-radius:999px; padding:8px 14px;
+    font-size:12.5px; font-weight:700; transition: all .15s ease; white-space:nowrap;
+  }
+  .tag-search-results{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:48vh; }
+  .tag-search-row{
+    appearance:none; cursor:pointer; width:100%; display:flex; align-items:center; gap:10px; text-align:left;
+    border:1px solid var(--panel-hairline); border-radius:12px; background:rgba(128,128,128,0.08); padding:12px 14px;
+    color:var(--panel-text); transition: background .15s ease;
+  }
+  .tag-search-row:hover{ background:rgba(128,128,128,0.16); }
+  .tag-search-row-dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .tag-search-row-main{ flex:1; min-width:0; }
+  .tag-search-row-name{ display:block; font-weight:700; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag-search-row-meta{ display:block; font-size:11.5px; color:var(--panel-muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag-search-row-day{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(128,128,128,0.15); color:var(--panel-muted); flex:0 0 auto; white-space:nowrap; }
+  .tag-search-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:26px 12px; line-height:1.7; }
   .backup-section{ display:flex; flex-direction:column; gap:8px; }
   .backup-section-title{ font-size:11.5px; font-weight:800; letter-spacing:1.5px; color:var(--panel-muted); text-transform:uppercase; }
   .backup-hint{ font-size:12px; color:var(--panel-muted); line-height:1.75; }
@@ -838,7 +847,6 @@
   <!-- ===== 機能ペイン ===== -->
   <div id="controlPane">
     <header class="topbar">
-      <div class="brand"><span class="dot"></span><span>MY TIMER</span></div>
       <nav class="tabs">
         <button class="tab-btn active" data-tab="clock">時計</button>
         <button class="tab-btn" data-tab="sub">種目設定</button>
@@ -846,18 +854,6 @@
         <button class="tab-btn" data-tab="calendar">カレンダー</button>
         <button class="tab-btn" data-tab="media">メディア</button>
       </nav>
-      <div class="top-actions">
-        <div class="accent-color-wrap">
-          <button class="icon-btn icon-btn-plain" id="accentColorBtn" title="ワンポイントカラーを変更">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
-            カラー
-          </button>
-          <div class="accent-color-menu" id="accentColorMenu" style="display:none;">
-            <div class="accent-color-menu-hint">ワンポイントカラーを選択</div>
-            <div class="accent-color-grid" id="accentColorGrid"></div>
-          </div>
-        </div>
-      </div>
     </header>
 
     <main>
@@ -929,7 +925,23 @@
           <div class="panel memo-card memo-card-full">
             <div class="memo-head">
               <h3>🏋️ トレーニングプラン</h3>
-              <span class="memo-status" id="planStatus"></span>
+              <div class="media-head-actions">
+                <button type="button" class="icon-btn" id="tagSearchBtn" title="タグで種目を検索">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  タグで検索
+                </button>
+                <span class="memo-status" id="planStatus"></span>
+                <div class="accent-color-wrap">
+                  <button class="icon-btn" id="accentColorBtn" title="ワンポイントカラーを変更">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
+                    カラー
+                  </button>
+                  <div class="accent-color-menu" id="accentColorMenu" style="display:none;">
+                    <div class="accent-color-menu-hint">ワンポイントカラーを選択</div>
+                    <div class="accent-color-grid" id="accentColorGrid"></div>
+                  </div>
+                </div>
+              </div>
             </div>
             <label class="plan-day-section-label">日程</label>
             <div class="plan-day-row">
@@ -1140,6 +1152,19 @@
   </div>
 </div>
 <input type="file" id="backupFileInput" accept="application/json,.json">
+
+<!-- タグで検索：日程タブを横断して、選んだタグが付いた種目を一覧表示する。結果をタップするとそのまま編集画面へ遷移する -->
+<div class="modal-overlay" id="tagSearchModal">
+  <div class="panel modal-box" id="tagSearchBox">
+    <div class="modal-head">
+      <h3>🔎 タグで検索</h3>
+      <button class="modal-close" id="tagSearchCloseBtn">✕</button>
+    </div>
+    <div class="tag-search-hint">タグを選ぶと、日程タブを横断してそのタグが付いた種目を一覧表示します。結果をタップすると、そのまま編集できます。</div>
+    <div class="tag-search-chip-row" id="tagSearchChipRow"></div>
+    <div class="tag-search-results" id="tagSearchResults"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="slideshowModal">
   <div class="panel modal-box">
     <div class="modal-head">
@@ -3567,6 +3592,100 @@ dayCopyConfirmBtn.addEventListener('click', async ()=>{
 });
 dayCopyModal.addEventListener('click', (e)=>{
   if(e.target === dayCopyModal) closeDayCopyModal();
+});
+
+/* --- タグで検索：全ての日程タブを横断して、選んだタグが付いた種目を一覧表示し、タップでそのまま編集画面へ遷移する --- */
+const tagSearchModal = $('#tagSearchModal');
+const tagSearchChipRow = $('#tagSearchChipRow');
+const tagSearchResults = $('#tagSearchResults');
+let tagSearchSelectedTagId = null; // null: 未選択 / ''(空文字): 未分類 / それ以外: タグid
+
+function openTagSearchModal(){
+  tagSearchSelectedTagId = null;
+  renderTagSearchChips();
+  renderTagSearchResults();
+  tagSearchModal.classList.add('show');
+}
+function closeTagSearchModal(){
+  tagSearchModal.classList.remove('show');
+}
+function renderTagSearchChips(){
+  const allTags = [...exerciseTags, UNCATEGORIZED_TAG];
+  tagSearchChipRow.innerHTML = allTags.map(tag=>{
+    const active = tagSearchSelectedTagId === tag.id;
+    const style = active
+      ? `background:${tag.color}; color:#ffffff;`
+      : `background:${tag.color}29; color:${tag.color}; border:1px solid ${tag.color}59;`;
+    return `<button type="button" class="tag-search-chip" data-tag-id="${tag.id}" style="${style}">${escapeHTML(tag.name)}</button>`;
+  }).join('');
+  tagSearchChipRow.querySelectorAll('.tag-search-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      tagSearchSelectedTagId = chip.dataset.tagId;
+      renderTagSearchChips();
+      renderTagSearchResults();
+    });
+  });
+}
+function renderTagSearchResults(){
+  if(tagSearchSelectedTagId === null){
+    tagSearchResults.innerHTML = '<div class="tag-search-empty">上のタグを選ぶと、そのタグが付いた種目を一覧表示します。</div>';
+    return;
+  }
+  const dayTabs = getAllPlanDayTabs();
+  const dayLabelMap = {};
+  dayTabs.forEach(t => { dayLabelMap[t.key] = t.label; });
+  const results = [];
+  Object.keys(trainingPlan).forEach(dayKey=>{
+    if(!dayLabelMap[dayKey]) return; // 削除済みなど、現在表示されていない日程タブのデータは検索対象から除外
+    (trainingPlan[dayKey] || []).forEach(item=>{
+      if(!item.name || !item.name.trim()) return;
+      if((item.tagId || '') !== tagSearchSelectedTagId) return;
+      results.push({ dayKey, dayLabel: dayLabelMap[dayKey], item });
+    });
+  });
+  if(!results.length){
+    tagSearchResults.innerHTML = '<div class="tag-search-empty">このタグが付いた種目はまだありません。</div>';
+    return;
+  }
+  tagSearchResults.innerHTML = results.map(r=>{
+    const tag = resolveItemTag(r.item);
+    const summary = buildExerciseSettingsSummary(r.item);
+    return `
+      <button type="button" class="tag-search-row" data-day="${r.dayKey}" data-item-id="${r.item.id}">
+        <span class="tag-search-row-dot" style="background:${tag.color};"></span>
+        <span class="tag-search-row-main">
+          <span class="tag-search-row-name">${escapeHTML(r.item.name)}</span>
+          <span class="tag-search-row-meta">${escapeHTML(summary)}</span>
+        </span>
+        <span class="tag-search-row-day">${escapeHTML(r.dayLabel)}</span>
+      </button>
+    `;
+  }).join('');
+  tagSearchResults.querySelectorAll('.tag-search-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const dayKey = row.dataset.day;
+      const itemId = row.dataset.itemId;
+      closeTagSearchModal();
+      jumpToExerciseItemForEdit(dayKey, itemId);
+    });
+  });
+}
+/* 検索結果のタップから、種目設定ページの該当日程タブ・該当種目の編集パネルを直接開いた状態にする
+   （専用の編集UIを別途作らず、既存の編集フォームへそのまま遷移させることで、編集機能を完全に共有する） */
+function jumpToExerciseItemForEdit(dayKey, itemId){
+  selectedPlanDay = dayKey;
+  openExerciseItemId = itemId;
+  renderPlanDayPills();
+  renderExerciseItemList();
+  setTimeout(()=>{
+    const el = document.querySelector(`.video-ref-item[data-id="${itemId}"]`);
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 60);
+}
+$('#tagSearchBtn').addEventListener('click', openTagSearchModal);
+$('#tagSearchCloseBtn').addEventListener('click', closeTagSearchModal);
+tagSearchModal.addEventListener('click', (e)=>{
+  if(e.target === tagSearchModal) closeTagSearchModal();
 });
 
 function renderExerciseItemList(){
