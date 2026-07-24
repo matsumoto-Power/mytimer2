@@ -203,25 +203,31 @@
 
   /* ===== トップバー ===== */
   .topbar{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:10px 16px; border-radius: 999px; flex:0 0 auto;
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; row-gap:8px; column-gap:12px;
+    padding:10px 16px; border-radius:28px; flex:0 0 auto;
     background:var(--panel-bg); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
     border:1px solid var(--panel-hairline);
     box-shadow: 0 8px 30px rgba(0,0,0,0.18);
   }
-  .brand{ display:flex; align-items:center; gap:10px; padding-left:2px; flex:0 0 auto; }
+  .brand{ display:flex; align-items:center; gap:10px; padding-left:2px; flex:0 0 auto; order:1; }
   .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 10px var(--accent-amber);}
   .brand span{ font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:2.5px; font-size:13px; opacity:0.9; white-space:nowrap;}
 
-  .tabs{ display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:999px; flex:1 1 auto; justify-content:center; max-width:420px; margin:0 auto;}
+  /* 時計/種目設定/インターバル/カレンダー/メディアは1つのまとまり（薄い背景のピル）としてグループ化し、
+     ブランド＋カラーの行とは別の専用行を丸ごと使うことで、横幅が狭い端末でも文字が枠からはみ出さないようにする */
+  .tabs{
+    display:flex; gap:1px; background:rgba(128,128,128,0.14); padding:2px; border-radius:999px;
+    order:3; flex:1 1 100%; justify-content:center; overflow-x:auto; scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{ display:none; }
   .tab-btn{
-    appearance:none; border:none; cursor:pointer; padding:9px 16px; border-radius:999px;
-    font-family:'Inter',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.2px;
-    background:transparent; color:var(--panel-muted); transition: all .25s ease; white-space:nowrap;
+    appearance:none; border:none; cursor:pointer; padding:6px 6px; border-radius:999px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:10px; letter-spacing:0; white-space:nowrap; flex:0 0 auto;
+    background:transparent; color:var(--panel-muted); transition: all .25s ease;
   }
   .tab-btn.active{ background:var(--accent-amber); color:#ffffff; box-shadow:0 4px 14px rgba(168,85,247,0.4);}
 
-  .top-actions{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .top-actions{ display:flex; align-items:center; gap:8px; flex:0 0 auto; order:2; }
   .icon-btn{
     appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
     color:var(--panel-text); border-radius:999px; padding:8px 14px; font-size:12px; font-weight:600;
@@ -229,6 +235,10 @@
   }
   .icon-btn:hover{ background:rgba(128,128,128,0.22); }
   .icon-btn svg{ width:15px; height:15px; }
+  /* カラー切り替えボタンは、タブのまとまりから独立させ、背景の括り枠を持たせない軽量な見た目にする */
+  .icon-btn-plain{ background:transparent; border:none; padding:8px 10px; }
+  .icon-btn-plain:hover{ background:rgba(128,128,128,0.14); }
+  .media-head-actions{ display:flex; align-items:center; gap:10px; }
   .accent-color-wrap{ position:relative; }
   .accent-color-menu{
     position:fixed; z-index:9999; min-width:220px;
@@ -682,13 +692,14 @@
     .settings-card, .memo-card, .digital-card{ padding:16px; }
     .phase-badge{ font-size:15px; letter-spacing:3px; padding:6px 14px; }
     .brand span{ font-size:11px; letter-spacing:1.5px; }
-    .tab-btn{ padding:8px 11px; font-size:12px; }
     .icon-btn{ padding:7px 10px; font-size:11px; }
+  }
+  @container control (max-width: 300px){
+    .brand span{ display:none; }
   }
   @container control (max-width: 420px){
     .digital-time{ font-size: clamp(26px, 13cqw, 42px); }
     .digital-week span{ padding:3px 6px; font-size:9.5px; }
-    .brand span{ display:none; }
     .circuit-step-type{ font-size:11px; padding:7px 4px; }
     .circuit-step-seconds{ width:46px; font-size:12.5px; }
     .circuit-step-btn{ width:25px; height:25px; }
@@ -836,12 +847,8 @@
         <button class="tab-btn" data-tab="media">メディア</button>
       </nav>
       <div class="top-actions">
-        <button class="icon-btn" id="backupBtn" title="データのバックアップ／復元">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          バックアップ
-        </button>
         <div class="accent-color-wrap">
-          <button class="icon-btn" id="accentColorBtn" title="ワンポイントカラーを変更">
+          <button class="icon-btn icon-btn-plain" id="accentColorBtn" title="ワンポイントカラーを変更">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
             カラー
           </button>
@@ -968,7 +975,13 @@
           <div class="panel memo-card memo-card-full">
             <div class="memo-head">
               <h3>🎬 メディア</h3>
-              <span class="memo-status" id="mediaStatus"></span>
+              <div class="media-head-actions">
+                <button class="icon-btn" id="mediaBackupBtn" title="データのバックアップ／復元">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                  バックアップ
+                </button>
+                <span class="memo-status" id="mediaStatus"></span>
+              </div>
             </div>
             <label class="plan-day-section-label">動画</label>
             <div class="ei-video-list" id="mediaVideoList"></div>
@@ -4503,7 +4516,7 @@ function openBackupModal(){
 function closeBackupModal(){
   backupModal.classList.remove('show');
 }
-$('#backupBtn').addEventListener('click', openBackupModal);
+$('#mediaBackupBtn').addEventListener('click', openBackupModal);
 $('#backupCloseBtn').addEventListener('click', closeBackupModal);
 backupModal.addEventListener('click', (e)=>{
   if(e.target === backupModal) closeBackupModal();
