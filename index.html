@@ -733,28 +733,30 @@
   .day-delete-confirm-actions .preset-full-btn{ flex:1; }
   .day-copy-source{ font-size:13px; font-weight:700; color:var(--panel-text); background:rgba(128,128,128,0.1); border-radius:10px; padding:10px 14px; }
   .day-copy-hint{ font-size:12px; color:var(--panel-muted); }
-  .day-copy-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:38vh; }
+  .day-copy-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:26vh; }
   .day-copy-row{
-    appearance:none; cursor:pointer; width:100%; display:flex; align-items:center; justify-content:space-between; text-align:left;
+    appearance:none; cursor:pointer; width:100%; display:flex; align-items:center; gap:10px; text-align:left;
     border:1px solid var(--panel-hairline); border-radius:12px; background:rgba(128,128,128,0.08); padding:12px 16px;
     font-weight:700; font-size:14px; color:var(--panel-text); transition: background .15s ease, border-color .15s ease;
   }
   .day-copy-row:hover{ background:rgba(128,128,128,0.16); }
   .day-copy-row.selected{ background:rgba(255,178,44,0.14); border-color:var(--accent-amber); color:var(--accent-amber); }
+  .day-copy-row-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .day-copy-row-dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
   .day-copy-check{
-    width:20px; height:20px; border-radius:6px; border:2px solid var(--panel-hairline); flex:0 0 auto;
+    width:20px; height:20px; border-radius:6px; border:2px solid var(--panel-hairline); flex:0 0 auto; margin-left:auto;
     display:flex; align-items:center; justify-content:center; font-size:12px; color:transparent; transition: all .15s ease;
   }
   .day-copy-row.selected .day-copy-check{ background:var(--accent-amber); border-color:var(--accent-amber); color:#ffffff; }
-  .day-copy-mode-toggle{ display:flex; gap:8px; }
-  .day-copy-mode-btn{
-    flex:1; appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); border-radius:10px; padding:10px 6px;
-    font-size:12px; font-weight:700; background:rgba(128,128,128,0.08); color:var(--panel-muted); line-height:1.4;
-  }
-  .day-copy-mode-btn.active{ background:var(--accent-amber); color:#ffffff; border-color:var(--accent-amber); }
   .day-copy-actions{ display:flex; gap:10px; }
   .day-copy-actions .preset-full-btn{ flex:1; }
   .day-copy-actions .preset-full-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .backup-section{ display:flex; flex-direction:column; gap:8px; }
+  .backup-section-title{ font-size:11.5px; font-weight:800; letter-spacing:1.5px; color:var(--panel-muted); text-transform:uppercase; }
+  .backup-hint{ font-size:12px; color:var(--panel-muted); line-height:1.75; }
+  .backup-status{ font-size:12.5px; color:var(--panel-text); min-height:16px; line-height:1.6; }
+  .backup-divider{ height:1px; background:var(--panel-hairline); }
+  #backupFileInput{ display:none; }
   .day-detail-list{ display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
   .day-detail-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px 8px; }
   .day-detail-row{
@@ -831,8 +833,13 @@
         <button class="tab-btn" data-tab="sub">種目設定</button>
         <button class="tab-btn" data-tab="timer">インターバル</button>
         <button class="tab-btn" data-tab="calendar">カレンダー</button>
+        <button class="tab-btn" data-tab="media">メディア</button>
       </nav>
       <div class="top-actions">
+        <button class="icon-btn" id="backupBtn" title="データのバックアップ／復元">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          バックアップ
+        </button>
         <div class="accent-color-wrap">
           <button class="icon-btn" id="accentColorBtn" title="ワンポイントカラーを変更">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>
@@ -954,6 +961,21 @@
           </div>
         </div>
       </section>
+
+      <!-- ===== メディアタブ（雑多な動画・参考ページ・メモをまとめる場所） ===== -->
+      <section class="tab-panel" id="tab-media">
+        <div class="sub-wrap">
+          <div class="panel memo-card memo-card-full">
+            <div class="memo-head">
+              <h3>🎬 メディア</h3>
+              <span class="memo-status" id="mediaStatus"></span>
+            </div>
+            <label class="plan-day-section-label">動画</label>
+            <div class="ei-video-list" id="mediaVideoList"></div>
+            <button type="button" class="modal-add-btn" id="mediaVideoAddBtn">＋ 動画を追加</button>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -1064,7 +1086,7 @@
   </div>
 </div>
 
-<!-- 種目コピー：選択中の日程タブに登録済みの種目一式を、他の日程タブへまとめてコピーする -->
+<!-- 種目コピー：選択中の日程タブから選んだ種目だけを、他の日程タブへコピーする -->
 <div class="modal-overlay" id="dayCopyModal">
   <div class="panel modal-box" id="dayCopyBox">
     <div class="modal-head">
@@ -1072,19 +1094,39 @@
       <button class="modal-close" id="dayCopyCloseBtn">✕</button>
     </div>
     <div class="day-copy-source" id="dayCopySourceText"></div>
+    <div class="day-copy-hint">コピーする種目を選んでください（複数選択可）。</div>
+    <div class="day-copy-list" id="dayCopyItemList"></div>
     <div class="day-copy-hint">コピー先の日程タブを選んでください（複数選択可）。</div>
     <div class="day-copy-list" id="dayCopyList"></div>
-    <div class="day-copy-hint">コピー先に既に種目がある場合の扱い</div>
-    <div class="day-copy-mode-toggle">
-      <button type="button" class="day-copy-mode-btn active" data-copy-mode="append">追加する（既存は残す）</button>
-      <button type="button" class="day-copy-mode-btn" data-copy-mode="overwrite">上書きする（既存を削除）</button>
-    </div>
     <div class="day-copy-actions">
       <button type="button" class="preset-full-btn save" id="dayCopyConfirmBtn">コピーする</button>
       <button type="button" class="preset-full-btn" id="dayCopyCancelBtn">キャンセル</button>
     </div>
   </div>
 </div>
+
+<!-- データのバックアップ／復元：全データをJSONファイルとして書き出し・読み込みする -->
+<div class="modal-overlay" id="backupModal">
+  <div class="panel modal-box" id="backupBox">
+    <div class="modal-head">
+      <h3>💾 データのバックアップ／復元</h3>
+      <button class="modal-close" id="backupCloseBtn">✕</button>
+    </div>
+    <div class="backup-section">
+      <div class="backup-section-title">書き出し（エクスポート）</div>
+      <div class="backup-hint">種目設定・実施記録（インターバル画面のチェック履歴／カレンダーの手動記録）・タグ・日程タブ・背景画像・各種設定を、すべて1つのJSONファイルにまとめてダウンロードします。機種変更やブラウザのキャッシュ削除に備えて、定期的な書き出しをおすすめします。</div>
+      <button type="button" class="preset-full-btn save" id="backupExportBtn">⬇ JSONファイルを書き出す</button>
+    </div>
+    <div class="backup-divider"></div>
+    <div class="backup-section">
+      <div class="backup-section-title">読み込み（インポート）</div>
+      <div class="backup-hint">書き出したJSONファイルを選択すると、現在この端末にあるデータをすべて上書きして復元します（元に戻せません）。PCとスマホの間でデータを移したい場合も、この方法で書き出し→読み込みしてください。</div>
+      <button type="button" class="preset-full-btn" id="backupImportBtn">⬆ JSONファイルを読み込む</button>
+    </div>
+    <div class="backup-status" id="backupStatusText"></div>
+  </div>
+</div>
+<input type="file" id="backupFileInput" accept="application/json,.json">
 <div class="modal-overlay" id="slideshowModal">
   <div class="panel modal-box">
     <div class="modal-head">
@@ -2901,6 +2943,7 @@ const DAY_TAG_RECURRENCE_KEY = 'day-tag-recurrence';
 const DAY_TAG_COLOR_KEY = 'day-tag-color';
 const TRAINING_LOG_KEY = 'training-log';
 const MANUAL_LOG_KEY = 'manual-training-log';
+const MEDIA_VIDEOS_KEY = 'media-videos';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -3392,13 +3435,14 @@ dayDeleteModal.addEventListener('click', (e)=>{
   if(e.target === dayDeleteModal) closeDayDeleteModal();
 });
 
-/* --- 種目コピー：選択中の日程タブの種目一式を、選んだ複数の日程タブへまとめて複製する --- */
+/* --- 種目コピー：選択中の日程タブから選んだ種目だけを、選んだ複数の日程タブへコピーする --- */
 const dayCopyModal = $('#dayCopyModal');
 const dayCopySourceText = $('#dayCopySourceText');
+const dayCopyItemList = $('#dayCopyItemList');
 const dayCopyList = $('#dayCopyList');
 const dayCopyConfirmBtn = $('#dayCopyConfirmBtn');
-let dayCopySelectedKeys = new Set();
-let dayCopyMode = 'append'; // 'append'（既存に追加） | 'overwrite'（既存を削除して置き換え）
+let dayCopySelectedItemIds = new Set(); // コピー対象として選んだ種目のid
+let dayCopySelectedKeys = new Set();    // コピー先として選んだ日程タブのkey
 
 /* 種目データをまるごと複製する。id（種目本体／カスタムサーキットの各ステップ／参考動画）は
    すべて採番し直し、コピー先の実施チェックやカレンダー記録がコピー元と独立して動くようにする */
@@ -3413,78 +3457,100 @@ function cloneExerciseItemForCopy(item){
   }
   return cloned;
 }
+function updateDayCopyConfirmState(){
+  dayCopyConfirmBtn.disabled = !(dayCopySelectedItemIds.size && dayCopySelectedKeys.size);
+}
 function openDayCopyModal(){
   closeDayInlinePanel();
   const tabs = getAllPlanDayTabs();
   const sourceTab = tabs.find(t => t.key === selectedPlanDay);
   const sourceItems = (trainingPlan[selectedPlanDay] || []).filter(it => it.name && it.name.trim());
+  dayCopySelectedItemIds = new Set();
   dayCopySelectedKeys = new Set();
-  dayCopyMode = 'append';
-  dayCopyModal.querySelectorAll('.day-copy-mode-btn').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.copyMode === dayCopyMode);
-  });
 
   if(!sourceItems.length){
     dayCopySourceText.textContent = `コピー元「${sourceTab ? sourceTab.label : ''}」には、まだ名前が入力された種目がありません。`;
+    dayCopyItemList.innerHTML = '';
     dayCopyList.innerHTML = '';
     dayCopyConfirmBtn.disabled = true;
-  } else {
-    dayCopySourceText.textContent = `コピー元： ${sourceTab ? sourceTab.label : ''}（${sourceItems.length}件の種目）`;
-    dayCopyConfirmBtn.disabled = false;
-    const targets = tabs.filter(t => t.key !== selectedPlanDay);
-    dayCopyList.innerHTML = targets.length
-      ? targets.map(t => `
-          <button type="button" class="day-copy-row" data-day="${t.key}">
-            <span>${escapeHTML(t.label)}</span>
-            <span class="day-copy-check">✓</span>
-          </button>
-        `).join('')
-      : '<div class="day-delete-hint">コピー先にできる、他の日程タブがありません。</div>';
-    dayCopyList.querySelectorAll('.day-copy-row').forEach(row=>{
-      row.addEventListener('click', ()=>{
-        const key = row.dataset.day;
-        if(dayCopySelectedKeys.has(key)){
-          dayCopySelectedKeys.delete(key);
-          row.classList.remove('selected');
-        } else {
-          dayCopySelectedKeys.add(key);
-          row.classList.add('selected');
-        }
-      });
-    });
+    dayCopyModal.classList.add('show');
+    return;
   }
+
+  dayCopySourceText.textContent = `コピー元： ${sourceTab ? sourceTab.label : ''}（${sourceItems.length}件の種目）`;
+
+  dayCopyItemList.innerHTML = sourceItems.map(it => {
+    const tag = resolveItemTag(it);
+    return `
+      <button type="button" class="day-copy-row" data-item-id="${it.id}">
+        <span class="day-copy-row-dot" style="background:${tag.color};"></span>
+        <span class="day-copy-row-name">${escapeHTML(it.name)}</span>
+        <span class="day-copy-check">✓</span>
+      </button>
+    `;
+  }).join('');
+  dayCopyItemList.querySelectorAll('.day-copy-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const id = row.dataset.itemId;
+      if(dayCopySelectedItemIds.has(id)){
+        dayCopySelectedItemIds.delete(id);
+        row.classList.remove('selected');
+      } else {
+        dayCopySelectedItemIds.add(id);
+        row.classList.add('selected');
+      }
+      updateDayCopyConfirmState();
+    });
+  });
+
+  const targets = tabs.filter(t => t.key !== selectedPlanDay);
+  dayCopyList.innerHTML = targets.length
+    ? targets.map(t => `
+        <button type="button" class="day-copy-row" data-day="${t.key}">
+          <span class="day-copy-row-name">${escapeHTML(t.label)}</span>
+          <span class="day-copy-check">✓</span>
+        </button>
+      `).join('')
+    : '<div class="day-delete-hint">コピー先にできる、他の日程タブがありません。</div>';
+  dayCopyList.querySelectorAll('.day-copy-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const key = row.dataset.day;
+      if(dayCopySelectedKeys.has(key)){
+        dayCopySelectedKeys.delete(key);
+        row.classList.remove('selected');
+      } else {
+        dayCopySelectedKeys.add(key);
+        row.classList.add('selected');
+      }
+      updateDayCopyConfirmState();
+    });
+  });
+
+  updateDayCopyConfirmState();
   dayCopyModal.classList.add('show');
 }
 function closeDayCopyModal(){
   dayCopyModal.classList.remove('show');
+  dayCopySelectedItemIds = new Set();
   dayCopySelectedKeys = new Set();
 }
 $('#dayCopyCloseBtn').addEventListener('click', closeDayCopyModal);
 $('#dayCopyCancelBtn').addEventListener('click', closeDayCopyModal);
-dayCopyModal.querySelectorAll('.day-copy-mode-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    dayCopyMode = btn.dataset.copyMode;
-    dayCopyModal.querySelectorAll('.day-copy-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
-  });
-});
 dayCopyConfirmBtn.addEventListener('click', async ()=>{
-  if(!dayCopySelectedKeys.size) return;
-  const sourceItems = (trainingPlan[selectedPlanDay] || []).filter(it => it.name && it.name.trim());
+  if(!dayCopySelectedItemIds.size || !dayCopySelectedKeys.size) return;
+  const sourceItems = (trainingPlan[selectedPlanDay] || []).filter(it => dayCopySelectedItemIds.has(it.id));
   if(!sourceItems.length){ closeDayCopyModal(); return; }
-  const copiedCount = dayCopySelectedKeys.size;
+  const itemCount = sourceItems.length;
+  const dayCount = dayCopySelectedKeys.size;
   dayCopySelectedKeys.forEach(key=>{
     const clones = sourceItems.map(cloneExerciseItemForCopy);
-    if(dayCopyMode === 'overwrite'){
-      trainingPlan[key] = clones;
-    } else {
-      if(!trainingPlan[key]) trainingPlan[key] = [];
-      trainingPlan[key] = trainingPlan[key].concat(clones);
-    }
+    if(!trainingPlan[key]) trainingPlan[key] = [];
+    trainingPlan[key] = trainingPlan[key].concat(clones);
   });
   await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
   closeDayCopyModal();
   renderExerciseItemList();
-  $('#planStatus').textContent = `${copiedCount}件の日程タブにコピーしました ✓`;
+  $('#planStatus').textContent = `${itemCount}件の種目を${dayCount}件の日程タブにコピーしました ✓`;
 });
 dayCopyModal.addEventListener('click', (e)=>{
   if(e.target === dayCopyModal) closeDayCopyModal();
@@ -3968,6 +4034,83 @@ function closeReferenceVideo(){
 }
 $('#videoCloseBtn').addEventListener('click', closeReferenceVideo);
 
+/* --- メディアタブ：種目に紐づかない、雑多な動画を貼っておくための独立リスト ---
+   種目編集画面の「参考動画」欄（renderExerciseVideos）と見た目・操作感を揃えているが、
+   保存先はitem.videosではなくmediaVideos配列（MEDIA_VIDEOS_KEY）という別データ。 */
+let mediaVideos = []; // [{id, name, url}]
+let openMediaVideoRowId = null; // 現在URL編集欄が開いている行のID（一度に1件だけ開く）
+let mediaSaveTimeout = null;
+function scheduleMediaSave(){
+  if(mediaSaveTimeout) clearTimeout(mediaSaveTimeout);
+  const statusEl = $('#mediaStatus');
+  if(statusEl) statusEl.textContent = '入力中…';
+  mediaSaveTimeout = setTimeout(async ()=>{
+    const ok = await storageSet(MEDIA_VIDEOS_KEY, JSON.stringify(mediaVideos));
+    if(statusEl) statusEl.textContent = ok ? '保存済み ✓' : '保存に失敗しました';
+  }, 600);
+}
+function renderMediaVideos(){
+  const container = $('#mediaVideoList');
+  if(!container) return;
+  if(!mediaVideos.length){
+    container.innerHTML = '<div class="circuit-empty-hint">まだ動画がありません。「＋ 動画を追加」から追加してください。</div>';
+    return;
+  }
+  container.innerHTML = mediaVideos.map((v,i)=>{
+    const hasName = v.name && v.name.trim();
+    const isOpen = v.id === openMediaVideoRowId;
+    return `
+    <div class="exercise-video-row" data-vid="${v.id}">
+      <div class="exercise-video-header">
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
+        <div class="exercise-video-actions">
+          <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
+          <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+          <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaVideos.length-1?'disabled':''}>↓</button>
+          <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+        </div>
+      </div>
+      <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
+        <input type="text" class="ev-name" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="動画名（任意）">
+        <input type="text" class="ev-url" data-field="url" value="${escapeHTML(v.url||'')}" placeholder="https://www.youtube.com/watch?v=...">
+      </div>
+    </div>
+  `;
+  }).join('');
+  container.querySelectorAll('.exercise-video-row').forEach(row=>{
+    const vid = row.dataset.vid;
+    const v = mediaVideos.find(x=>x.id===vid);
+    row.querySelector('[data-act="toggle-url"]').addEventListener('click', ()=>{
+      openMediaVideoRowId = (openMediaVideoRowId === vid) ? null : vid;
+      renderMediaVideos();
+    });
+    row.querySelector('[data-field="name"]').addEventListener('change', e=>{ v.name=e.target.value; scheduleMediaSave(); renderMediaVideos(); });
+    row.querySelector('[data-field="url"]').addEventListener('change', e=>{
+      v.url = e.target.value.trim(); scheduleMediaSave(); renderMediaVideos();
+    });
+    row.querySelector('.ev-play').addEventListener('click', (e)=>{ e.stopPropagation(); playReferenceVideo(v.url); });
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const idx = mediaVideos.findIndex(x=>x.id===vid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ mediaVideos.splice(idx,1); if(openMediaVideoRowId===vid) openMediaVideoRowId=null; }
+        else if(act==='up' && idx>0){ [mediaVideos[idx-1],mediaVideos[idx]]=[mediaVideos[idx],mediaVideos[idx-1]]; }
+        else if(act==='down' && idx<mediaVideos.length-1){ [mediaVideos[idx+1],mediaVideos[idx]]=[mediaVideos[idx],mediaVideos[idx+1]]; }
+        renderMediaVideos();
+        scheduleMediaSave();
+      });
+    });
+  });
+}
+$('#mediaVideoAddBtn').addEventListener('click', ()=>{
+  const newVideo = { id:mkId(), name:'', url:'' };
+  mediaVideos.push(newVideo);
+  openMediaVideoRowId = newVideo.id;
+  renderMediaVideos();
+  scheduleMediaSave();
+});
+
 async function loadTrainingPlan(){
   try{
     const rawTags = await storageGet(TAGS_KEY);
@@ -4009,9 +4152,14 @@ async function loadTrainingPlan(){
     const rawManual = await storageGet(MANUAL_LOG_KEY);
     manualTrainingLog = rawManual ? JSON.parse(rawManual) : {};
   }catch(err){ manualTrainingLog = {}; }
+  try{
+    const rawMedia = await storageGet(MEDIA_VIDEOS_KEY);
+    mediaVideos = rawMedia ? JSON.parse(rawMedia) : [];
+  }catch(err){ mediaVideos = []; }
   selectedPlanDay = defaultPlanDay();
   renderPlanDayPills();
   renderExerciseItemList();
+  renderMediaVideos();
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
 }
 loadTrainingPlan();
@@ -4304,6 +4452,119 @@ function openDayDetailForm(existingEntry){
     dayDetailFormPanel.innerHTML = '';
   });
 }
+
+/* =========================================================
+   データのバックアップ／復元
+   ---------------------------------------------------------
+   アプリが使っているlocalStorageのキーをすべてまとめて1つのJSONファイルに
+   書き出す／読み込む。書き出す値はstorageGetが返す「保存済みの生の文字列」を
+   そのまま使うので、内部で使っているJSON形式が将来変わっても
+   このバックアップの仕組み自体は手を加えずに使い続けられる。
+========================================================= */
+const BACKUP_STORAGE_KEYS = [
+  ACCENT_COLOR_KEY, SLIDESHOW_INTERVAL_KEY, SLIDESHOW_TRANSITION_KEY,
+  IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
+  TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
+  DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY,
+];
+
+async function collectBackupData(){
+  const data = {};
+  for(const key of BACKUP_STORAGE_KEYS){
+    const val = await storageGet(key);
+    if(val !== null && val !== undefined) data[key] = val;
+  }
+  return data;
+}
+function downloadJSONFile(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+function backupFilenameTimestamp(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+  return `${y}${m}${day}-${hh}${mm}`;
+}
+
+const backupModal = $('#backupModal');
+const backupStatusText = $('#backupStatusText');
+function openBackupModal(){
+  backupStatusText.textContent = '';
+  backupModal.classList.add('show');
+}
+function closeBackupModal(){
+  backupModal.classList.remove('show');
+}
+$('#backupBtn').addEventListener('click', openBackupModal);
+$('#backupCloseBtn').addEventListener('click', closeBackupModal);
+backupModal.addEventListener('click', (e)=>{
+  if(e.target === backupModal) closeBackupModal();
+});
+
+$('#backupExportBtn').addEventListener('click', async ()=>{
+  backupStatusText.textContent = '書き出し中…';
+  try{
+    const data = await collectBackupData();
+    const payload = {
+      app: 'MY TIMER',
+      exportType: 'full-backup',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data,
+    };
+    downloadJSONFile(`my-timer-backup-${backupFilenameTimestamp(new Date())}.json`, payload);
+    backupStatusText.textContent = '書き出しが完了しました ✓ ダウンロードフォルダをご確認ください。';
+  }catch(err){
+    console.error('バックアップの書き出しに失敗しました', err);
+    backupStatusText.textContent = '書き出しに失敗しました。もう一度お試しください。';
+  }
+});
+
+$('#backupImportBtn').addEventListener('click', ()=> $('#backupFileInput').click());
+$('#backupFileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // 同じファイルを選び直しても change が発火するようにリセット
+  if(!file) return;
+
+  let parsed;
+  try{
+    const text = await file.text();
+    parsed = JSON.parse(text);
+  }catch(err){
+    backupStatusText.textContent = 'ファイルの読み込みに失敗しました。JSON形式のバックアップファイルを選んでください。';
+    return;
+  }
+  if(!parsed || typeof parsed !== 'object' || !parsed.data || typeof parsed.data !== 'object'){
+    backupStatusText.textContent = 'このファイルはMY TIMERのバックアップ形式ではないようです。';
+    return;
+  }
+
+  const ok = window.confirm('現在この端末にあるデータをすべて上書きして復元します。この操作は取り消せません。よろしいですか？');
+  if(!ok) return;
+
+  backupStatusText.textContent = '復元中…';
+  const failedKeys = [];
+  for(const key of BACKUP_STORAGE_KEYS){
+    if(Object.prototype.hasOwnProperty.call(parsed.data, key)){
+      const saved = await storageSet(key, parsed.data[key]);
+      if(!saved) failedKeys.push(key);
+    }
+  }
+  if(failedKeys.length){
+    backupStatusText.textContent = `一部のデータの復元に失敗しました（端末の空き容量不足の可能性があります）: ${failedKeys.join(', ')}`;
+    return;
+  }
+  backupStatusText.textContent = '復元が完了しました ✓ 画面を再読み込みします…';
+  setTimeout(()=> location.reload(), 900);
+});
 </script>
 </body>
 </html>
