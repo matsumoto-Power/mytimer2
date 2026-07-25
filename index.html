@@ -497,7 +497,8 @@
   .weekday-pills button.free-memo-btn.active{ border-style:solid; color:#ffffff; }
   .weekday-pills button.routine-memo-btn{ margin-right:8px; border-style:dashed; border-color:var(--accent-rest); color:var(--accent-rest); }
   .weekday-pills button.routine-memo-btn.active{ border-style:solid; background:var(--accent-rest); color:#ffffff; }
-  #planDayPills button{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
+  #planDayPills button{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; display:inline-flex; align-items:center; gap:6px; }
+  .plan-day-pill-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
   #planDayPills button.dragging{ opacity:0.55; box-shadow:0 4px 14px rgba(0,0,0,0.25); cursor:grabbing; position:relative; z-index:5; }
   textarea{
     flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
@@ -631,6 +632,7 @@
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .ev-name-btn.placeholder{ color:var(--panel-muted); font-weight:500; }
+  .media-tag-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
   .exercise-video-url-panel{ display:flex; flex-direction:column; gap:6px; padding:0 2px; }
   .exercise-video-url-panel input[type=text]{
     width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--panel-hairline);
@@ -795,6 +797,21 @@
   .backup-status{ font-size:12.5px; color:var(--panel-text); min-height:16px; line-height:1.6; }
   .backup-divider{ height:1px; background:var(--panel-hairline); }
   #backupFileInput{ display:none; }
+  .day-detail-weight-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:10px 14px;
+  }
+  .day-detail-weight-row label{ font-size:13px; font-weight:700; color:var(--panel-text); }
+  .day-detail-weight-input-wrap{ display:flex; align-items:center; gap:6px; }
+  .day-detail-weight-input-wrap input{
+    width:80px; text-align:right; font-size:16px; font-weight:700; color:var(--panel-text);
+    background:transparent; border:none; border-bottom:2px solid var(--panel-hairline); padding:4px 2px;
+    font-family:inherit; -moz-appearance:textfield;
+  }
+  .day-detail-weight-input-wrap input:focus{ outline:none; border-bottom-color:var(--accent-amber); }
+  .day-detail-weight-input-wrap input::-webkit-outer-spin-button,
+  .day-detail-weight-input-wrap input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .day-detail-weight-unit{ font-size:12.5px; font-weight:700; color:var(--panel-muted); }
   .day-detail-list{ display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
   .day-detail-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px 8px; }
   .day-detail-row{
@@ -1006,6 +1023,10 @@
             <div class="memo-head">
               <h3>🎬 メディア</h3>
               <div class="media-head-actions">
+                <button class="icon-btn" id="mediaTagSearchBtn" title="タグでメディアを検索">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  タグで検索
+                </button>
                 <button class="icon-btn" id="mediaBackupBtn" title="データのバックアップ／復元">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
                   バックアップ
@@ -1020,6 +1041,10 @@
             <label class="plan-day-section-label">Webページ</label>
             <div class="ei-video-list" id="mediaWebpageList"></div>
             <button type="button" class="modal-add-btn" id="mediaWebpageAddBtn">＋ Webページを追加</button>
+
+            <label class="plan-day-section-label">メモ</label>
+            <div class="ei-video-list" id="mediaNoteList"></div>
+            <button type="button" class="modal-add-btn" id="mediaNoteAddBtn">＋ メモを追加</button>
           </div>
         </div>
       </section>
@@ -1115,6 +1140,13 @@
       <h3 id="dayDetailTitle">7月20日の記録</h3>
       <button class="modal-close" id="dayDetailCloseBtn">✕</button>
     </div>
+    <div class="day-detail-weight-row">
+      <label for="dayDetailWeightInput">⚖️ 体重</label>
+      <div class="day-detail-weight-input-wrap">
+        <input type="number" id="dayDetailWeightInput" inputmode="decimal" step="0.1" min="0" placeholder="--.-">
+        <span class="day-detail-weight-unit">kg</span>
+      </div>
+    </div>
     <div class="day-detail-list" id="dayDetailList"></div>
     <button type="button" class="modal-add-btn" id="dayDetailAddBtn">＋ 新規作成</button>
     <div class="plan-day-inline-panel" id="dayDetailFormPanel" style="display:none;"></div>
@@ -1196,6 +1228,19 @@
     <div class="tag-search-hint">タグを選ぶと、日程タブを横断してそのタグが付いた種目を一覧表示します。結果をタップすると、そのまま編集できます。</div>
     <div class="tag-search-chip-row" id="tagSearchChipRow"></div>
     <div class="tag-search-results" id="tagSearchResults"></div>
+  </div>
+</div>
+
+<!-- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定） -->
+<div class="modal-overlay" id="mediaTagSearchModal">
+  <div class="panel modal-box" id="mediaTagSearchBox">
+    <div class="modal-head">
+      <h3>🔎 タグで検索</h3>
+      <button class="modal-close" id="mediaTagSearchCloseBtn">✕</button>
+    </div>
+    <div class="tag-search-hint">タグを選ぶと、動画・Webページ・メモを横断してそのタグが付いたものを一覧表示します。結果をタップすると、そのまま開いて編集できます。</div>
+    <div class="tag-search-chip-row" id="mediaTagSearchChipRow"></div>
+    <div class="tag-search-results" id="mediaTagSearchResults"></div>
   </div>
 </div>
 <div class="modal-overlay" id="slideshowModal">
@@ -3017,6 +3062,9 @@ const TRAINING_LOG_KEY = 'training-log';
 const MANUAL_LOG_KEY = 'manual-training-log';
 const MEDIA_VIDEOS_KEY = 'media-videos';
 const MEDIA_WEBPAGES_KEY = 'media-webpages';
+const MEDIA_NOTES_KEY = 'media-notes';
+const MEDIA_TAGS_KEY = 'media-tags';
+const WEIGHT_LOG_KEY = 'weight-log';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -3110,7 +3158,7 @@ async function createPlanDayTab(label){
 }
 
 /* 既存の日程タブの表示名を変更（固定タブ・カスタムタブどちらにも対応） */
-async function renamePlanDayTab(key, newLabel){
+async function renamePlanDayTab(key, newLabel, opts){
   const custom = customDayTabs.find(t => t.key === key);
   if(custom){
     custom.label = newLabel;
@@ -3119,8 +3167,10 @@ async function renamePlanDayTab(key, newLabel){
     dayLabelOverrides[key] = newLabel;
     await saveDayLabelOverrides();
   }
-  renderPlanDayPills();
-  renderExerciseItemList();
+  if(!opts || !opts.skipRender){
+    renderPlanDayPills();
+    renderExerciseItemList();
+  }
 }
 
 /* 日程タブを削除：登録されていた種目データも一緒に削除し、選択中のタブが消えた場合は先頭のタブへフォールバックする */
@@ -3205,9 +3255,14 @@ function renderPlanDayPills(){
   const wrap = $('#planDayPills');
   const tabs = getAllPlanDayTabs();
   if(!selectedPlanDay || !tabs.some(t=>t.key===selectedPlanDay)) selectedPlanDay = tabs[0] ? tabs[0].key : '';
-  wrap.innerHTML = tabs.map(t=>
-    `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${t.label}</button>`
-  ).join('');
+  wrap.innerHTML = tabs.map(t=>{
+    // 「設定」で編集した個別カラー（毎日／日付指定／フリープランのみ持つ）を、ピルの色ドットとして反映する。
+    // これまでdayTagColorを保存はしていたが、どこにも表示に使っておらず「編集しても反映されない」原因になっていたため追加。
+    const rec = getEffectiveRecurrence(t.key);
+    const ownColor = recurrenceHasOwnColor(rec) ? dayTagColor[t.key] : null;
+    const dot = ownColor ? `<span class="plan-day-pill-dot" style="background:${ownColor};"></span>` : '';
+    return `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${dot}${t.label}</button>`;
+  }).join('');
   let justDragged = false;
   $$('#planDayPills button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -3444,7 +3499,9 @@ function openDayRenamePanel(tab){
   $('#dayRenameConfirmBtn').addEventListener('click', async ()=>{
     const label = input.value.trim();
     if(!label){ input.focus(); return; }
-    await renamePlanDayTab(tab.key, label);
+    // 名称・周期・カラーのデータ更新をすべて済ませてから、最後にまとめて画面を再描画する
+    // （renamePlanDayTab()内で先に再描画してしまうと、後から変える周期・カラーの変更が画面に反映されないままになるバグがあったため順序を修正）
+    await renamePlanDayTab(tab.key, label, { skipRender:true });
     if(selectedRecurrence){
       dayTagRecurrence[tab.key] = selectedRecurrence;
       await saveDayTagRecurrence();
@@ -3455,6 +3512,8 @@ function openDayRenamePanel(tab){
       delete dayTagColor[tab.key]; // 曜日周期に変更した場合は個別カラーを持たせず、ワンポイントカラーに一本化する
     }
     await saveDayTagColor();
+    renderPlanDayPills();
+    renderExerciseItemList();
     closeDayInlinePanel();
   });
   $('#dayRenameBackBtn').addEventListener('click', openDayEditTargetPanel);
@@ -3721,6 +3780,99 @@ $('#tagSearchBtn').addEventListener('click', openTagSearchModal);
 $('#tagSearchCloseBtn').addEventListener('click', closeTagSearchModal);
 tagSearchModal.addEventListener('click', (e)=>{
   if(e.target === tagSearchModal) closeTagSearchModal();
+});
+
+/* --- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定の独立機能） --- */
+const mediaTagSearchModal = $('#mediaTagSearchModal');
+const mediaTagSearchChipRow = $('#mediaTagSearchChipRow');
+const mediaTagSearchResults = $('#mediaTagSearchResults');
+let mediaTagSearchSelectedTagId = null; // null: 未選択 / ''(空文字): 未分類 / それ以外: タグid
+
+function openMediaTagSearchModal(){
+  mediaTagSearchSelectedTagId = null;
+  renderMediaTagSearchChips();
+  renderMediaTagSearchResults();
+  mediaTagSearchModal.classList.add('show');
+}
+function closeMediaTagSearchModal(){
+  mediaTagSearchModal.classList.remove('show');
+}
+function renderMediaTagSearchChips(){
+  const allTags = [...mediaTags, MEDIA_UNCATEGORIZED_TAG];
+  mediaTagSearchChipRow.innerHTML = allTags.map(tag=>{
+    const active = mediaTagSearchSelectedTagId === tag.id;
+    const style = active
+      ? `background:${tag.color}; color:#ffffff;`
+      : `background:${tag.color}29; color:${tag.color}; border:1px solid ${tag.color}59;`;
+    return `<button type="button" class="tag-search-chip" data-tag-id="${tag.id}" style="${style}">${escapeHTML(tag.name)}</button>`;
+  }).join('');
+  mediaTagSearchChipRow.querySelectorAll('.tag-search-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      mediaTagSearchSelectedTagId = chip.dataset.tagId;
+      renderMediaTagSearchChips();
+      renderMediaTagSearchResults();
+    });
+  });
+}
+function renderMediaTagSearchResults(){
+  if(mediaTagSearchSelectedTagId === null){
+    mediaTagSearchResults.innerHTML = '<div class="tag-search-empty">上のタグを選ぶと、動画・Webページ・メモを横断して一覧表示します。</div>';
+    return;
+  }
+  const results = [];
+  mediaVideos.forEach(v=>{
+    if((v.tagId||'') !== mediaTagSearchSelectedTagId) return;
+    if(!v.name && !v.url) return;
+    results.push({ kind:'video', kindLabel:'🎬 動画', id:v.id, title:v.name || '（動画名未設定）' });
+  });
+  mediaWebpages.forEach(w=>{
+    if((w.tagId||'') !== mediaTagSearchSelectedTagId) return;
+    if(!w.name && !w.url) return;
+    results.push({ kind:'webpage', kindLabel:'🔗 Webページ', id:w.id, title:w.name || '（ページ名未設定）' });
+  });
+  mediaNotes.forEach(n=>{
+    if((n.tagId||'') !== mediaTagSearchSelectedTagId) return;
+    if(!n.title && !n.content) return;
+    results.push({ kind:'note', kindLabel:'📝 メモ', id:n.id, title:n.title || '（題名未設定）' });
+  });
+  if(!results.length){
+    mediaTagSearchResults.innerHTML = '<div class="tag-search-empty">このタグが付いたものはまだありません。</div>';
+    return;
+  }
+  const tagColor = mediaTagSearchSelectedTagId
+    ? (mediaTags.find(t=>t.id===mediaTagSearchSelectedTagId)?.color || MEDIA_UNCATEGORIZED_TAG.color)
+    : MEDIA_UNCATEGORIZED_TAG.color;
+  mediaTagSearchResults.innerHTML = results.map(r=>`
+    <button type="button" class="tag-search-row" data-kind="${r.kind}" data-item-id="${r.id}">
+      <span class="tag-search-row-dot" style="background:${tagColor};"></span>
+      <span class="tag-search-row-main">
+        <span class="tag-search-row-name">${escapeHTML(r.title)}</span>
+      </span>
+      <span class="tag-search-row-day">${r.kindLabel}</span>
+    </button>
+  `).join('');
+  mediaTagSearchResults.querySelectorAll('.tag-search-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      closeMediaTagSearchModal();
+      jumpToMediaItemForEdit(row.dataset.kind, row.dataset.itemId);
+    });
+  });
+}
+/* 検索結果のタップから、動画／Webページ／メモの該当行をその場で開いた状態にしてスクロールする
+   （専用の編集UIを別途作らず、メディアページの既存の各リストの編集フォームへそのまま遷移させる） */
+function jumpToMediaItemForEdit(kind, itemId){
+  if(kind === 'video'){ openMediaVideoRowId = itemId; renderMediaVideos(); }
+  else if(kind === 'webpage'){ openMediaWebpageRowId = itemId; renderMediaWebpages(); }
+  else if(kind === 'note'){ openMediaNoteRowId = itemId; renderMediaNotes(); }
+  setTimeout(()=>{
+    const el = document.querySelector(`.exercise-video-row[data-vid="${itemId}"], .exercise-video-row[data-wid="${itemId}"], .exercise-video-row[data-nid="${itemId}"]`);
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 60);
+}
+$('#mediaTagSearchBtn').addEventListener('click', openMediaTagSearchModal);
+$('#mediaTagSearchCloseBtn').addEventListener('click', closeMediaTagSearchModal);
+mediaTagSearchModal.addEventListener('click', (e)=>{
+  if(e.target === mediaTagSearchModal) closeMediaTagSearchModal();
 });
 
 function renderExerciseItemList(){
@@ -4242,6 +4394,138 @@ function scheduleMediaSave(){
     if(statusEl) statusEl.textContent = ok ? '保存済み ✓' : '保存に失敗しました';
   }, 600);
 }
+/* --- メディアタブ専用の分類タグ機能 ---
+   動画・Webページ・メモの3種類で共有するタグシステム。種目設定ページのタグ（exerciseTags）とは
+   完全に独立しており、メディアページ内でのみ使用・表示される。他のページには一切影響しない。 */
+let mediaTags = []; // [{id, name, color}]
+const MEDIA_UNCATEGORIZED_TAG = { id:'', name:'未分類', color:'#94A3B8' };
+async function saveMediaTagsToStorage(){
+  return storageSet(MEDIA_TAGS_KEY, JSON.stringify(mediaTags));
+}
+function resolveMediaTag(item){
+  if(!item.tagId) return MEDIA_UNCATEGORIZED_TAG;
+  return mediaTags.find(t=>t.id===item.tagId) || MEDIA_UNCATEGORIZED_TAG;
+}
+function mediaTagSelectorHTML(item){
+  return `
+    <div class="tag-row">
+      <select class="media-tag-select">
+        <option value="">未分類</option>
+        ${mediaTags.map(t=>`<option value="${t.id}" ${item.tagId===t.id?'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
+      </select>
+      <button type="button" class="circuit-sample-btn media-tag-edit-btn" ${item.tagId?'':'disabled'}>✎ 編集</button>
+      <button type="button" class="circuit-sample-btn media-tag-new-btn">＋ 新規タグ</button>
+    </div>
+    <div class="tag-create-panel" style="display:none;">
+      <input type="text" class="tag-name-input" placeholder="タグ名（例：フォーム解説、栄養）">
+      <div class="tag-swatch-grid">${renderTagSwatchGrid('#A855F7')}</div>
+      <input type="hidden" class="tag-color-input" value="#A855F7">
+      <button type="button" class="preset-full-btn save tag-create-confirm">作成</button>
+    </div>
+    <div class="tag-edit-panel" style="display:none;">
+      <input type="text" class="tag-name-input tag-edit-name-input" placeholder="タグ名">
+      <div class="tag-swatch-grid tag-edit-swatch-grid"></div>
+      <input type="hidden" class="tag-color-input tag-edit-color-input">
+      <button type="button" class="preset-full-btn save tag-edit-save">保存</button>
+      <button type="button" class="preset-full-btn del tag-edit-delete">削除</button>
+    </div>
+  `;
+}
+/* root内のタグ選択UIにイベントを紐付ける。onChange: 再描画関数 / scheduleSave: そのリストの保存関数 */
+function bindMediaTagControls(root, item, onChange, scheduleSave){
+  const tagSelect = root.querySelector('.media-tag-select');
+  const tagEditBtn = root.querySelector('.media-tag-edit-btn');
+  const tagEditPanel = root.querySelector('.tag-edit-panel');
+  const tagNewBtn = root.querySelector('.media-tag-new-btn');
+  const tagCreatePanel = root.querySelector('.tag-create-panel');
+
+  if(tagSelect) tagSelect.addEventListener('change', ()=>{
+    item.tagId = tagSelect.value;
+    scheduleSave();
+    onChange();
+  });
+
+  if(tagNewBtn && tagCreatePanel){
+    tagNewBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(tagEditPanel) tagEditPanel.style.display = 'none';
+      tagCreatePanel.style.display = tagCreatePanel.style.display==='none' ? 'flex' : 'none';
+    });
+    tagCreatePanel.addEventListener('click', (e)=>{
+      const swatch = e.target.closest('.tag-swatch');
+      if(!swatch) return;
+      tagCreatePanel.querySelector('.tag-color-input').value = swatch.dataset.color;
+      tagCreatePanel.querySelectorAll('.tag-swatch').forEach(s=>s.classList.toggle('selected', s===swatch));
+    });
+    tagCreatePanel.querySelector('.tag-create-confirm').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const nameEl = tagCreatePanel.querySelector('.tag-name-input');
+      const colorEl = tagCreatePanel.querySelector('.tag-color-input');
+      const name = nameEl.value.trim();
+      if(!name){ nameEl.focus(); return; }
+      const newTag = { id: mkId(), name, color: colorEl.value };
+      mediaTags.push(newTag);
+      item.tagId = newTag.id;
+      await saveMediaTagsToStorage();
+      scheduleSave();
+      onChange();
+    });
+  }
+
+  if(tagEditBtn && tagEditPanel){
+    tagEditBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const tag = mediaTags.find(t=>t.id===item.tagId);
+      if(!tag) return;
+      if(tagCreatePanel) tagCreatePanel.style.display = 'none';
+      const isOpening = tagEditPanel.style.display === 'none';
+      tagEditPanel.style.display = isOpening ? 'flex' : 'none';
+      if(isOpening){
+        tagEditPanel.querySelector('.tag-edit-name-input').value = tag.name;
+        tagEditPanel.querySelector('.tag-edit-color-input').value = tag.color;
+        tagEditPanel.querySelector('.tag-edit-swatch-grid').innerHTML = renderTagSwatchGrid(tag.color);
+      }
+    });
+    tagEditPanel.addEventListener('click', (e)=>{
+      const swatch = e.target.closest('.tag-swatch');
+      if(!swatch) return;
+      tagEditPanel.querySelector('.tag-edit-color-input').value = swatch.dataset.color;
+      tagEditPanel.querySelectorAll('.tag-swatch').forEach(s=>s.classList.toggle('selected', s===swatch));
+    });
+    tagEditPanel.querySelector('.tag-edit-save').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const tag = mediaTags.find(t=>t.id===item.tagId);
+      if(!tag) return;
+      const nameEl = tagEditPanel.querySelector('.tag-edit-name-input');
+      const colorEl = tagEditPanel.querySelector('.tag-edit-color-input');
+      const name = nameEl.value.trim();
+      if(!name){ nameEl.focus(); return; }
+      tag.name = name;
+      tag.color = colorEl.value;
+      await saveMediaTagsToStorage();
+      onChange();
+    });
+    tagEditPanel.querySelector('.tag-edit-delete').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const tag = mediaTags.find(t=>t.id===item.tagId);
+      if(!tag) return;
+      if(!confirm(`タグ「${tag.name}」を削除しますか？このタグが付いている動画・Webページ・メモからも外れます。`)) return;
+      mediaTags = mediaTags.filter(t=>t.id!==tag.id);
+      // メディアページ内で3種類が共有するタグのため、動画・Webページ・メモすべてから該当タグを外す
+      [mediaVideos, mediaWebpages, mediaNotes].forEach(list=>{
+        (list||[]).forEach(it=>{ if(it.tagId===tag.id) it.tagId=''; });
+      });
+      await saveMediaTagsToStorage();
+      await storageSet(MEDIA_VIDEOS_KEY, JSON.stringify(mediaVideos));
+      await storageSet(MEDIA_WEBPAGES_KEY, JSON.stringify(mediaWebpages));
+      await storageSet(MEDIA_NOTES_KEY, JSON.stringify(mediaNotes));
+      renderMediaVideos();
+      renderMediaWebpages();
+      renderMediaNotes();
+    });
+  }
+}
+
 function renderMediaVideos(){
   const container = $('#mediaVideoList');
   if(!container) return;
@@ -4252,10 +4536,11 @@ function renderMediaVideos(){
   container.innerHTML = mediaVideos.map((v,i)=>{
     const hasName = v.name && v.name.trim();
     const isOpen = v.id === openMediaVideoRowId;
+    const tag = resolveMediaTag(v);
     return `
     <div class="exercise-video-row" data-vid="${v.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${v.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
@@ -4266,6 +4551,7 @@ function renderMediaVideos(){
       <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
         <input type="text" class="ev-name" data-field="name" value="${escapeHTML(v.name||'')}" placeholder="動画名（任意）">
         <input type="text" class="ev-url" data-field="url" value="${escapeHTML(v.url||'')}" placeholder="https://www.youtube.com/watch?v=...">
+        ${mediaTagSelectorHTML(v)}
       </div>
     </div>
   `;
@@ -4294,6 +4580,7 @@ function renderMediaVideos(){
         scheduleMediaSave();
       });
     });
+    bindMediaTagControls(row, v, renderMediaVideos, scheduleMediaSave);
   });
 }
 $('#mediaVideoAddBtn').addEventListener('click', ()=>{
@@ -4327,10 +4614,11 @@ function renderMediaWebpages(){
   container.innerHTML = mediaWebpages.map((w,i)=>{
     const hasName = w.name && w.name.trim();
     const isOpen = w.id === openMediaWebpageRowId;
+    const tag = resolveMediaTag(w);
     return `
     <div class="exercise-video-row" data-wid="${w.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${w.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>▶</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
@@ -4341,6 +4629,7 @@ function renderMediaWebpages(){
       <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
         <input type="text" class="ev-name" data-field="name" value="${escapeHTML(w.name||'')}" placeholder="ページ名（任意）">
         <input type="text" class="ev-url" data-field="url" value="${escapeHTML(w.url||'')}" placeholder="https://example.com/...">
+        ${mediaTagSelectorHTML(w)}
       </div>
     </div>
   `;
@@ -4369,6 +4658,7 @@ function renderMediaWebpages(){
         scheduleMediaWebpageSave();
       });
     });
+    bindMediaTagControls(row, w, renderMediaWebpages, scheduleMediaWebpageSave);
   });
 }
 $('#mediaWebpageAddBtn').addEventListener('click', ()=>{
@@ -4377,6 +4667,90 @@ $('#mediaWebpageAddBtn').addEventListener('click', ()=>{
   openMediaWebpageRowId = newWebpage.id;
   renderMediaWebpages();
   scheduleMediaWebpageSave();
+});
+
+/* --- メディアタブ：内容ごとに分けて何個でも追加できるメモ機能（題名をトグルヘッダーにして開閉） --- */
+let mediaNotes = []; // [{id, title, content}]
+let openMediaNoteRowId = null;
+let mediaNoteSaveTimeout = null;
+function scheduleMediaNoteSave(){
+  if(mediaNoteSaveTimeout) clearTimeout(mediaNoteSaveTimeout);
+  const statusEl = $('#mediaStatus');
+  if(statusEl) statusEl.textContent = '入力中…';
+  mediaNoteSaveTimeout = setTimeout(async ()=>{
+    const ok = await storageSet(MEDIA_NOTES_KEY, JSON.stringify(mediaNotes));
+    if(statusEl) statusEl.textContent = ok ? '保存済み ✓' : '保存に失敗しました';
+  }, 600);
+}
+/* 汎用の自動リサイズ処理（入力量に応じて高さが伸縮する。上限・下限は.ei-memo-inputのCSS側で制御） */
+function attachAutoResizeTextarea(el){
+  const resize = () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+  resize();
+  el.addEventListener('input', resize);
+}
+function renderMediaNotes(){
+  const container = $('#mediaNoteList');
+  if(!container) return;
+  if(!mediaNotes.length){
+    container.innerHTML = '<div class="circuit-empty-hint">まだメモがありません。「＋ メモを追加」から追加してください。</div>';
+    return;
+  }
+  container.innerHTML = mediaNotes.map((n,i)=>{
+    const hasTitle = n.title && n.title.trim();
+    const isOpen = n.id === openMediaNoteRowId;
+    const tag = resolveMediaTag(n);
+    return `
+    <div class="exercise-video-row" data-nid="${n.id}">
+      <div class="exercise-video-header">
+        <button type="button" class="ev-name-btn${hasTitle?'':' placeholder'}" data-act="toggle">${n.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasTitle ? escapeHTML(n.title) : '（題名未設定）タップして入力'}</button>
+        <div class="exercise-video-actions">
+          <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+          <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaNotes.length-1?'disabled':''}>↓</button>
+          <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+        </div>
+      </div>
+      <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
+        <input type="text" class="ev-name" data-field="title" value="${escapeHTML(n.title||'')}" placeholder="題名">
+        <textarea class="ei-memo-input" data-field="content" rows="1" placeholder="メモの内容を自由に入力">${escapeHTML(n.content||'')}</textarea>
+        ${mediaTagSelectorHTML(n)}
+      </div>
+    </div>
+  `;
+  }).join('');
+  container.querySelectorAll('.exercise-video-row').forEach(row=>{
+    const nid = row.dataset.nid;
+    const n = mediaNotes.find(x=>x.id===nid);
+    row.querySelector('[data-act="toggle"]').addEventListener('click', ()=>{
+      openMediaNoteRowId = (openMediaNoteRowId === nid) ? null : nid;
+      renderMediaNotes();
+    });
+    row.querySelector('[data-field="title"]').addEventListener('change', e=>{ n.title=e.target.value; scheduleMediaNoteSave(); renderMediaNotes(); });
+    const textarea = row.querySelector('[data-field="content"]');
+    if(textarea){
+      attachAutoResizeTextarea(textarea);
+      textarea.addEventListener('input', ()=>{ n.content = textarea.value; scheduleMediaNoteSave(); });
+    }
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const idx = mediaNotes.findIndex(x=>x.id===nid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ mediaNotes.splice(idx,1); if(openMediaNoteRowId===nid) openMediaNoteRowId=null; }
+        else if(act==='up' && idx>0){ [mediaNotes[idx-1],mediaNotes[idx]]=[mediaNotes[idx],mediaNotes[idx-1]]; }
+        else if(act==='down' && idx<mediaNotes.length-1){ [mediaNotes[idx+1],mediaNotes[idx]]=[mediaNotes[idx],mediaNotes[idx+1]]; }
+        renderMediaNotes();
+        scheduleMediaNoteSave();
+      });
+    });
+    bindMediaTagControls(row, n, renderMediaNotes, scheduleMediaNoteSave);
+  });
+}
+$('#mediaNoteAddBtn').addEventListener('click', ()=>{
+  const newNote = { id:mkId(), title:'', content:'' };
+  mediaNotes.push(newNote);
+  openMediaNoteRowId = newNote.id;
+  renderMediaNotes();
+  scheduleMediaNoteSave();
 });
 
 async function loadTrainingPlan(){
@@ -4428,11 +4802,24 @@ async function loadTrainingPlan(){
     const rawWebpages = await storageGet(MEDIA_WEBPAGES_KEY);
     mediaWebpages = rawWebpages ? JSON.parse(rawWebpages) : [];
   }catch(err){ mediaWebpages = []; }
+  try{
+    const rawWeight = await storageGet(WEIGHT_LOG_KEY);
+    weightLog = rawWeight ? JSON.parse(rawWeight) : {};
+  }catch(err){ weightLog = {}; }
+  try{
+    const rawNotes = await storageGet(MEDIA_NOTES_KEY);
+    mediaNotes = rawNotes ? JSON.parse(rawNotes) : [];
+  }catch(err){ mediaNotes = []; }
+  try{
+    const rawMediaTags = await storageGet(MEDIA_TAGS_KEY);
+    mediaTags = rawMediaTags ? JSON.parse(rawMediaTags) : [];
+  }catch(err){ mediaTags = []; }
   selectedPlanDay = defaultPlanDay();
   renderPlanDayPills();
   renderExerciseItemList();
   renderMediaVideos();
   renderMediaWebpages();
+  renderMediaNotes();
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
 }
 loadTrainingPlan();
@@ -4510,9 +4897,11 @@ renderCalendar();
 /* --- 日付詳細モーダル：実施ステータスの閲覧 ＋ 手動記録の新規作成／編集／削除 --- */
 const dayDetailModal = $('#dayDetailModal');
 const dayDetailTitle = $('#dayDetailTitle');
+const dayDetailWeightInput = $('#dayDetailWeightInput');
 const dayDetailList = $('#dayDetailList');
 const dayDetailFormPanel = $('#dayDetailFormPanel');
 let dayDetailCurrentDateKey = null;
+let weightLog = {}; // { 'YYYY-MM-DD': 数値 } 体重は任意入力。未入力の日はキー自体を持たない
 
 function formatDateLabel(dateKey){
   const [y,m,d] = dateKey.split('-').map(Number);
@@ -4522,6 +4911,7 @@ function formatDateLabel(dateKey){
 function openDayDetailModal(dateKey){
   dayDetailCurrentDateKey = dateKey;
   dayDetailTitle.textContent = `${formatDateLabel(dateKey)}の記録`;
+  dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
   dayDetailFormPanel.style.display = 'none';
   dayDetailFormPanel.innerHTML = '';
   renderDayDetailList();
@@ -4533,6 +4923,21 @@ function closeDayDetailModal(){
 }
 $('#dayDetailCloseBtn').addEventListener('click', closeDayDetailModal);
 dayDetailModal.addEventListener('click', (e)=>{ if(e.target === dayDetailModal) closeDayDetailModal(); });
+
+/* 体重入力：値を入れればその日の記録として保存、空にすればその日の記録を削除する（未入力＝データなし、0kgとは区別する） */
+dayDetailWeightInput.addEventListener('change', async ()=>{
+  if(!dayDetailCurrentDateKey) return;
+  const raw = dayDetailWeightInput.value;
+  if(raw === '' || raw === null){
+    delete weightLog[dayDetailCurrentDateKey];
+  } else {
+    const num = parseFloat(raw);
+    if(Number.isNaN(num) || num < 0){ dayDetailWeightInput.value = (weightLog[dayDetailCurrentDateKey] != null) ? weightLog[dayDetailCurrentDateKey] : ''; return; }
+    weightLog[dayDetailCurrentDateKey] = num;
+  }
+  await storageSet(WEIGHT_LOG_KEY, JSON.stringify(weightLog));
+  if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
+});
 
 function renderDayDetailList(){
   const dateKey = dayDetailCurrentDateKey;
@@ -4739,7 +5144,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY,
 ];
 
 async function collectBackupData(){
