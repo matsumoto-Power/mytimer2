@@ -142,7 +142,14 @@
   #imagePane.video-active .image-nav,
   #imagePane.video-active .image-footer,
   #imagePane.video-active .group-quick-switch,
-  #imagePane.video-active .position-toast{ display:none !important; }
+  #imagePane.video-active .position-toast,
+  #imagePane.webpage-active .image-empty,
+  #imagePane.webpage-active .image-nav,
+  #imagePane.webpage-active .image-footer,
+  #imagePane.webpage-active .group-quick-switch,
+  #imagePane.webpage-active .position-toast{ display:none !important; }
+  /* Webページのiframeは、横幅は画像ペインに合わせつつ、中身が縦に長い場合はiframe自身の中でスクロールする（外側は伸ばさない） */
+  #webpageIframe{ background:#fff; }
 
   .group-quick-switch{
     position:absolute; top:14px; left:14px; z-index:6; max-width:min(52%, 220px);
@@ -209,14 +216,25 @@
     border:1px solid var(--panel-hairline);
     box-shadow: 0 8px 30px rgba(0,0,0,0.18);
   }
+  /* ===== トップバー（タブのみの1段構成。項目が増えても文字を潰さず横スクロールで対応する設計） ===== */
+  .topbar{
+    display:flex; align-items:center; justify-content:center;
+    padding:8px 12px; border-radius:999px; flex:0 0 auto;
+    background:var(--panel-bg); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border:1px solid var(--panel-hairline);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  }
   .tabs{
-    display:flex; gap:4px; background:rgba(128,128,128,0.14); padding:4px; border-radius:999px;
+    display:flex; gap:6px; background:rgba(128,128,128,0.14); padding:5px; border-radius:999px;
     width:100%; justify-content:flex-start; overflow-x:auto; scrollbar-width:none;
+    /* 端に軽いフェードをかけて、まだ隠れているタブがあることを視覚的に示す（スクロール可能であることのヒント） */
+    mask-image: linear-gradient(to right, transparent 0, black 14px, black calc(100% - 14px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 14px, black calc(100% - 14px), transparent 100%);
   }
   .tabs::-webkit-scrollbar{ display:none; }
   .tab-btn{
-    appearance:none; border:none; cursor:pointer; padding:9px 7px; border-radius:999px;
-    font-family:'Inter',sans-serif; font-weight:600; font-size:12px; letter-spacing:0; white-space:nowrap; flex:0 0 auto;
+    appearance:none; border:none; cursor:pointer; padding:10px 14px; border-radius:999px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.1px; white-space:nowrap; flex:0 0 auto;
     background:transparent; color:var(--panel-muted); transition: all .25s ease; text-align:center;
   }
   .tab-btn.active{ background:var(--accent-amber); color:#ffffff; box-shadow:0 4px 14px rgba(168,85,247,0.4);}
@@ -998,6 +1016,10 @@
             <label class="plan-day-section-label">動画</label>
             <div class="ei-video-list" id="mediaVideoList"></div>
             <button type="button" class="modal-add-btn" id="mediaVideoAddBtn">＋ 動画を追加</button>
+
+            <label class="plan-day-section-label">Webページ</label>
+            <div class="ei-video-list" id="mediaWebpageList"></div>
+            <button type="button" class="modal-add-btn" id="mediaWebpageAddBtn">＋ Webページを追加</button>
           </div>
         </div>
       </section>
@@ -1031,6 +1053,17 @@
         <iframe id="videoIframe" src="" title="参考動画"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowfullscreen></iframe>
+      </div>
+    </div>
+
+    <div class="video-overlay" id="webpageOverlay">
+      <button class="video-close-btn" id="webpageCloseBtn" title="Webページを閉じて画像に戻る">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <span>Webページを閉じる</span>
+      </button>
+      <div class="video-frame-wrap">
+        <iframe id="webpageIframe" src="" title="参考Webページ"
+          allow="clipboard-write; encrypted-media"></iframe>
       </div>
     </div>
 
@@ -1264,6 +1297,7 @@ $$('.tab-btn').forEach(btn=>{
     $$('.tab-panel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     $('#tab-'+btn.dataset.tab).classList.add('active');
+    btn.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'nearest' });
   });
 });
 
@@ -1453,7 +1487,7 @@ $('#bgFileInputReplace').addEventListener('change', async (e)=>{
 
 function onImagesChanged(){
   const has = bgImages.length > 0;
-  const videoActive = imagePane.classList.contains('video-active');
+  const videoActive = imagePane.classList.contains('video-active') || imagePane.classList.contains('webpage-active');
   $('#imageEmpty').style.display = (has || videoActive) ? 'none' : 'flex';
   $('#imageNav').style.display = has && bgImages.length > 1 && !videoActive ? 'flex' : 'none';
   $('#imageFooter').style.display = has && !videoActive ? 'flex' : 'none';
@@ -1544,7 +1578,7 @@ $('#imageNextBtn').addEventListener('click', ()=>{ showImage(bgIndex+1); restart
 
 /* --- 画像の全画面表示モード（タイマー等は非表示、スライドショーはそのまま継続） --- */
 function enterImageFullscreen(){
-  if(bgIndex < 0 && !imagePane.classList.contains('video-active')) return;
+  if(bgIndex < 0 && !imagePane.classList.contains('video-active') && !imagePane.classList.contains('webpage-active')) return;
   document.body.classList.add('fullscreen-image');
   $('#fullscreenToggleBtn').style.display = 'none';
   $('#fullscreenExitBtn').style.display = 'flex';
@@ -1552,7 +1586,7 @@ function enterImageFullscreen(){
 function exitImageFullscreen(){
   document.body.classList.remove('fullscreen-image');
   $('#fullscreenExitBtn').style.display = 'none';
-  $('#fullscreenToggleBtn').style.display = (bgImages.length || imagePane.classList.contains('video-active')) ? 'flex' : 'none';
+  $('#fullscreenToggleBtn').style.display = (bgImages.length || imagePane.classList.contains('video-active') || imagePane.classList.contains('webpage-active')) ? 'flex' : 'none';
 }
 $('#fullscreenToggleBtn').addEventListener('click', enterImageFullscreen);
 $('#fullscreenExitBtn').addEventListener('click', exitImageFullscreen);
@@ -2982,6 +3016,7 @@ const DAY_TAG_COLOR_KEY = 'day-tag-color';
 const TRAINING_LOG_KEY = 'training-log';
 const MANUAL_LOG_KEY = 'manual-training-log';
 const MEDIA_VIDEOS_KEY = 'media-videos';
+const MEDIA_WEBPAGES_KEY = 'media-webpages';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -4153,6 +4188,7 @@ function extractYouTubeId(url){
 function playReferenceVideo(youtubeUrl){
   const videoId = extractYouTubeId(youtubeUrl);
   if(!videoId) return;
+  closeReferenceWebpage(); // 動画とWebページを同時表示しないよう、片方が開いていれば閉じる
   $('#videoIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
   imagePane.classList.add('video-active');
   $('#videoOverlay').classList.add('show');
@@ -4165,6 +4201,31 @@ function closeReferenceVideo(){
   onImagesChanged();
 }
 $('#videoCloseBtn').addEventListener('click', closeReferenceVideo);
+
+/* --- 参考Webページの表示（画像ペイン内にiframeで表示。横幅はペインに合わせ、縦はiframe自身が内部スクロールする） --- */
+function normalizeWebpageUrl(url){
+  if(!url) return null;
+  const trimmed = String(url).trim();
+  if(!trimmed) return null;
+  if(/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+function playReferenceWebpage(url){
+  const normalized = normalizeWebpageUrl(url);
+  if(!normalized) return;
+  closeReferenceVideo(); // 動画とWebページを同時表示しないよう、片方が開いていれば閉じる
+  $('#webpageIframe').src = normalized;
+  imagePane.classList.add('webpage-active');
+  $('#webpageOverlay').classList.add('show');
+  onImagesChanged();
+}
+function closeReferenceWebpage(){
+  $('#webpageOverlay').classList.remove('show');
+  $('#webpageIframe').src = ''; // 表示を確実に止める
+  imagePane.classList.remove('webpage-active');
+  onImagesChanged();
+}
+$('#webpageCloseBtn').addEventListener('click', closeReferenceWebpage);
 
 /* --- メディアタブ：種目に紐づかない、雑多な動画を貼っておくための独立リスト ---
    種目編集画面の「参考動画」欄（renderExerciseVideos）と見た目・操作感を揃えているが、
@@ -4243,6 +4304,81 @@ $('#mediaVideoAddBtn').addEventListener('click', ()=>{
   scheduleMediaSave();
 });
 
+/* --- メディアタブ：参考になるWebページを貼っておくための独立リスト（動画欄と同じ構造・操作感） --- */
+let mediaWebpages = []; // [{id, name, url}]
+let openMediaWebpageRowId = null;
+let mediaWebpageSaveTimeout = null;
+function scheduleMediaWebpageSave(){
+  if(mediaWebpageSaveTimeout) clearTimeout(mediaWebpageSaveTimeout);
+  const statusEl = $('#mediaStatus');
+  if(statusEl) statusEl.textContent = '入力中…';
+  mediaWebpageSaveTimeout = setTimeout(async ()=>{
+    const ok = await storageSet(MEDIA_WEBPAGES_KEY, JSON.stringify(mediaWebpages));
+    if(statusEl) statusEl.textContent = ok ? '保存済み ✓' : '保存に失敗しました';
+  }, 600);
+}
+function renderMediaWebpages(){
+  const container = $('#mediaWebpageList');
+  if(!container) return;
+  if(!mediaWebpages.length){
+    container.innerHTML = '<div class="circuit-empty-hint">まだWebページがありません。「＋ Webページを追加」から追加してください。</div>';
+    return;
+  }
+  container.innerHTML = mediaWebpages.map((w,i)=>{
+    const hasName = w.name && w.name.trim();
+    const isOpen = w.id === openMediaWebpageRowId;
+    return `
+    <div class="exercise-video-row" data-wid="${w.id}">
+      <div class="exercise-video-header">
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
+        <div class="exercise-video-actions">
+          <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>▶</button>
+          <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+          <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaWebpages.length-1?'disabled':''}>↓</button>
+          <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+        </div>
+      </div>
+      <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
+        <input type="text" class="ev-name" data-field="name" value="${escapeHTML(w.name||'')}" placeholder="ページ名（任意）">
+        <input type="text" class="ev-url" data-field="url" value="${escapeHTML(w.url||'')}" placeholder="https://example.com/...">
+      </div>
+    </div>
+  `;
+  }).join('');
+  container.querySelectorAll('.exercise-video-row').forEach(row=>{
+    const wid = row.dataset.wid;
+    const w = mediaWebpages.find(x=>x.id===wid);
+    row.querySelector('[data-act="toggle-url"]').addEventListener('click', ()=>{
+      openMediaWebpageRowId = (openMediaWebpageRowId === wid) ? null : wid;
+      renderMediaWebpages();
+    });
+    row.querySelector('[data-field="name"]').addEventListener('change', e=>{ w.name=e.target.value; scheduleMediaWebpageSave(); renderMediaWebpages(); });
+    row.querySelector('[data-field="url"]').addEventListener('change', e=>{
+      w.url = e.target.value.trim(); scheduleMediaWebpageSave(); renderMediaWebpages();
+    });
+    row.querySelector('.ew-play').addEventListener('click', (e)=>{ e.stopPropagation(); playReferenceWebpage(w.url); });
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const idx = mediaWebpages.findIndex(x=>x.id===wid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ mediaWebpages.splice(idx,1); if(openMediaWebpageRowId===wid) openMediaWebpageRowId=null; }
+        else if(act==='up' && idx>0){ [mediaWebpages[idx-1],mediaWebpages[idx]]=[mediaWebpages[idx],mediaWebpages[idx-1]]; }
+        else if(act==='down' && idx<mediaWebpages.length-1){ [mediaWebpages[idx+1],mediaWebpages[idx]]=[mediaWebpages[idx],mediaWebpages[idx+1]]; }
+        renderMediaWebpages();
+        scheduleMediaWebpageSave();
+      });
+    });
+  });
+}
+$('#mediaWebpageAddBtn').addEventListener('click', ()=>{
+  const newWebpage = { id:mkId(), name:'', url:'' };
+  mediaWebpages.push(newWebpage);
+  openMediaWebpageRowId = newWebpage.id;
+  renderMediaWebpages();
+  scheduleMediaWebpageSave();
+});
+
 async function loadTrainingPlan(){
   try{
     const rawTags = await storageGet(TAGS_KEY);
@@ -4288,10 +4424,15 @@ async function loadTrainingPlan(){
     const rawMedia = await storageGet(MEDIA_VIDEOS_KEY);
     mediaVideos = rawMedia ? JSON.parse(rawMedia) : [];
   }catch(err){ mediaVideos = []; }
+  try{
+    const rawWebpages = await storageGet(MEDIA_WEBPAGES_KEY);
+    mediaWebpages = rawWebpages ? JSON.parse(rawWebpages) : [];
+  }catch(err){ mediaWebpages = []; }
   selectedPlanDay = defaultPlanDay();
   renderPlanDayPills();
   renderExerciseItemList();
   renderMediaVideos();
+  renderMediaWebpages();
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
 }
 loadTrainingPlan();
@@ -4598,7 +4739,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY,
 ];
 
 async function collectBackupData(){
