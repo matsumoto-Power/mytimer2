@@ -735,6 +735,33 @@
   .modal-box{
     width:min(560px, 100%); max-height:85vh; display:flex; flex-direction:column; gap:14px; padding:22px;
   }
+  .modal-box.wide{ width:min(920px, 100%); }
+  .monthly-table-nav{ display:flex; align-items:center; justify-content:center; gap:18px; }
+  .monthly-table-month-label{ font-size:15px; font-weight:800; letter-spacing:1px; min-width:120px; text-align:center; }
+  /* 行（日付）は縦スクロール、列（タグ）は横スクロール。ヘッダー行と日付列は固定して、スクロールしても見出しを見失わないようにする */
+  .monthly-table-scroll{
+    max-height:65vh; overflow:auto; border:1px solid var(--panel-hairline); border-radius:12px;
+  }
+  .monthly-table{ border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; }
+  .monthly-table th, .monthly-table td{
+    border-bottom:1px solid var(--panel-hairline); border-right:1px solid var(--panel-hairline);
+    padding:8px 12px; font-size:12.5px; text-align:left; vertical-align:top; white-space:nowrap;
+  }
+  .monthly-table thead th{
+    position:sticky; top:0; background:var(--panel-bg2, #1c1c22); color:var(--panel-text);
+    font-size:11.5px; font-weight:800; z-index:2; white-space:nowrap;
+  }
+  .monthly-table tbody th{
+    position:sticky; left:0; background:var(--panel-bg2, #1c1c22); color:var(--panel-text);
+    font-weight:700; z-index:1; text-align:left;
+  }
+  .monthly-table thead th:first-child{ position:sticky; left:0; top:0; z-index:3; }
+  .monthly-table tbody tr.today th, .monthly-table tbody tr.today td{ background:rgba(255,178,44,0.08); }
+  .monthly-table-entry{ display:block; font-size:11.5px; line-height:1.6; white-space:normal; }
+  .monthly-table-entry + .monthly-table-entry{ margin-top:4px; padding-top:4px; border-top:1px dashed var(--panel-hairline); }
+  .monthly-table-entry-name{ font-weight:700; }
+  .monthly-table-entry-summary{ color:var(--panel-muted); }
+  .monthly-table-empty-cell{ color:var(--panel-muted); }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; }
   .modal-head h3{ margin:0; font-size:15px; letter-spacing:1px; font-weight:800; }
   .modal-close{ appearance:none; cursor:pointer; border:none; background:rgba(128,128,128,0.2); color:var(--panel-text); width:30px; height:30px; border-radius:50%; font-size:15px; }
@@ -832,6 +859,23 @@
   .day-detail-weight-input-wrap input::-webkit-outer-spin-button,
   .day-detail-weight-input-wrap input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   .day-detail-weight-unit{ font-size:12.5px; font-weight:700; color:var(--panel-muted); }
+  .day-detail-condition-row{
+    display:flex; flex-direction:column; gap:8px;
+    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:10px 14px;
+  }
+  .day-detail-condition-head{ display:flex; align-items:center; justify-content:space-between; }
+  .day-detail-condition-head label{ font-size:13px; font-weight:700; color:var(--panel-text); }
+  .day-detail-condition-toggle-btn{
+    appearance:none; cursor:pointer; border:none; background:transparent; color:var(--panel-muted);
+    font-size:11px; text-decoration:underline; padding:2px 0;
+  }
+  .day-detail-condition-show-btn{ text-align:left; text-decoration:none; color:var(--panel-muted); font-size:12.5px; }
+  .day-detail-condition-options{ display:flex; justify-content:space-between; gap:6px; }
+  .day-detail-condition-options button{
+    flex:1; appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); border-radius:10px;
+    background:rgba(128,128,128,0.06); font-size:22px; padding:8px 0; transition: all .15s ease; line-height:1;
+  }
+  .day-detail-condition-options button.selected{ background:rgba(255,178,44,0.18); border-color:var(--accent-amber); transform:scale(1.08); }
   .day-detail-list{ display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
   .day-detail-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px 8px; }
   .day-detail-row{
@@ -1032,6 +1076,7 @@
               <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
+            <button type="button" class="modal-add-btn" id="monthlyTableBtn">📊 月別一覧</button>
             <div class="calendar-hint">📌 インターバル画面でチェックを入れた種目が、タグの色のドットとしてここに表示されます。</div>
           </div>
         </div>
@@ -1168,9 +1213,41 @@
         <span class="day-detail-weight-unit">kg</span>
       </div>
     </div>
+    <div class="day-detail-condition-row" id="dayDetailConditionRow">
+      <div class="day-detail-condition-head">
+        <label>🙂 体調</label>
+        <button type="button" class="day-detail-condition-toggle-btn" id="dayDetailConditionHideBtn">非表示にする</button>
+      </div>
+      <div class="day-detail-condition-options" id="dayDetailConditionOptions">
+        <button type="button" data-val="1" title="不調">😞</button>
+        <button type="button" data-val="2" title="やや不調">🙁</button>
+        <button type="button" data-val="3" title="ふつう">😐</button>
+        <button type="button" data-val="4" title="やや好調">🙂</button>
+        <button type="button" data-val="5" title="好調">😀</button>
+      </div>
+    </div>
+    <button type="button" class="day-detail-condition-toggle-btn day-detail-condition-show-btn" id="dayDetailConditionShowBtn" style="display:none;">＋ 体調評価を表示する</button>
     <div class="day-detail-list" id="dayDetailList"></div>
     <button type="button" class="modal-add-btn" id="dayDetailAddBtn">＋ 新規作成</button>
     <div class="plan-day-inline-panel" id="dayDetailFormPanel" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- 月別一覧：行=日付、列=種目タグの表形式でその月の実施記録を見渡せる専用ページ -->
+<div class="modal-overlay" id="monthlyTableModal">
+  <div class="panel modal-box wide" id="monthlyTableBox">
+    <div class="modal-head">
+      <h3>📊 月別一覧</h3>
+      <button class="modal-close" id="monthlyTableCloseBtn">✕</button>
+    </div>
+    <div class="monthly-table-nav">
+      <button type="button" class="calendar-nav-btn" id="monthlyTablePrevBtn" aria-label="前の月">‹</button>
+      <div class="monthly-table-month-label" id="monthlyTableMonthLabel">----年 --月</div>
+      <button type="button" class="calendar-nav-btn" id="monthlyTableNextBtn" aria-label="次の月">›</button>
+    </div>
+    <div class="monthly-table-scroll" id="monthlyTableScroll">
+      <table class="monthly-table" id="monthlyTable"></table>
+    </div>
   </div>
 </div>
 
@@ -1227,9 +1304,13 @@
       <div class="backup-section-title">📊 AI分析用エクスポート</div>
       <div class="backup-hint">指定した期間について、「日付・曜日」「実施した種目名・タグ・実施内容（回数×セット、またはwork/rest×セット）」「その日の体重（記録があれば）」「その日程タブで本来予定していたメニュー」を、シンプルなMarkdown形式で書き出します。AIチャットにそのまま貼り付けて、傾向分析や改善提案を頼みたいときにお使いください。</div>
       <div class="ai-export-range-toggle" id="aiExportRangeToggle">
+        <button type="button" class="ai-export-range-btn" data-range="single">日付指定</button>
         <button type="button" class="ai-export-range-btn active" data-range="week">今週</button>
         <button type="button" class="ai-export-range-btn" data-range="month">今月</button>
-        <button type="button" class="ai-export-range-btn" data-range="custom">日付範囲を指定</button>
+        <button type="button" class="ai-export-range-btn" data-range="custom">範囲指定</button>
+      </div>
+      <div class="ai-export-custom-range" id="aiExportSingleRange" style="display:none;">
+        <input type="date" id="aiExportSingleDate">
       </div>
       <div class="ai-export-custom-range" id="aiExportCustomRange" style="display:none;">
         <input type="date" id="aiExportFromDate">
@@ -3117,6 +3198,8 @@ const MEDIA_WEBPAGES_KEY = 'media-webpages';
 const MEDIA_NOTES_KEY = 'media-notes';
 const MEDIA_TAGS_KEY = 'media-tags';
 const WEIGHT_LOG_KEY = 'weight-log';
+const CONDITION_LOG_KEY = 'condition-log';
+const CONDITION_VISIBLE_KEY = 'condition-tracker-visible';
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -4924,6 +5007,14 @@ async function loadTrainingPlan(){
     weightLog = rawWeight ? JSON.parse(rawWeight) : {};
   }catch(err){ weightLog = {}; }
   try{
+    const rawCondition = await storageGet(CONDITION_LOG_KEY);
+    conditionLog = rawCondition ? JSON.parse(rawCondition) : {};
+  }catch(err){ conditionLog = {}; }
+  try{
+    const rawConditionVisible = await storageGet(CONDITION_VISIBLE_KEY);
+    conditionTrackerVisible = rawConditionVisible === null ? true : rawConditionVisible === 'true';
+  }catch(err){ conditionTrackerVisible = true; }
+  try{
     const rawNotes = await storageGet(MEDIA_NOTES_KEY);
     mediaNotes = rawNotes ? JSON.parse(rawNotes) : [];
   }catch(err){ mediaNotes = []; }
@@ -5011,6 +5102,61 @@ $('#calendarNextBtn').addEventListener('click', ()=>{
 });
 renderCalendar();
 
+/* --- 月別一覧：行=日付、列=種目タグの表で、その月の実施記録を一望する --- */
+const monthlyTableModal = $('#monthlyTableModal');
+let monthlyTableViewDate = new Date();
+function openMonthlyTableModal(){
+  monthlyTableViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth(), 1); // 開いた時点でカレンダー表示中の月に合わせる
+  renderMonthlyTable();
+  monthlyTableModal.classList.add('show');
+}
+function closeMonthlyTableModal(){
+  monthlyTableModal.classList.remove('show');
+}
+function renderMonthlyTable(){
+  const year = monthlyTableViewDate.getFullYear();
+  const month = monthlyTableViewDate.getMonth();
+  $('#monthlyTableMonthLabel').textContent = `${year}年 ${month+1}月`;
+
+  const columns = [...exerciseTags, UNCATEGORIZED_TAG]; // 列＝トレーニング分類タグ（種目設定ページのタグと同じもの）
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const today = new Date();
+  const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
+
+  let thead = '<thead><tr><th>日付</th>' + columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
+
+  let rows = '';
+  for(let d=1; d<=daysInMonth; d++){
+    const dateKey = formatDateKey(year, month, d);
+    const dow = weekdaysJP[new Date(year, month, d).getDay()];
+    const entries = getDayRecordEntries(dateKey);
+    const isToday = dateKey === todayKey;
+    const cells = columns.map(col=>{
+      const matched = entries.filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === col.name);
+      if(!matched.length) return '<td><span class="monthly-table-empty-cell">―</span></td>';
+      const cellHtml = matched.map(e =>
+        `<span class="monthly-table-entry"><span class="monthly-table-entry-name">${escapeHTML(e.name)}</span><span class="monthly-table-entry-summary"> ${escapeHTML(e.summary||'')}</span></span>`
+      ).join('');
+      return `<td>${cellHtml}</td>`;
+    }).join('');
+    rows += `<tr${isToday?' class="today"':''}><th>${d}日（${dow}）</th>${cells}</tr>`;
+  }
+  $('#monthlyTable').innerHTML = thead + '<tbody>' + rows + '</tbody>';
+}
+$('#monthlyTableBtn').addEventListener('click', openMonthlyTableModal);
+$('#monthlyTableCloseBtn').addEventListener('click', closeMonthlyTableModal);
+$('#monthlyTablePrevBtn').addEventListener('click', ()=>{
+  monthlyTableViewDate.setMonth(monthlyTableViewDate.getMonth()-1);
+  renderMonthlyTable();
+});
+$('#monthlyTableNextBtn').addEventListener('click', ()=>{
+  monthlyTableViewDate.setMonth(monthlyTableViewDate.getMonth()+1);
+  renderMonthlyTable();
+});
+monthlyTableModal.addEventListener('click', (e)=>{
+  if(e.target === monthlyTableModal) closeMonthlyTableModal();
+});
+
 /* --- 日付詳細モーダル：実施ステータスの閲覧 ＋ 手動記録の新規作成／編集／削除 --- */
 const dayDetailModal = $('#dayDetailModal');
 const dayDetailTitle = $('#dayDetailTitle');
@@ -5019,16 +5165,28 @@ const dayDetailList = $('#dayDetailList');
 const dayDetailFormPanel = $('#dayDetailFormPanel');
 let dayDetailCurrentDateKey = null;
 let weightLog = {}; // { 'YYYY-MM-DD': 数値 } 体重は任意入力。未入力の日はキー自体を持たない
+let conditionLog = {}; // { 'YYYY-MM-DD': 1〜5 } 体調評価（ワンタップ選択式）。未入力の日はキー自体を持たない
+let conditionTrackerVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
 
 function formatDateLabel(dateKey){
   const [y,m,d] = dateKey.split('-').map(Number);
   return `${y}年${m}月${d}日`;
 }
 
+function renderDayDetailConditionUI(){
+  $('#dayDetailConditionRow').style.display = conditionTrackerVisible ? 'flex' : 'none';
+  $('#dayDetailConditionShowBtn').style.display = conditionTrackerVisible ? 'none' : 'block';
+  const current = dayDetailCurrentDateKey ? conditionLog[dayDetailCurrentDateKey] : undefined;
+  $('#dayDetailConditionOptions').querySelectorAll('button').forEach(btn=>{
+    btn.classList.toggle('selected', current !== undefined && String(current) === btn.dataset.val);
+  });
+}
+
 function openDayDetailModal(dateKey){
   dayDetailCurrentDateKey = dateKey;
   dayDetailTitle.textContent = `${formatDateLabel(dateKey)}の記録`;
   dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
+  renderDayDetailConditionUI();
   dayDetailFormPanel.style.display = 'none';
   dayDetailFormPanel.innerHTML = '';
   renderDayDetailList();
@@ -5040,6 +5198,32 @@ function closeDayDetailModal(){
 }
 $('#dayDetailCloseBtn').addEventListener('click', closeDayDetailModal);
 dayDetailModal.addEventListener('click', (e)=>{ if(e.target === dayDetailModal) closeDayDetailModal(); });
+
+/* 体調評価：ワンタップで選択（同じものをもう一度押すと選択解除）。もう一度押して消せるので入力ミスの訂正も簡単 */
+$('#dayDetailConditionOptions').querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    if(!dayDetailCurrentDateKey) return;
+    const val = btn.dataset.val;
+    if(String(conditionLog[dayDetailCurrentDateKey]) === val){
+      delete conditionLog[dayDetailCurrentDateKey]; // 同じボタンをもう一度押したら選択解除
+    } else {
+      conditionLog[dayDetailCurrentDateKey] = Number(val);
+    }
+    renderDayDetailConditionUI();
+    await storageSet(CONDITION_LOG_KEY, JSON.stringify(conditionLog));
+  });
+});
+/* 使わない人向けの表示/非表示切り替え。設定は保存され、次回以降のモーダル表示にも引き継がれる */
+$('#dayDetailConditionHideBtn').addEventListener('click', async ()=>{
+  conditionTrackerVisible = false;
+  renderDayDetailConditionUI();
+  await storageSet(CONDITION_VISIBLE_KEY, 'false');
+});
+$('#dayDetailConditionShowBtn').addEventListener('click', async ()=>{
+  conditionTrackerVisible = true;
+  renderDayDetailConditionUI();
+  await storageSet(CONDITION_VISIBLE_KEY, 'true');
+});
 
 /* 体重入力：値を入れればその日の記録として保存、空にすればその日の記録を削除する（未入力＝データなし、0kgとは区別する） */
 dayDetailWeightInput.addEventListener('change', async ()=>{
@@ -5261,7 +5445,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY,
 ];
 
 async function collectBackupData(){
@@ -5321,6 +5505,7 @@ $('#aiExportRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(btn=>
   btn.addEventListener('click', ()=>{
     aiExportRangeMode = btn.dataset.range;
     $('#aiExportRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    $('#aiExportSingleRange').style.display = aiExportRangeMode === 'single' ? 'flex' : 'none';
     $('#aiExportCustomRange').style.display = aiExportRangeMode === 'custom' ? 'flex' : 'none';
   });
 });
@@ -5332,6 +5517,12 @@ function fmtDateKeyLocal(d){
 function computeAiExportRange(){
   const today = new Date();
   today.setHours(0,0,0,0);
+  if(aiExportRangeMode === 'single'){
+    const val = $('#aiExportSingleDate').value;
+    if(!val) return null;
+    const d = new Date(val + 'T00:00:00');
+    return [d, d];
+  }
   if(aiExportRangeMode === 'week'){
     const start = new Date(today);
     start.setDate(start.getDate() - start.getDay()); // 直近の日曜日まで戻る（カレンダー表示と同じ週の始まり）
@@ -5367,8 +5558,27 @@ function getPlannedItemsForDate(dateObj){
   });
   return planned;
 }
+/* 指定日の実施記録（インターバル記録のスナップショット＋カレンダーの手動記録）を、同じ形式でまとめて返す。
+   AI分析用エクスポートと、カレンダーの月別一覧テーブルの両方から共通で使う。 */
+function getDayRecordEntries(dateKey){
+  const entries = [];
+  const log = trainingLog[dateKey];
+  if(log){
+    Object.keys(log).forEach(itemId=>{
+      const resolved = resolveLogEntryDisplay(itemId, log[itemId]);
+      if(resolved) entries.push(resolved);
+    });
+  }
+  getManualEntriesForDate(dateKey).forEach(entry=>{
+    const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
+    entries.push({ name: entry.name, tagName: tag.name, tagColor: tag.color, summary: buildManualEntrySummary(entry) });
+  });
+  return entries;
+}
 function buildAiExportMarkdown(startDate, endDate){
-  const lines = [`# トレーニング記録（${fmtDateKeyLocal(startDate)} 〜 ${fmtDateKeyLocal(endDate)}）`, ''];
+  const isSingleDay = fmtDateKeyLocal(startDate) === fmtDateKeyLocal(endDate);
+  const titleRange = isSingleDay ? fmtDateKeyLocal(startDate) : `${fmtDateKeyLocal(startDate)} 〜 ${fmtDateKeyLocal(endDate)}`;
+  const lines = [`# トレーニング記録（${titleRange}）`, ''];
   const cursor = new Date(startDate);
   while(cursor <= endDate){
     const dateKey = fmtDateKeyLocal(cursor);
@@ -5378,18 +5588,7 @@ function buildAiExportMarkdown(startDate, endDate){
     lines.push(`## ${dateKey}（${dow}）${hasWeight ? ` 体重: ${weightVal}kg` : ''}`);
 
     // 実施記録：インターバル記録（スナップショット）と手動記録の両方をまとめる
-    const doneEntries = [];
-    const log = trainingLog[dateKey];
-    if(log){
-      Object.keys(log).forEach(itemId=>{
-        const resolved = resolveLogEntryDisplay(itemId, log[itemId]);
-        if(resolved) doneEntries.push(resolved);
-      });
-    }
-    getManualEntriesForDate(dateKey).forEach(entry=>{
-      const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
-      doneEntries.push({ name: entry.name, tagName: tag.name, summary: buildManualEntrySummary(entry) });
-    });
+    const doneEntries = getDayRecordEntries(dateKey);
     if(doneEntries.length){
       doneEntries.forEach(e=> lines.push(`- 実施: ${e.name}［${e.tagName}］ ${e.summary}`));
     } else {
@@ -5408,7 +5607,7 @@ function buildAiExportMarkdown(startDate, endDate){
 $('#aiExportBtn').addEventListener('click', ()=>{
   const range = computeAiExportRange();
   if(!range){
-    backupStatusText.textContent = '日付範囲を指定してください';
+    backupStatusText.textContent = aiExportRangeMode === 'single' ? '日付を指定してください' : '日付範囲を指定してください';
     return;
   }
   const [start, end] = range;
