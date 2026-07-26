@@ -757,10 +757,10 @@
   }
   .monthly-table thead th:first-child{ position:sticky; left:0; top:0; z-index:3; }
   .monthly-table tbody tr.today th, .monthly-table tbody tr.today td{ background:rgba(255,178,44,0.08); }
-  .monthly-table-entry{ display:block; font-size:11.5px; line-height:1.6; white-space:normal; }
-  .monthly-table-entry + .monthly-table-entry{ margin-top:4px; padding-top:4px; border-top:1px dashed var(--panel-hairline); }
-  .monthly-table-entry-name{ font-weight:700; }
-  .monthly-table-entry-summary{ color:var(--panel-muted); }
+  .monthly-table-entry{ display:block; font-size:11.5px; line-height:1.5; white-space:normal; }
+  .monthly-table-entry + .monthly-table-entry{ margin-top:6px; padding-top:6px; border-top:1px dashed var(--panel-hairline); }
+  .monthly-table-entry-name{ display:block; font-weight:700; }
+  .monthly-table-entry-summary{ display:block; color:var(--panel-muted); }
   .monthly-table-empty-cell{ color:var(--panel-muted); }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; }
   .modal-head h3{ margin:0; font-size:15px; letter-spacing:1px; font-weight:800; }
@@ -5135,7 +5135,7 @@ function renderMonthlyTable(){
       const matched = entries.filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === col.name);
       if(!matched.length) return '<td><span class="monthly-table-empty-cell">―</span></td>';
       const cellHtml = matched.map(e =>
-        `<span class="monthly-table-entry"><span class="monthly-table-entry-name">${escapeHTML(e.name)}</span><span class="monthly-table-entry-summary"> ${escapeHTML(e.summary||'')}</span></span>`
+        `<span class="monthly-table-entry"><span class="monthly-table-entry-name">${escapeHTML(e.name)}</span><span class="monthly-table-entry-summary">${escapeHTML(e.summary||'')}</span></span>`
       ).join('');
       return `<td>${cellHtml}</td>`;
     }).join('');
