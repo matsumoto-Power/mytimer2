@@ -326,7 +326,7 @@
   .timer-exercise-row.active{ border-color:var(--accent-amber); box-shadow:0 0 0 1px var(--accent-amber) inset; }
   .timer-exercise-tap-area{
     appearance:none; cursor:pointer; border:none; background:transparent; flex:1 1 auto; min-width:0;
-    text-align:left; padding:11px 4px 11px 12px; display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+    text-align:left; padding:11px 4px 11px 12px; display:flex; align-items:center; gap:6px 8px; flex-wrap:wrap;
   }
   .timer-exercise-row .video-ref-name{ font-weight:700; font-size:14px; color:var(--panel-text); flex:1 1 auto; min-width:44px; }
   .timer-exercise-row .video-ref-settings-summary{ font-size:13px; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:clip; }
@@ -497,8 +497,7 @@
   .weekday-pills button.free-memo-btn.active{ border-style:solid; color:#ffffff; }
   .weekday-pills button.routine-memo-btn{ margin-right:8px; border-style:dashed; border-color:var(--accent-rest); color:var(--accent-rest); }
   .weekday-pills button.routine-memo-btn.active{ border-style:solid; background:var(--accent-rest); color:#ffffff; }
-  #planDayPills button{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; display:inline-flex; align-items:center; gap:6px; }
-  .plan-day-pill-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  #planDayPills button{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
   #planDayPills button.dragging{ opacity:0.55; box-shadow:0 4px 14px rgba(0,0,0,0.25); cursor:grabbing; position:relative; z-index:5; }
   textarea{
     flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
@@ -791,6 +790,15 @@
   .tag-search-row-meta{ display:block; font-size:11.5px; color:var(--panel-muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .tag-search-row-day{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(128,128,128,0.15); color:var(--panel-muted); flex:0 0 auto; white-space:nowrap; }
   .tag-search-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:26px 12px; line-height:1.7; }
+
+  /* --- 日程タブ並び替えページ --- */
+  .day-reorder-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:55vh; }
+  .day-reorder-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    border:1px solid var(--panel-hairline); border-radius:12px; background:rgba(128,128,128,0.08); padding:10px 14px;
+  }
+  .day-reorder-row-name{ font-weight:700; font-size:14px; color:var(--panel-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .day-reorder-actions{ display:flex; gap:5px; flex:0 0 auto; }
   .backup-section{ display:flex; flex-direction:column; gap:8px; }
   .backup-section-title{ font-size:11.5px; font-weight:800; letter-spacing:1.5px; color:var(--panel-muted); text-transform:uppercase; }
   .backup-hint{ font-size:12px; color:var(--panel-muted); line-height:1.75; }
@@ -986,6 +994,7 @@
                 <div class="plan-day-edit-menu" id="planDayEditMenu" style="display:none;">
                   <button type="button" data-menu-act="create">＋ 新規作成</button>
                   <button type="button" data-menu-act="settings">⚙ 設定</button>
+                  <button type="button" data-menu-act="reorder">🔀 並び替え</button>
                   <button type="button" data-menu-act="copy">📋 別の日へコピー</button>
                   <button type="button" data-menu-act="delete">🗑 削除</button>
                 </div>
@@ -1228,6 +1237,21 @@
     <div class="tag-search-hint">タグを選ぶと、日程タブを横断してそのタグが付いた種目を一覧表示します。結果をタップすると、そのまま編集できます。</div>
     <div class="tag-search-chip-row" id="tagSearchChipRow"></div>
     <div class="tag-search-results" id="tagSearchResults"></div>
+  </div>
+</div>
+
+<!-- 日程タブの並び替え：一覧から↑↓で順序を変更する専用ページ -->
+<div class="modal-overlay" id="dayReorderModal">
+  <div class="panel modal-box" id="dayReorderBox">
+    <div class="modal-head">
+      <h3>🔀 日程タブの並び替え</h3>
+      <button class="modal-close" id="dayReorderCloseBtn">✕</button>
+    </div>
+    <div class="tag-search-hint">↑↓で日程タブの並び順を変更できます。ここでの順番が、種目設定ページのタブの並びにそのまま反映されます。</div>
+    <div class="day-reorder-list" id="dayReorderList"></div>
+    <div class="day-copy-actions">
+      <button type="button" class="preset-full-btn save" id="dayReorderDoneBtn">閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -3256,12 +3280,18 @@ function renderPlanDayPills(){
   const tabs = getAllPlanDayTabs();
   if(!selectedPlanDay || !tabs.some(t=>t.key===selectedPlanDay)) selectedPlanDay = tabs[0] ? tabs[0].key : '';
   wrap.innerHTML = tabs.map(t=>{
-    // 「設定」で編集した個別カラー（毎日／日付指定／フリープランのみ持つ）を、ピルの色ドットとして反映する。
-    // これまでdayTagColorを保存はしていたが、どこにも表示に使っておらず「編集しても反映されない」原因になっていたため追加。
+    // 「設定」で編集した個別カラー（毎日／日付指定／フリープランのみ持つ）を、ピルに反映する。
+    // 未選択時はそのカラーの破線ボーダー、選択中はそのカラーで塗りつぶす。
     const rec = getEffectiveRecurrence(t.key);
     const ownColor = recurrenceHasOwnColor(rec) ? dayTagColor[t.key] : null;
-    const dot = ownColor ? `<span class="plan-day-pill-dot" style="background:${ownColor};"></span>` : '';
-    return `<button data-day="${t.key}" class="${t.key===selectedPlanDay?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}">${dot}${t.label}</button>`;
+    const isActive = t.key===selectedPlanDay;
+    const cls = `${isActive?'active':''}${(t.key===FREE_PLAN_KEY||t.key==='restday'||t.key==='holiday')?' free-memo-btn':''}${t.key===ROUTINE_KEY?' routine-memo-btn':''}${ownColor?' has-own-color':''}`;
+    const styleAttr = ownColor
+      ? (isActive
+          ? ` style="background:${ownColor}; border-color:${ownColor}; border-style:solid; color:#ffffff;"`
+          : ` style="border-style:dashed; border-color:${ownColor}; color:${ownColor}; background:transparent;"`)
+      : '';
+    return `<button data-day="${t.key}" class="${cls}"${styleAttr}>${t.label}</button>`;
   }).join('');
   let justDragged = false;
   $$('#planDayPills button').forEach(btn=>{
@@ -3338,11 +3368,12 @@ if(planDayEditBtn && planDayEditMenu){
   planDayEditMenu.querySelectorAll('[data-menu-act]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
       e.stopPropagation();
-      const act = btn.dataset.menuAct; // 'create' | 'settings' | 'delete'
+      const act = btn.dataset.menuAct; // 'create' | 'settings' | 'reorder' | 'copy' | 'delete'
       planDayEditMenu.style.display = 'none';
       if(act === 'delete') openDayDeleteModal();
       if(act === 'create') openDayCreatePanel();
       if(act === 'settings') openDayEditTargetPanel();
+      if(act === 'reorder') openDayReorderModal();
       if(act === 'copy') openDayCopyModal();
     });
   });
@@ -3635,7 +3666,12 @@ function openDayCopyModal(){
     });
   });
 
+  // コピー先候補：通常の日程タブに加えて、「今日の追加メニュー」（今日の日付に紐づくその場限りの登録先）も選べるようにする
+  const todayAdhocKey = getTodayAdhocKey();
   const targets = tabs.filter(t => t.key !== selectedPlanDay);
+  if(todayAdhocKey !== selectedPlanDay){
+    targets.push({ key: todayAdhocKey, label: '📅 今日の追加メニュー' });
+  }
   dayCopyList.innerHTML = targets.length
     ? targets.map(t => `
         <button type="button" class="day-copy-row" data-day="${t.key}">
@@ -3780,6 +3816,59 @@ $('#tagSearchBtn').addEventListener('click', openTagSearchModal);
 $('#tagSearchCloseBtn').addEventListener('click', closeTagSearchModal);
 tagSearchModal.addEventListener('click', (e)=>{
   if(e.target === tagSearchModal) closeTagSearchModal();
+});
+
+/* --- 日程タブの並び替え：ドラッグではなく一覧＋↑↓ボタンで確実に並び替えられる専用ページ --- */
+const dayReorderModal = $('#dayReorderModal');
+const dayReorderList = $('#dayReorderList');
+let dayReorderWorkingOrder = []; // 作業用の並び順（keyの配列）
+
+function openDayReorderModal(){
+  closeDayInlinePanel();
+  dayReorderWorkingOrder = getAllPlanDayTabs().map(t => t.key); // 現在の表示順をそのまま初期状態にする
+  renderDayReorderList();
+  dayReorderModal.classList.add('show');
+}
+function closeDayReorderModal(){
+  dayReorderModal.classList.remove('show');
+}
+function renderDayReorderList(){
+  const labelMap = {};
+  getAllPlanDayTabs().forEach(t => { labelMap[t.key] = t.label; });
+  dayReorderList.innerHTML = dayReorderWorkingOrder.map((key,i)=>`
+    <div class="day-reorder-row">
+      <span class="day-reorder-row-name">${escapeHTML(labelMap[key] || key)}</span>
+      <div class="day-reorder-actions">
+        <button type="button" class="circuit-step-btn" data-act="up" data-key="${key}" ${i===0?'disabled':''}>↑</button>
+        <button type="button" class="circuit-step-btn" data-act="down" data-key="${key}" ${i===dayReorderWorkingOrder.length-1?'disabled':''}>↓</button>
+      </div>
+    </div>
+  `).join('');
+  dayReorderList.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const key = btn.dataset.key;
+      const idx = dayReorderWorkingOrder.indexOf(key);
+      const act = btn.dataset.act;
+      if(act==='up' && idx>0){
+        [dayReorderWorkingOrder[idx-1], dayReorderWorkingOrder[idx]] = [dayReorderWorkingOrder[idx], dayReorderWorkingOrder[idx-1]];
+      } else if(act==='down' && idx<dayReorderWorkingOrder.length-1){
+        [dayReorderWorkingOrder[idx+1], dayReorderWorkingOrder[idx]] = [dayReorderWorkingOrder[idx], dayReorderWorkingOrder[idx+1]];
+      } else {
+        return;
+      }
+      dayTabOrder = dayReorderWorkingOrder.slice();
+      await saveDayTabOrder();
+      renderDayReorderList();
+      // 裏で開いている種目設定ページのタブ並びにも即座に反映する
+      renderPlanDayPills();
+      renderExerciseItemList();
+    });
+  });
+}
+$('#dayReorderCloseBtn').addEventListener('click', closeDayReorderModal);
+$('#dayReorderDoneBtn').addEventListener('click', closeDayReorderModal);
+dayReorderModal.addEventListener('click', (e)=>{
+  if(e.target === dayReorderModal) closeDayReorderModal();
 });
 
 /* --- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定の独立機能） --- */
