@@ -804,6 +804,18 @@
   .backup-hint{ font-size:12px; color:var(--panel-muted); line-height:1.75; }
   .backup-status{ font-size:12.5px; color:var(--panel-text); min-height:16px; line-height:1.6; }
   .backup-divider{ height:1px; background:var(--panel-hairline); }
+  .ai-export-range-toggle{ display:flex; gap:6px; }
+  .ai-export-range-btn{
+    flex:1; appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); border-radius:10px; padding:9px 6px;
+    font-size:12px; font-weight:700; background:rgba(128,128,128,0.08); color:var(--panel-muted); transition: all .15s ease;
+  }
+  .ai-export-range-btn.active{ background:var(--accent-amber); color:#ffffff; border-color:var(--accent-amber); }
+  .ai-export-custom-range{ display:flex; align-items:center; gap:8px; }
+  .ai-export-custom-range input[type="date"]{
+    flex:1; padding:9px 10px; border-radius:10px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:13px; font-family:inherit;
+  }
+  .ai-export-custom-range span{ color:var(--panel-muted); font-size:12px; flex:0 0 auto; }
   #backupFileInput{ display:none; }
   .day-detail-weight-row{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -1211,6 +1223,22 @@
       <h3>💾 データのバックアップ／復元</h3>
       <button class="modal-close" id="backupCloseBtn">✕</button>
     </div>
+    <div class="backup-section">
+      <div class="backup-section-title">📊 AI分析用エクスポート</div>
+      <div class="backup-hint">指定した期間について、「日付・曜日」「実施した種目名・タグ・実施内容（回数×セット、またはwork/rest×セット）」「その日の体重（記録があれば）」「その日程タブで本来予定していたメニュー」を、シンプルなMarkdown形式で書き出します。AIチャットにそのまま貼り付けて、傾向分析や改善提案を頼みたいときにお使いください。</div>
+      <div class="ai-export-range-toggle" id="aiExportRangeToggle">
+        <button type="button" class="ai-export-range-btn active" data-range="week">今週</button>
+        <button type="button" class="ai-export-range-btn" data-range="month">今月</button>
+        <button type="button" class="ai-export-range-btn" data-range="custom">日付範囲を指定</button>
+      </div>
+      <div class="ai-export-custom-range" id="aiExportCustomRange" style="display:none;">
+        <input type="date" id="aiExportFromDate">
+        <span>〜</span>
+        <input type="date" id="aiExportToDate">
+      </div>
+      <button type="button" class="preset-full-btn save" id="aiExportBtn">⬇ Markdownを書き出す</button>
+    </div>
+    <div class="backup-divider"></div>
     <div class="backup-section">
       <div class="backup-section-title">書き出し（エクスポート）</div>
       <div class="backup-hint">種目設定・実施記録（インターバル画面のチェック履歴／カレンダーの手動記録）・タグ・日程タブ・背景画像・各種設定を、すべて1つのJSONファイルにまとめてダウンロードします。機種変更やブラウザのキャッシュ削除に備えて、定期的な書き出しをおすすめします。</div>
@@ -5255,6 +5283,17 @@ function downloadJSONFile(filename, obj){
   document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 1000);
 }
+function downloadTextFile(filename, text){
+  const blob = new Blob([text], { type:'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
 function backupFilenameTimestamp(d){
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
@@ -5274,6 +5313,108 @@ $('#mediaBackupBtn').addEventListener('click', openBackupModal);
 $('#backupCloseBtn').addEventListener('click', closeBackupModal);
 backupModal.addEventListener('click', (e)=>{
   if(e.target === backupModal) closeBackupModal();
+});
+
+/* --- AI分析用エクスポート：指定期間の実施記録・体重・予定メニューを、AIに貼り付けやすいシンプルなMarkdownで書き出す --- */
+let aiExportRangeMode = 'week';
+$('#aiExportRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    aiExportRangeMode = btn.dataset.range;
+    $('#aiExportRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    $('#aiExportCustomRange').style.display = aiExportRangeMode === 'custom' ? 'flex' : 'none';
+  });
+});
+function fmtDateKeyLocal(d){
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function computeAiExportRange(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  if(aiExportRangeMode === 'week'){
+    const start = new Date(today);
+    start.setDate(start.getDate() - start.getDay()); // 直近の日曜日まで戻る（カレンダー表示と同じ週の始まり）
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return [start, end];
+  }
+  if(aiExportRangeMode === 'month'){
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth()+1, 0);
+    return [start, end];
+  }
+  // カスタム範囲
+  const fromVal = $('#aiExportFromDate').value;
+  const toVal = $('#aiExportToDate').value;
+  if(!fromVal || !toVal) return null;
+  const start = new Date(fromVal + 'T00:00:00');
+  const end = new Date(toVal + 'T00:00:00');
+  return start <= end ? [start, end] : [end, start];
+}
+/* 指定日に「本来予定していたメニュー」を、日程タブの周期設定から算出する。
+   毎日／その曜日のタブのみが対象（日付指定・フリープランは特定の日付に自動で紐付く仕組みがまだ無いため対象外） */
+function getPlannedItemsForDate(dateObj){
+  const dow = DOW_KEYS[dateObj.getDay()];
+  const planned = [];
+  getAllPlanDayTabs().forEach(t=>{
+    const rec = getEffectiveRecurrence(t.key);
+    if(rec !== 'everyday' && rec !== dow) return;
+    (trainingPlan[t.key] || []).forEach(it=>{
+      if(!it.name || !it.name.trim()) return;
+      planned.push(`${it.name}（${t.label}／${buildExerciseSettingsSummary(it)}）`);
+    });
+  });
+  return planned;
+}
+function buildAiExportMarkdown(startDate, endDate){
+  const lines = [`# トレーニング記録（${fmtDateKeyLocal(startDate)} 〜 ${fmtDateKeyLocal(endDate)}）`, ''];
+  const cursor = new Date(startDate);
+  while(cursor <= endDate){
+    const dateKey = fmtDateKeyLocal(cursor);
+    const dow = weekdaysJP[cursor.getDay()];
+    const weightVal = weightLog[dateKey];
+    const hasWeight = weightVal !== undefined && weightVal !== null && weightVal !== '';
+    lines.push(`## ${dateKey}（${dow}）${hasWeight ? ` 体重: ${weightVal}kg` : ''}`);
+
+    // 実施記録：インターバル記録（スナップショット）と手動記録の両方をまとめる
+    const doneEntries = [];
+    const log = trainingLog[dateKey];
+    if(log){
+      Object.keys(log).forEach(itemId=>{
+        const resolved = resolveLogEntryDisplay(itemId, log[itemId]);
+        if(resolved) doneEntries.push(resolved);
+      });
+    }
+    getManualEntriesForDate(dateKey).forEach(entry=>{
+      const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
+      doneEntries.push({ name: entry.name, tagName: tag.name, summary: buildManualEntrySummary(entry) });
+    });
+    if(doneEntries.length){
+      doneEntries.forEach(e=> lines.push(`- 実施: ${e.name}［${e.tagName}］ ${e.summary}`));
+    } else {
+      lines.push('- 実施記録なし');
+    }
+
+    // その日に本来予定されていたメニュー
+    const planned = getPlannedItemsForDate(cursor);
+    if(planned.length) lines.push(`- 予定: ${planned.join(' / ')}`);
+
+    lines.push('');
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return lines.join('\n');
+}
+$('#aiExportBtn').addEventListener('click', ()=>{
+  const range = computeAiExportRange();
+  if(!range){
+    backupStatusText.textContent = '日付範囲を指定してください';
+    return;
+  }
+  const [start, end] = range;
+  const md = buildAiExportMarkdown(start, end);
+  downloadTextFile(`training-export-${fmtDateKeyLocal(start)}_${fmtDateKeyLocal(end)}.md`, md);
+  backupStatusText.textContent = 'Markdownを書き出しました ✓ ダウンロードフォルダをご確認ください。';
 });
 
 $('#backupExportBtn').addEventListener('click', async ()=>{
