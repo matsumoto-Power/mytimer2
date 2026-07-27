@@ -310,9 +310,13 @@
   .ctrl-btn.muted{ background:rgba(128,128,128,0.18) !important; color:var(--panel-muted) !important; border:1px solid var(--panel-hairline); }
   .ctrl-btn:disabled{ opacity:0.4; cursor:not-allowed; }
 
-  .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
+  .settings-card{ flex:1 1 260px; min-width:240px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; min-height:0; }
   .settings-title{ font-weight:800; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:8px;}
-  .timer-exercise-list{ display:flex; flex-direction:column; gap:8px; }
+  /* 種目数が多い場合でも、リングタイマー（.ring-card）は画面に固定されたまま、この一覧部分だけが内部スクロールするようにする */
+  .timer-exercise-list{ display:flex; flex-direction:column; gap:8px; max-height:44vh; overflow-y:auto; padding-right:2px; }
+  @media (orientation: landscape){
+    .timer-exercise-list{ max-height:60vh; }
+  }
   .timer-exercise-list.locked{ opacity:0.55; pointer-events:none; }
   .timer-exercise-empty{ font-size:12px; color:var(--panel-muted); line-height:1.7; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:10px; padding:14px; text-align:center; }
   .timer-adhoc-divider{ font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--panel-muted); margin:10px 0 2px; padding-left:2px; }
@@ -497,8 +501,7 @@
   .weekday-pills button.free-memo-btn.active{ border-style:solid; color:#ffffff; }
   .weekday-pills button.routine-memo-btn{ margin-right:8px; border-style:dashed; border-color:var(--accent-rest); color:var(--accent-rest); }
   .weekday-pills button.routine-memo-btn.active{ border-style:solid; background:var(--accent-rest); color:#ffffff; }
-  #planDayPills button{ touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
-  #planDayPills button.dragging{ opacity:0.55; box-shadow:0 4px 14px rgba(0,0,0,0.25); cursor:grabbing; position:relative; z-index:5; }
+  #planDayPills button{ cursor:pointer; }
   textarea{
     flex:1; min-height:120px; resize:vertical; border-radius:14px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); padding:14px; font-size:14px; font-family:'Inter',sans-serif; line-height:1.6;
@@ -877,6 +880,21 @@
   }
   .day-detail-condition-options button.selected{ background:rgba(255,178,44,0.18); border-color:var(--accent-amber); transform:scale(1.08); }
   .day-detail-list{ display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
+  .day-detail-daytag-section{ display:flex; flex-direction:column; gap:8px; }
+  .day-detail-daytag-section label{ font-size:13px; font-weight:700; color:var(--panel-text); }
+  .day-detail-daytag-hint{ font-size:11px; color:var(--panel-muted); line-height:1.6; }
+  .day-detail-daytag-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .day-detail-daytag-chip{
+    appearance:none; cursor:pointer; border-radius:999px; padding:8px 14px; font-size:12.5px; font-weight:700;
+    transition: all .15s ease; white-space:nowrap;
+  }
+  .day-detail-note-row{ display:flex; flex-direction:column; gap:6px; }
+  .day-detail-note-row label{ font-size:13px; font-weight:700; color:var(--panel-text); }
+  .day-detail-note-row input{
+    padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:13px; font-family:inherit;
+  }
+  .day-detail-note-row input:focus{ outline:2px solid var(--accent-amber); }
   .day-detail-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px 8px; }
   .day-detail-row{
     display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; flex-wrap:wrap;
@@ -1227,6 +1245,15 @@
       </div>
     </div>
     <button type="button" class="day-detail-condition-toggle-btn day-detail-condition-show-btn" id="dayDetailConditionShowBtn" style="display:none;">＋ 体調評価を表示する</button>
+    <div class="day-detail-note-row">
+      <label for="dayDetailNoteInput">📝 一言メモ</label>
+      <input type="text" id="dayDetailNoteInput" placeholder="今日の一言（例：筋肉痛がひどい、寝不足など）" maxlength="200">
+    </div>
+    <div class="day-detail-daytag-section" id="dayDetailDaytagSection" style="display:none;">
+      <label>📌 この日の日程タブ</label>
+      <div class="day-detail-daytag-hint">タップすると、この日付を「日付指定」「フリープラン」タブに紐づけ／解除できます。紐づけた日はインターバル画面に自動で表示されます。</div>
+      <div class="day-detail-daytag-chips" id="dayDetailDaytagChips"></div>
+    </div>
     <div class="day-detail-list" id="dayDetailList"></div>
     <button type="button" class="modal-add-btn" id="dayDetailAddBtn">＋ 新規作成</button>
     <div class="plan-day-inline-panel" id="dayDetailFormPanel" style="display:none;"></div>
@@ -2839,7 +2866,9 @@ function renderTimerExerciseList(){
 
   const everydayGroups = [];  // 周期=毎日のタブ
   const weekdayGroups = [];   // 周期=今日の曜日のタブ
-  const freeplanGroups = [];  // 周期=フリープランのタブ
+  const freeplanGroups = [];  // 周期=フリープランのタブ（手動選択プルダウン用。日付紐づけの有無に関わらず常に候補として出す）
+  const boundTodayGroups = []; // 日付指定／フリープランのうち、今日の日付にカレンダー側等で明示的に紐づけられたタブ
+  const todayDateObj = new Date();
   tabs.forEach(t=>{
     const rec = getEffectiveRecurrence(t.key);
     const items = (trainingPlan[t.key]||[]).filter(it => it.name && it.name.trim());
@@ -2847,6 +2876,9 @@ function renderTimerExerciseList(){
     if(rec === 'everyday') everydayGroups.push({tab:t, items});
     else if(rec === todayDow) weekdayGroups.push({tab:t, items});
     else if(rec === 'freeplan') freeplanGroups.push({tab:t, items});
+    if((rec === 'once' || rec === 'freeplan') && isDayTabActiveOnDate(t.key, todayDateObj)){
+      boundTodayGroups.push({tab:t, items});
+    }
   });
   const adhocItems = getTodayAdhocItems().filter(it => it.name && it.name.trim());
 
@@ -2863,7 +2895,12 @@ function renderTimerExerciseList(){
     weekdayGroups.forEach(g=>{ html += g.items.map(item => buildTimerExerciseRowHTML(item, g.tab.key)).join(''); });
   }
 
-  if(!everydayGroups.length && !weekdayGroups.length){
+  if(boundTodayGroups.length){
+    html += '<div class="timer-adhoc-divider">📌 今日の予定</div>';
+    boundTodayGroups.forEach(g=>{ html += g.items.map(item => buildTimerExerciseRowHTML(item, g.tab.key)).join(''); });
+  }
+
+  if(!everydayGroups.length && !weekdayGroups.length && !boundTodayGroups.length){
     html += '<div class="timer-exercise-empty">今日実行する種目がまだ登録されていません。種目設定ページの日程タブで「周期」を設定してください。</div>';
   }
 
@@ -3200,6 +3237,32 @@ const MEDIA_TAGS_KEY = 'media-tags';
 const WEIGHT_LOG_KEY = 'weight-log';
 const CONDITION_LOG_KEY = 'condition-log';
 const CONDITION_VISIBLE_KEY = 'condition-tracker-visible';
+const DAY_NOTE_LOG_KEY = 'day-note-log';
+const DAY_TAG_DATES_KEY = 'day-tag-dates';
+let dayTagDates = {}; // { [tabKey]: ['YYYY-MM-DD', ...] } 日付指定／フリープランタブに紐づけた具体的な日付
+async function saveDayTagDates(){ await storageSet(DAY_TAG_DATES_KEY, JSON.stringify(dayTagDates)); }
+function isDateBoundToTab(tabKey, dateKey){
+  return (dayTagDates[tabKey] || []).includes(dateKey);
+}
+async function toggleDateBoundToTab(tabKey, dateKey){
+  const list = dayTagDates[tabKey] || (dayTagDates[tabKey] = []);
+  const idx = list.indexOf(dateKey);
+  if(idx === -1) list.push(dateKey); else list.splice(idx, 1);
+  if(list.length === 0) delete dayTagDates[tabKey];
+  await saveDayTagDates();
+}
+/* 指定した日程タブが、指定した日付（Dateオブジェクト）に実施対象として自動的に紐づくかどうかを判定する。
+   毎日／曜日は既存通りの判定。日付指定・フリープランは、カレンダー等から明示的に紐づけた日付のみが対象になる。 */
+function isDayTabActiveOnDate(tabKey, dateObj){
+  const rec = getEffectiveRecurrence(tabKey);
+  if(rec === 'everyday') return true;
+  if(DOW_KEYS.includes(rec)) return rec === DOW_KEYS[dateObj.getDay()];
+  if(rec === 'once' || rec === 'freeplan'){
+    const dateKey = formatDateKey(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    return isDateBoundToTab(tabKey, dateKey);
+  }
+  return false;
+}
 const FREE_PLAN_KEY = 'freeplan';
 const ROUTINE_KEY = 'routine';
 const planDayDefs = [
@@ -3320,6 +3383,10 @@ async function deletePlanDayTab(key){
     delete dayTagColor[key];
     await saveDayTagColor();
   }
+  if(dayTagDates[key] !== undefined){
+    delete dayTagDates[key];
+    await saveDayTagDates();
+  }
   await saveDeletedDayKeys();
   await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
 
@@ -3404,65 +3471,12 @@ function renderPlanDayPills(){
       : '';
     return `<button data-day="${t.key}" class="${cls}"${styleAttr}>${t.label}</button>`;
   }).join('');
-  let justDragged = false;
   $$('#planDayPills button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(justDragged){ justDragged = false; return; } // ドラッグ操作の直後のクリック（並び替え確定時）は無視する
       selectedPlanDay = btn.dataset.day;
       openExerciseItemId = null;
       renderPlanDayPills();
       renderExerciseItemList();
-    });
-  });
-  attachDayPillDragReorder(wrap, ()=>{ justDragged = true; });
-}
-
-/* 日程タブの並び替え：今の横並びピルの見た目のまま、指/マウスでドラッグして順番を入れ替えられるようにする */
-function attachDayPillDragReorder(wrap, onDragEnd){
-  let dragEl = null, startX = 0, moved = false, pointerId = null;
-  const THRESHOLD = 6;
-
-  function onPointerMove(e){
-    if(!dragEl) return;
-    if(!moved && Math.abs(e.clientX - startX) > THRESHOLD) moved = true;
-    if(!moved) return;
-    dragEl.classList.add('dragging');
-    const siblings = Array.from(wrap.children);
-    const dragIndex = siblings.indexOf(dragEl);
-    for(let i=0;i<siblings.length;i++){
-      const sib = siblings[i];
-      if(sib === dragEl) continue;
-      const r = sib.getBoundingClientRect();
-      const center = r.left + r.width/2;
-      if(i < dragIndex && e.clientX < center){ wrap.insertBefore(dragEl, sib); break; }
-      if(i > dragIndex && e.clientX > center){ wrap.insertBefore(dragEl, sib.nextSibling); break; }
-    }
-  }
-  function onPointerUp(){
-    if(!dragEl) return;
-    dragEl.classList.remove('dragging');
-    wrap.removeEventListener('pointermove', onPointerMove);
-    wrap.removeEventListener('pointerup', onPointerUp);
-    wrap.removeEventListener('pointercancel', onPointerUp);
-    const wasMoved = moved;
-    dragEl = null; moved = false;
-    if(wasMoved){
-      dayTabOrder = Array.from(wrap.children).map(el => el.dataset.day);
-      saveDayTabOrder();
-      onDragEnd();
-    }
-  }
-  wrap.querySelectorAll('button[data-day]').forEach(btn=>{
-    btn.addEventListener('pointerdown', (e)=>{
-      if(e.button !== 0 && e.pointerType === 'mouse') return;
-      dragEl = btn;
-      startX = e.clientX;
-      moved = false;
-      pointerId = e.pointerId;
-      try{ btn.setPointerCapture(pointerId); }catch(err){}
-      wrap.addEventListener('pointermove', onPointerMove);
-      wrap.addEventListener('pointerup', onPointerUp);
-      wrap.addEventListener('pointercancel', onPointerUp);
     });
   });
 }
@@ -4373,9 +4387,13 @@ function attachExerciseItemEvents(item){
 
   const memoInput = root.querySelector('.ei-memo-input');
   if(memoInput){
-    const autoResizeMemo = () => { memoInput.style.height = 'auto'; memoInput.style.height = memoInput.scrollHeight + 'px'; };
-    autoResizeMemo();
-    memoInput.addEventListener('input', autoResizeMemo);
+    const collapsedHeight = 44; // CSSのmin-height（1行分）と合わせる
+    const expandMemo = () => { memoInput.style.overflowY = 'auto'; memoInput.style.height = 'auto'; memoInput.style.height = Math.max(memoInput.scrollHeight, collapsedHeight) + 'px'; };
+    const collapseMemo = () => { memoInput.style.overflowY = 'hidden'; memoInput.style.height = collapsedHeight + 'px'; };
+    collapseMemo(); // 未記入・記入済みに関わらず、初期状態は1行に閉じておく
+    memoInput.addEventListener('focus', expandMemo);   // 閲覧・編集のためタップしたら展開
+    memoInput.addEventListener('input', expandMemo);    // 入力中は展開したまま
+    memoInput.addEventListener('blur', collapseMemo);   // 入力・閲覧が終わったら1行に閉じる
     memoInput.addEventListener('change', ()=>{ item.memo=memoInput.value; schedulePlanSave(); });
   }
 
@@ -5015,6 +5033,14 @@ async function loadTrainingPlan(){
     conditionTrackerVisible = rawConditionVisible === null ? true : rawConditionVisible === 'true';
   }catch(err){ conditionTrackerVisible = true; }
   try{
+    const rawDayTagDates = await storageGet(DAY_TAG_DATES_KEY);
+    dayTagDates = rawDayTagDates ? JSON.parse(rawDayTagDates) : {};
+  }catch(err){ dayTagDates = {}; }
+  try{
+    const rawDayNotes = await storageGet(DAY_NOTE_LOG_KEY);
+    dayNoteLog = rawDayNotes ? JSON.parse(rawDayNotes) : {};
+  }catch(err){ dayNoteLog = {}; }
+  try{
     const rawNotes = await storageGet(MEDIA_NOTES_KEY);
     mediaNotes = rawNotes ? JSON.parse(rawNotes) : [];
   }catch(err){ mediaNotes = []; }
@@ -5123,7 +5149,7 @@ function renderMonthlyTable(){
   const today = new Date();
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
 
-  let thead = '<thead><tr><th>日付</th>' + columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
+  let thead = '<thead><tr><th>日付</th><th>体重</th>' + columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
 
   let rows = '';
   for(let d=1; d<=daysInMonth; d++){
@@ -5131,6 +5157,9 @@ function renderMonthlyTable(){
     const dow = weekdaysJP[new Date(year, month, d).getDay()];
     const entries = getDayRecordEntries(dateKey);
     const isToday = dateKey === todayKey;
+    const weightVal = weightLog[dateKey];
+    const hasWeight = weightVal !== undefined && weightVal !== null && weightVal !== '';
+    const weightCell = hasWeight ? `${escapeHTML(String(weightVal))}kg` : '<span class="monthly-table-empty-cell">―</span>';
     const cells = columns.map(col=>{
       const matched = entries.filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === col.name);
       if(!matched.length) return '<td><span class="monthly-table-empty-cell">―</span></td>';
@@ -5139,7 +5168,7 @@ function renderMonthlyTable(){
       ).join('');
       return `<td>${cellHtml}</td>`;
     }).join('');
-    rows += `<tr${isToday?' class="today"':''}><th>${d}日（${dow}）</th>${cells}</tr>`;
+    rows += `<tr${isToday?' class="today"':''}><th>${d}日（${dow}）</th><td>${weightCell}</td>${cells}</tr>`;
   }
   $('#monthlyTable').innerHTML = thead + '<tbody>' + rows + '</tbody>';
 }
@@ -5167,6 +5196,8 @@ let dayDetailCurrentDateKey = null;
 let weightLog = {}; // { 'YYYY-MM-DD': 数値 } 体重は任意入力。未入力の日はキー自体を持たない
 let conditionLog = {}; // { 'YYYY-MM-DD': 1〜5 } 体調評価（ワンタップ選択式）。未入力の日はキー自体を持たない
 let conditionTrackerVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
+let dayNoteLog = {}; // { 'YYYY-MM-DD': '一言メモの文字列' } 未入力の日はキー自体を持たない
+let dayNoteSaveTimeout = null;
 
 function formatDateLabel(dateKey){
   const [y,m,d] = dateKey.split('-').map(Number);
@@ -5182,16 +5213,59 @@ function renderDayDetailConditionUI(){
   });
 }
 
+function renderDayDetailDaytagChips(){
+  const section = $('#dayDetailDaytagSection');
+  const chipsWrap = $('#dayDetailDaytagChips');
+  if(!dayDetailCurrentDateKey) return;
+  // 「日付指定」「フリープラン」の周期を持つ日程タブだけを候補にする（曜日／毎日は自動判定のため対象外）
+  const candidates = getAllPlanDayTabs().filter(t=>{
+    const rec = getEffectiveRecurrence(t.key);
+    return rec === 'once' || rec === 'freeplan';
+  });
+  if(!candidates.length){
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'flex';
+  chipsWrap.innerHTML = candidates.map(t=>{
+    const bound = isDateBoundToTab(t.key, dayDetailCurrentDateKey);
+    const color = dayTagColor[t.key] || 'var(--accent-amber)';
+    const style = bound
+      ? `background:${color}; color:#ffffff;`
+      : `background:${color}29; color:${color}; border:1px solid ${color}59;`;
+    return `<button type="button" class="day-detail-daytag-chip" data-day="${t.key}" style="${style}">${bound?'✓ ':''}${escapeHTML(t.label)}</button>`;
+  }).join('');
+  chipsWrap.querySelectorAll('.day-detail-daytag-chip').forEach(chip=>{
+    chip.addEventListener('click', async ()=>{
+      await toggleDateBoundToTab(chip.dataset.day, dayDetailCurrentDateKey);
+      renderDayDetailDaytagChips();
+      renderTimerExerciseList(); // インターバル画面の「今日の予定」表示にも即反映
+      if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
+    });
+  });
+}
 function openDayDetailModal(dateKey){
   dayDetailCurrentDateKey = dateKey;
   dayDetailTitle.textContent = `${formatDateLabel(dateKey)}の記録`;
   dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
+  $('#dayDetailNoteInput').value = dayNoteLog[dateKey] || '';
   renderDayDetailConditionUI();
+  renderDayDetailDaytagChips();
   dayDetailFormPanel.style.display = 'none';
   dayDetailFormPanel.innerHTML = '';
   renderDayDetailList();
   dayDetailModal.classList.add('show');
 }
+$('#dayDetailNoteInput').addEventListener('input', (e)=>{
+  if(!dayDetailCurrentDateKey) return;
+  const val = e.target.value;
+  if(dayNoteSaveTimeout) clearTimeout(dayNoteSaveTimeout);
+  dayNoteSaveTimeout = setTimeout(async ()=>{
+    if(val.trim()){ dayNoteLog[dayDetailCurrentDateKey] = val; }
+    else { delete dayNoteLog[dayDetailCurrentDateKey]; }
+    await storageSet(DAY_NOTE_LOG_KEY, JSON.stringify(dayNoteLog));
+  }, 500);
+});
 function closeDayDetailModal(){
   dayDetailModal.classList.remove('show');
   dayDetailCurrentDateKey = null;
@@ -5445,7 +5519,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY,
 ];
 
 async function collectBackupData(){
@@ -5544,13 +5618,11 @@ function computeAiExportRange(){
   return start <= end ? [start, end] : [end, start];
 }
 /* 指定日に「本来予定していたメニュー」を、日程タブの周期設定から算出する。
-   毎日／その曜日のタブのみが対象（日付指定・フリープランは特定の日付に自動で紐付く仕組みがまだ無いため対象外） */
+   毎日／その曜日のタブに加え、日付指定・フリープランタブのうちその日付に明示的に紐づけられているものも対象にする。 */
 function getPlannedItemsForDate(dateObj){
-  const dow = DOW_KEYS[dateObj.getDay()];
   const planned = [];
   getAllPlanDayTabs().forEach(t=>{
-    const rec = getEffectiveRecurrence(t.key);
-    if(rec !== 'everyday' && rec !== dow) return;
+    if(!isDayTabActiveOnDate(t.key, dateObj)) return;
     (trainingPlan[t.key] || []).forEach(it=>{
       if(!it.name || !it.name.trim()) return;
       planned.push(`${it.name}（${t.label}／${buildExerciseSettingsSummary(it)}）`);
