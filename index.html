@@ -2831,7 +2831,7 @@ function activateTimerItem(item){
 function attachTimerExerciseRowEvents(wrap){
   wrap.querySelectorAll('.timer-exercise-tap-area').forEach(row=>{
     row.addEventListener('click', ()=>{
-      if(timerState.status !== 'idle') return; // 実行中はタップ無効
+      if(timerState.status === 'active') return; // 実際にカウントダウン/計測が進行中のときだけタップを無効化する（FINISH!後は選び直せる）
       const items = resolveTimerRowItemsArray(row.dataset.source);
       const item = items.find(it=>it.id===row.dataset.id);
       if(!item) return;
@@ -2851,7 +2851,7 @@ function attachTimerExerciseRowEvents(wrap){
   wrap.querySelectorAll('.timer-exercise-edit-btn').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
       e.stopPropagation();
-      if(timerState.status !== 'idle') return; // 実行中は編集不可
+      if(timerState.status === 'active') return; // 実際に計測が進行中のときだけ編集を無効化する
       const item = getTodayAdhocItems().find(it=>it.id===btn.dataset.id);
       if(!item) return;
       openAdhocPanel(item);
