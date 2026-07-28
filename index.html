@@ -635,6 +635,11 @@
   }
   .ev-name-btn.placeholder{ color:var(--panel-muted); font-weight:500; }
   .ev-name-btn .video-ref-chevron{ margin-right:7px; }
+  .ev-name, .ev-url{
+    width:100%; padding:9px 10px; border-radius:9px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:12.5px; font-family:inherit; box-sizing:border-box;
+  }
+  .ev-name:focus, .ev-url:focus{ outline:2px solid var(--accent-amber); }
   .exercise-video-row.open .video-ref-chevron{ transform:rotate(90deg); }
   .media-tag-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
   .exercise-video-url-panel{ display:flex; flex-direction:column; gap:6px; padding:0 2px; }
@@ -797,6 +802,7 @@
   .day-copy-source{ font-size:13px; font-weight:700; color:var(--panel-text); background:rgba(128,128,128,0.1); border-radius:10px; padding:10px 14px; }
   .day-copy-hint{ font-size:12px; color:var(--panel-muted); }
   .day-copy-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:26vh; }
+  #manualPickerList{ max-height:55vh; }
   .day-copy-row{
     appearance:none; cursor:pointer; width:100%; display:flex; align-items:center; gap:10px; text-align:left;
     border:1px solid var(--panel-hairline); border-radius:12px; background:rgba(128,128,128,0.08); padding:12px 16px;
@@ -1060,6 +1066,10 @@
                 <button type="button" class="icon-btn" id="tagSearchBtn" title="タグで種目を検索">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   タグで検索
+                </button>
+                <button type="button" class="icon-btn" id="tagReorderBtn" title="トレーニングタグの並び替え">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7h13M8 12h13M8 17h13M3 7h.01M3 12h.01M3 17h.01"/></svg>
+                  タグ並び替え
                 </button>
                 <span class="memo-status" id="planStatus"></span>
                 <div class="accent-color-wrap">
@@ -1410,6 +1420,21 @@
   </div>
 </div>
 
+<!-- トレーニングタグの並び替え：一覧から↑↓で順序を変更する。この順番が月別一覧テーブルの列の並びにもそのまま反映される -->
+<div class="modal-overlay" id="tagReorderModal">
+  <div class="panel modal-box" id="tagReorderBox">
+    <div class="modal-head">
+      <h3>🔀 タグの並び替え</h3>
+      <button class="modal-close" id="tagReorderCloseBtn">✕</button>
+    </div>
+    <div class="tag-search-hint">↑↓でトレーニングタグの並び順を変更できます。この順番は、カレンダーページの「月別一覧」テーブルの列の並びにもそのまま反映されます。</div>
+    <div class="day-reorder-list" id="tagReorderList"></div>
+    <div class="day-copy-actions">
+      <button type="button" class="preset-full-btn save" id="tagReorderDoneBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定） -->
 <div class="modal-overlay" id="mediaTagSearchModal">
   <div class="panel modal-box" id="mediaTagSearchBox">
@@ -1420,6 +1445,22 @@
     <div class="tag-search-hint">タグを選ぶと、動画・Webページ・メモを横断してそのタグが付いたものを一覧表示します。結果をタップすると、そのまま開いて編集できます。</div>
     <div class="tag-search-chip-row" id="mediaTagSearchChipRow"></div>
     <div class="tag-search-results" id="mediaTagSearchResults"></div>
+  </div>
+</div>
+
+<!-- カレンダー：記録追加を、種目設定に登録済みの全種目から選んで行うための専用モーダル（複数選択可） -->
+<div class="modal-overlay" id="manualPickerModal">
+  <div class="panel modal-box" id="manualPickerBox">
+    <div class="modal-head">
+      <h3>📋 既存の種目から選ぶ</h3>
+      <button class="modal-close" id="manualPickerCloseBtn">✕</button>
+    </div>
+    <div class="tag-search-hint">全ての日程タブに登録されている種目から選べます（複数選択可）。選んだ内容が、その時点の設定のままこの日の記録として追加されます。</div>
+    <div class="day-copy-list" id="manualPickerList"></div>
+    <div class="day-copy-actions">
+      <button type="button" class="preset-full-btn save" id="manualPickerConfirmBtn">選んだ種目を追加</button>
+      <button type="button" class="preset-full-btn" id="manualPickerCancelBtn">キャンセル</button>
+    </div>
   </div>
 </div>
 <div class="modal-overlay" id="slideshowModal">
@@ -4051,6 +4092,55 @@ dayReorderModal.addEventListener('click', (e)=>{
   if(e.target === dayReorderModal) closeDayReorderModal();
 });
 
+/* --- トレーニングタグの並び替え：一覧＋↑↓ボタンで確実に並び替えられる専用ページ。
+   exerciseTags配列の順序をそのまま使うため、月別一覧テーブルの列の並びにも自動的に反映される --- */
+const tagReorderModal = $('#tagReorderModal');
+const tagReorderList = $('#tagReorderList');
+function openTagReorderModal(){
+  renderTagReorderList();
+  tagReorderModal.classList.add('show');
+}
+function closeTagReorderModal(){
+  tagReorderModal.classList.remove('show');
+}
+function renderTagReorderList(){
+  if(!exerciseTags.length){
+    tagReorderList.innerHTML = '<div class="tag-search-empty">まだトレーニングタグが登録されていません。</div>';
+    return;
+  }
+  tagReorderList.innerHTML = exerciseTags.map((tag,i)=>`
+    <div class="day-reorder-row">
+      <span class="day-reorder-row-name"><span class="media-tag-dot" style="background:${tag.color};"></span>${escapeHTML(tag.name)}</span>
+      <div class="day-reorder-actions">
+        <button type="button" class="circuit-step-btn" data-act="up" data-id="${tag.id}" ${i===0?'disabled':''}>↑</button>
+        <button type="button" class="circuit-step-btn" data-act="down" data-id="${tag.id}" ${i===exerciseTags.length-1?'disabled':''}>↓</button>
+      </div>
+    </div>
+  `).join('');
+  tagReorderList.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const idx = exerciseTags.findIndex(t=>t.id===btn.dataset.id);
+      const act = btn.dataset.act;
+      if(act==='up' && idx>0){
+        [exerciseTags[idx-1], exerciseTags[idx]] = [exerciseTags[idx], exerciseTags[idx-1]];
+      } else if(act==='down' && idx<exerciseTags.length-1){
+        [exerciseTags[idx+1], exerciseTags[idx]] = [exerciseTags[idx], exerciseTags[idx+1]];
+      } else {
+        return;
+      }
+      await saveExerciseTagsToStorage();
+      renderTagReorderList();
+      renderExerciseItemList(); // 開いているタグ選択プルダウン等にも新しい並びを反映
+    });
+  });
+}
+$('#tagReorderBtn').addEventListener('click', openTagReorderModal);
+$('#tagReorderCloseBtn').addEventListener('click', closeTagReorderModal);
+$('#tagReorderDoneBtn').addEventListener('click', closeTagReorderModal);
+tagReorderModal.addEventListener('click', (e)=>{
+  if(e.target === tagReorderModal) closeTagReorderModal();
+});
+
 /* --- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定の独立機能） --- */
 const mediaTagSearchModal = $('#mediaTagSearchModal');
 const mediaTagSearchChipRow = $('#mediaTagSearchChipRow');
@@ -5488,6 +5578,7 @@ function openDayDetailForm(existingEntry){
 
   dayDetailFormPanel.innerHTML = `
     <div class="plan-day-inline-title">${isEdit ? '✎ 記録を編集' : '＋ 記録を追加'}</div>
+    ${isEdit ? '' : '<button type="button" class="preset-full-btn" id="dayDetailPickExistingBtn">📋 既存の種目から選ぶ</button>'}
     <div class="plan-day-inline-row">
       <input type="text" id="dayDetailNameInput" placeholder="例）スクワット、ウォーキング" value="${escapeHTML(data.name)}">
     </div>
@@ -5575,6 +5666,8 @@ function openDayDetailForm(existingEntry){
 
   const nameInput = $('#dayDetailNameInput');
   nameInput.focus();
+  const pickBtn = $('#dayDetailPickExistingBtn');
+  if(pickBtn) pickBtn.addEventListener('click', openManualPickerModal);
   $('#dayDetailSaveBtn').addEventListener('click', async ()=>{
     const name = nameInput.value.trim();
     if(!name){ nameInput.focus(); return; }
@@ -5595,6 +5688,82 @@ function openDayDetailForm(existingEntry){
     dayDetailFormPanel.innerHTML = '';
   });
 }
+
+/* --- 記録追加：既存の種目から選ぶピッカー（全日程タブを横断、複数選択可） --- */
+const manualPickerModal = $('#manualPickerModal');
+const manualPickerList = $('#manualPickerList');
+let manualPickerSelectedIdx = new Set();
+let manualPickerItems = [];
+function openManualPickerModal(){
+  manualPickerSelectedIdx = new Set();
+  const dayTabs = getAllPlanDayTabs();
+  const dayLabelMap = {};
+  dayTabs.forEach(t=>{ dayLabelMap[t.key] = t.label; });
+  manualPickerItems = [];
+  Object.keys(trainingPlan).forEach(dayKey=>{
+    if(!dayLabelMap[dayKey]) return; // 削除済みなど、現在表示されていない日程タブのデータは対象外
+    (trainingPlan[dayKey] || []).forEach(item=>{
+      if(!item.name || !item.name.trim()) return;
+      manualPickerItems.push({ dayKey, dayLabel: dayLabelMap[dayKey], item });
+    });
+  });
+  if(!manualPickerItems.length){
+    manualPickerList.innerHTML = '<div class="tag-search-empty">まだ種目が登録されていません。種目設定ページで種目を追加してください。</div>';
+  } else {
+    manualPickerList.innerHTML = manualPickerItems.map((entry, idx)=>{
+      const tag = resolveItemTag(entry.item);
+      const summary = buildExerciseSettingsSummary(entry.item);
+      return `
+        <button type="button" class="day-copy-row" data-idx="${idx}">
+          <span class="day-copy-row-dot" style="background:${tag.color};"></span>
+          <span class="tag-search-row-main">
+            <span class="tag-search-row-name">${escapeHTML(entry.item.name)}</span>
+            <span class="tag-search-row-meta">${escapeHTML(summary)}</span>
+          </span>
+          <span class="tag-search-row-day">${escapeHTML(entry.dayLabel)}</span>
+          <span class="day-copy-check">✓</span>
+        </button>
+      `;
+    }).join('');
+    manualPickerList.querySelectorAll('.day-copy-row').forEach(row=>{
+      const idx = Number(row.dataset.idx);
+      row.addEventListener('click', ()=>{
+        if(manualPickerSelectedIdx.has(idx)){ manualPickerSelectedIdx.delete(idx); row.classList.remove('selected'); }
+        else { manualPickerSelectedIdx.add(idx); row.classList.add('selected'); }
+      });
+    });
+  }
+  manualPickerModal.classList.add('show');
+}
+function closeManualPickerModal(){
+  manualPickerModal.classList.remove('show');
+}
+$('#manualPickerCloseBtn').addEventListener('click', closeManualPickerModal);
+$('#manualPickerCancelBtn').addEventListener('click', closeManualPickerModal);
+manualPickerModal.addEventListener('click', (e)=>{
+  if(e.target === manualPickerModal) closeManualPickerModal();
+});
+$('#manualPickerConfirmBtn').addEventListener('click', async ()=>{
+  if(!manualPickerSelectedIdx.size || !dayDetailCurrentDateKey) return;
+  // 選んだ時点の種目の内容（名前・タグ・モード・回数やインターバル設定）をそのままスナップショットとして記録に追加する
+  for(const idx of manualPickerSelectedIdx){
+    const entry = manualPickerItems[idx];
+    if(!entry) continue;
+    const item = entry.item;
+    await addManualEntry(dayDetailCurrentDateKey, {
+      name: item.name,
+      tagId: item.tagId || '',
+      mode: item.mode,
+      reps: JSON.parse(JSON.stringify(item.reps)),
+      interval: JSON.parse(JSON.stringify(item.interval)),
+    });
+  }
+  closeManualPickerModal();
+  dayDetailFormPanel.style.display = 'none';
+  dayDetailFormPanel.innerHTML = '';
+  renderDayDetailList();
+  renderCalendar();
+});
 
 /* =========================================================
    データのバックアップ／復元
