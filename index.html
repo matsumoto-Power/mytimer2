@@ -634,6 +634,8 @@
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .ev-name-btn.placeholder{ color:var(--panel-muted); font-weight:500; }
+  .ev-name-btn .video-ref-chevron{ margin-right:7px; }
+  .exercise-video-row.open .video-ref-chevron{ transform:rotate(90deg); }
   .media-tag-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
   .exercise-video-url-panel{ display:flex; flex-direction:column; gap:6px; padding:0 2px; }
   .exercise-video-url-panel input[type=text]{
@@ -889,7 +891,6 @@
     transition: all .15s ease; white-space:nowrap;
   }
   .day-detail-note-row{ display:flex; flex-direction:column; gap:6px; }
-  .day-detail-note-row label{ font-size:13px; font-weight:700; color:var(--panel-text); }
   .day-detail-note-row input{
     padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:13px; font-family:inherit;
@@ -1245,17 +1246,21 @@
       </div>
     </div>
     <button type="button" class="day-detail-condition-toggle-btn day-detail-condition-show-btn" id="dayDetailConditionShowBtn" style="display:none;">＋ 体調評価を表示する</button>
-    <div class="day-detail-note-row">
-      <label for="dayDetailNoteInput">📝 一言メモ</label>
+    <div class="day-detail-note-row" id="dayDetailNoteRow">
+      <div class="day-detail-condition-head">
+        <label for="dayDetailNoteInput">📝 一言メモ</label>
+        <button type="button" class="day-detail-condition-toggle-btn" id="dayDetailNoteHideBtn">非表示にする</button>
+      </div>
       <input type="text" id="dayDetailNoteInput" placeholder="今日の一言（例：筋肉痛がひどい、寝不足など）" maxlength="200">
     </div>
+    <button type="button" class="day-detail-condition-toggle-btn day-detail-condition-show-btn" id="dayDetailNoteShowBtn" style="display:none;">＋ 一言メモを表示する</button>
+    <div class="day-detail-list" id="dayDetailList"></div>
     <div class="day-detail-daytag-section" id="dayDetailDaytagSection" style="display:none;">
       <label>📌 この日の日程タブ</label>
       <div class="day-detail-daytag-hint">タップすると、この日付を「日付指定」「フリープラン」タブに紐づけ／解除できます。紐づけた日はインターバル画面に自動で表示されます。</div>
       <div class="day-detail-daytag-chips" id="dayDetailDaytagChips"></div>
     </div>
-    <div class="day-detail-list" id="dayDetailList"></div>
-    <button type="button" class="modal-add-btn" id="dayDetailAddBtn">＋ 新規作成</button>
+    <button type="button" class="modal-add-btn" id="dayDetailAddBtn">＋ 記録を追加</button>
     <div class="plan-day-inline-panel" id="dayDetailFormPanel" style="display:none;"></div>
   </div>
 </div>
@@ -3238,6 +3243,7 @@ const WEIGHT_LOG_KEY = 'weight-log';
 const CONDITION_LOG_KEY = 'condition-log';
 const CONDITION_VISIBLE_KEY = 'condition-tracker-visible';
 const DAY_NOTE_LOG_KEY = 'day-note-log';
+const DAY_NOTE_VISIBLE_KEY = 'day-note-visible';
 const DAY_TAG_DATES_KEY = 'day-tag-dates';
 let dayTagDates = {}; // { [tabKey]: ['YYYY-MM-DD', ...] } 日付指定／フリープランタブに紐づけた具体的な日付
 async function saveDayTagDates(){ await storageSet(DAY_TAG_DATES_KEY, JSON.stringify(dayTagDates)); }
@@ -4756,9 +4762,9 @@ function renderMediaVideos(){
     const isOpen = v.id === openMediaVideoRowId;
     const tag = resolveMediaTag(v);
     return `
-    <div class="exercise-video-row" data-vid="${v.id}">
+    <div class="exercise-video-row${isOpen?' open':''}" data-vid="${v.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${v.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${v.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
@@ -4834,9 +4840,9 @@ function renderMediaWebpages(){
     const isOpen = w.id === openMediaWebpageRowId;
     const tag = resolveMediaTag(w);
     return `
-    <div class="exercise-video-row" data-wid="${w.id}">
+    <div class="exercise-video-row${isOpen?' open':''}" data-wid="${w.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${w.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${w.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>▶</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
@@ -4918,9 +4924,9 @@ function renderMediaNotes(){
     const isOpen = n.id === openMediaNoteRowId;
     const tag = resolveMediaTag(n);
     return `
-    <div class="exercise-video-row" data-nid="${n.id}">
+    <div class="exercise-video-row${isOpen?' open':''}" data-nid="${n.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasTitle?'':' placeholder'}" data-act="toggle">${n.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasTitle ? escapeHTML(n.title) : '（題名未設定）タップして入力'}</button>
+        <button type="button" class="ev-name-btn${hasTitle?'':' placeholder'}" data-act="toggle"><span class="video-ref-chevron">▸</span>${n.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasTitle ? escapeHTML(n.title) : '（題名未設定）タップして入力'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
           <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaNotes.length-1?'disabled':''}>↓</button>
@@ -5040,6 +5046,10 @@ async function loadTrainingPlan(){
     const rawDayNotes = await storageGet(DAY_NOTE_LOG_KEY);
     dayNoteLog = rawDayNotes ? JSON.parse(rawDayNotes) : {};
   }catch(err){ dayNoteLog = {}; }
+  try{
+    const rawDayNoteVisible = await storageGet(DAY_NOTE_VISIBLE_KEY);
+    dayNoteVisible = rawDayNoteVisible === null ? true : rawDayNoteVisible === 'true';
+  }catch(err){ dayNoteVisible = true; }
   try{
     const rawNotes = await storageGet(MEDIA_NOTES_KEY);
     mediaNotes = rawNotes ? JSON.parse(rawNotes) : [];
@@ -5197,7 +5207,12 @@ let weightLog = {}; // { 'YYYY-MM-DD': 数値 } 体重は任意入力。未入�
 let conditionLog = {}; // { 'YYYY-MM-DD': 1〜5 } 体調評価（ワンタップ選択式）。未入力の日はキー自体を持たない
 let conditionTrackerVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
 let dayNoteLog = {}; // { 'YYYY-MM-DD': '一言メモの文字列' } 未入力の日はキー自体を持たない
+let dayNoteVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
 let dayNoteSaveTimeout = null;
+function renderDayDetailNoteUI(){
+  $('#dayDetailNoteRow').style.display = dayNoteVisible ? 'flex' : 'none';
+  $('#dayDetailNoteShowBtn').style.display = dayNoteVisible ? 'none' : 'block';
+}
 
 function formatDateLabel(dateKey){
   const [y,m,d] = dateKey.split('-').map(Number);
@@ -5250,6 +5265,7 @@ function openDayDetailModal(dateKey){
   dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
   $('#dayDetailNoteInput').value = dayNoteLog[dateKey] || '';
   renderDayDetailConditionUI();
+  renderDayDetailNoteUI();
   renderDayDetailDaytagChips();
   dayDetailFormPanel.style.display = 'none';
   dayDetailFormPanel.innerHTML = '';
@@ -5265,6 +5281,17 @@ $('#dayDetailNoteInput').addEventListener('input', (e)=>{
     else { delete dayNoteLog[dayDetailCurrentDateKey]; }
     await storageSet(DAY_NOTE_LOG_KEY, JSON.stringify(dayNoteLog));
   }, 500);
+});
+/* 使わない人向けの表示/非表示切り替え。設定は保存され、次回以降のモーダル表示にも引き継がれる */
+$('#dayDetailNoteHideBtn').addEventListener('click', async ()=>{
+  dayNoteVisible = false;
+  renderDayDetailNoteUI();
+  await storageSet(DAY_NOTE_VISIBLE_KEY, 'false');
+});
+$('#dayDetailNoteShowBtn').addEventListener('click', async ()=>{
+  dayNoteVisible = true;
+  renderDayDetailNoteUI();
+  await storageSet(DAY_NOTE_VISIBLE_KEY, 'true');
 });
 function closeDayDetailModal(){
   dayDetailModal.classList.remove('show');
@@ -5519,7 +5546,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
 ];
 
 async function collectBackupData(){
