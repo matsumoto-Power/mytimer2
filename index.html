@@ -644,8 +644,8 @@
   }
   .exercise-video-actions{ display:flex; gap:5px; flex:0 0 auto; }
   .exercise-video-actions .video-play-btn{
-    width:32px; height:32px; padding:0; border-radius:8px; font-size:12px; flex:0 0 auto;
-    display:flex; align-items:center; justify-content:center;
+    width:auto; height:32px; padding:0 12px; border-radius:8px; font-size:12px; font-weight:700; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap;
   }
 
   /* ===== カレンダータブ ===== */
@@ -762,12 +762,25 @@
   }
   .monthly-table thead th:first-child{ position:sticky; left:0; top:0; z-index:3; }
   .monthly-table tbody tr.today th, .monthly-table tbody tr.today td{ background:rgba(255,178,44,0.08); }
+  .monthly-table-date-btn{
+    appearance:none; border:none; background:transparent; cursor:pointer; padding:0; margin:0;
+    font: inherit; color:inherit; text-align:left; width:100%; text-decoration:underline; text-decoration-color:transparent;
+    transition: text-decoration-color .15s ease;
+  }
+  .monthly-table-date-btn:hover{ text-decoration-color:currentColor; }
   .monthly-table-entry{ display:block; font-size:11.5px; line-height:1.5; white-space:normal; }
   .monthly-table-entry + .monthly-table-entry{ margin-top:6px; padding-top:6px; border-top:1px dashed var(--panel-hairline); }
   .monthly-table-entry-name{ display:block; font-weight:700; }
   .monthly-table-entry-summary{ display:block; color:var(--panel-muted); }
   .monthly-table-empty-cell{ color:var(--panel-muted); }
-  .modal-head{ display:flex; align-items:center; justify-content:space-between; }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .modal-head h3{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .modal-head-link-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
+    color:var(--panel-text); border-radius:999px; padding:6px 12px; font-size:11.5px; font-weight:700;
+    white-space:nowrap; flex:0 0 auto; transition: background .15s ease;
+  }
+  .modal-head-link-btn:hover{ background:rgba(128,128,128,0.22); }
   .modal-head h3{ margin:0; font-size:15px; letter-spacing:1px; font-weight:800; }
   .modal-close{ appearance:none; cursor:pointer; border:none; background:rgba(128,128,128,0.2); color:var(--panel-text); width:30px; height:30px; border-radius:50%; font-size:15px; }
   .day-delete-hint{ font-size:12px; color:var(--panel-muted); }
@@ -1223,6 +1236,7 @@
   <div class="panel modal-box" id="dayDetailBox">
     <div class="modal-head">
       <h3 id="dayDetailTitle">7月20日の記録</h3>
+      <button class="modal-head-link-btn" id="dayDetailToMonthlyBtn" title="この月の月別一覧を見る">📊 月別一覧</button>
       <button class="modal-close" id="dayDetailCloseBtn">✕</button>
     </div>
     <div class="day-detail-weight-row">
@@ -3622,6 +3636,7 @@ function openDayRenamePanel(tab){
     <div class="plan-day-inline-title">周期</div>
     <div class="recurrence-grid" id="dayRenameRecurrenceGrid">${renderRecurrenceGrid(selectedRecurrence)}</div>
     <div id="dayRenameColorSection"></div>
+    <div id="dayRenameDatesSection"></div>
     <div class="plan-day-inline-actions">
       <button type="button" class="preset-full-btn save" id="dayRenameConfirmBtn">保存</button>
       <button type="button" class="preset-full-btn" id="dayRenameBackBtn">戻る</button>
@@ -3650,12 +3665,46 @@ function openDayRenamePanel(tab){
       wrap.innerHTML = '';
     }
   }
+  /* 「日付指定」「フリープラン」は特定の日付に紐づけて初めて自動表示されるため、
+     ここから紐づけ済みの日付を確認・解除でき、カレンダーページへ直接遷移して追加もできるようにする（双方向連動） */
+  function renderDatesSection(){
+    const wrap = $('#dayRenameDatesSection');
+    if(selectedRecurrence !== 'once' && selectedRecurrence !== 'freeplan'){
+      wrap.innerHTML = '';
+      return;
+    }
+    const dates = (dayTagDates[tab.key] || []).slice().sort();
+    const chipsHtml = dates.length
+      ? `<div class="day-detail-daytag-chips">${dates.map(dk=>{
+          const [y,m,d] = dk.split('-').map(Number);
+          return `<button type="button" class="day-detail-daytag-chip bound" data-date="${dk}" style="background:${selectedColor}; color:#ffffff;">${m}/${d} ✕</button>`;
+        }).join('')}</div>`
+      : `<div class="ready-hint">まだ日付が紐づけられていません。カレンダーページで日付をタップし、「この日の日程タブ」からこのタブを選ぶと、その日に自動表示されるようになります。</div>`;
+    wrap.innerHTML = `
+      <div class="plan-day-inline-title">📌 紐づけている日付</div>
+      ${chipsHtml}
+      <button type="button" class="preset-full-btn" id="dayRenameGoToCalendarBtn">📅 カレンダーページで日付を設定する</button>
+    `;
+    wrap.querySelectorAll('.day-detail-daytag-chip').forEach(chip=>{
+      chip.addEventListener('click', async ()=>{
+        await toggleDateBoundToTab(tab.key, chip.dataset.date); // タップでその日付の紐づけを解除
+        renderDatesSection();
+        renderTimerExerciseList();
+      });
+    });
+    $('#dayRenameGoToCalendarBtn').addEventListener('click', ()=>{
+      closeDayInlinePanel();
+      $('.tab-btn[data-tab="calendar"]').click(); // カレンダーページへ直接遷移（双方向連動のもう一方の入口）
+    });
+  }
   renderColorSection();
+  renderDatesSection();
   grid.querySelectorAll('.recurrence-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       selectedRecurrence = btn.dataset.recurrence;
       grid.querySelectorAll('.recurrence-btn').forEach(b=>b.classList.toggle('active', b===btn));
       renderColorSection();
+      renderDatesSection();
     });
   });
   $('#dayRenameConfirmBtn').addEventListener('click', async ()=>{
@@ -4306,7 +4355,7 @@ function renderExerciseVideos(item){
       <div class="exercise-video-header">
         <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url">${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
-          <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
+          <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶ 再生</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
           <button type="button" class="circuit-step-btn" data-act="down" ${i===videos.length-1?'disabled':''}>↓</button>
           <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
@@ -4766,7 +4815,7 @@ function renderMediaVideos(){
       <div class="exercise-video-header">
         <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${v.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
-          <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶</button>
+          <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶ 再生</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
           <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaVideos.length-1?'disabled':''}>↓</button>
           <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
@@ -4844,7 +4893,7 @@ function renderMediaWebpages(){
       <div class="exercise-video-header">
         <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${w.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
-          <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>▶</button>
+          <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>▶ 閲覧</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
           <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaWebpages.length-1?'disabled':''}>↓</button>
           <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
@@ -5141,8 +5190,9 @@ renderCalendar();
 /* --- 月別一覧：行=日付、列=種目タグの表で、その月の実施記録を一望する --- */
 const monthlyTableModal = $('#monthlyTableModal');
 let monthlyTableViewDate = new Date();
-function openMonthlyTableModal(){
-  monthlyTableViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth(), 1); // 開いた時点でカレンダー表示中の月に合わせる
+function openMonthlyTableModal(targetDate){
+  const base = targetDate || calendarViewDate; // 引数があればその月、なければカレンダー表示中の月に合わせる
+  monthlyTableViewDate = new Date(base.getFullYear(), base.getMonth(), 1);
   renderMonthlyTable();
   monthlyTableModal.classList.add('show');
 }
@@ -5178,11 +5228,18 @@ function renderMonthlyTable(){
       ).join('');
       return `<td>${cellHtml}</td>`;
     }).join('');
-    rows += `<tr${isToday?' class="today"':''}><th>${d}日（${dow}）</th><td>${weightCell}</td>${cells}</tr>`;
+    rows += `<tr${isToday?' class="today"':''}><th><button type="button" class="monthly-table-date-btn" data-date="${dateKey}">${d}日（${dow}）</button></th><td>${weightCell}</td>${cells}</tr>`;
   }
   $('#monthlyTable').innerHTML = thead + '<tbody>' + rows + '</tbody>';
+  $('#monthlyTable').querySelectorAll('.monthly-table-date-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const dateKey = btn.dataset.date;
+      closeMonthlyTableModal();
+      openDayDetailModal(dateKey);
+    });
+  });
 }
-$('#monthlyTableBtn').addEventListener('click', openMonthlyTableModal);
+$('#monthlyTableBtn').addEventListener('click', ()=> openMonthlyTableModal());
 $('#monthlyTableCloseBtn').addEventListener('click', closeMonthlyTableModal);
 $('#monthlyTablePrevBtn').addEventListener('click', ()=>{
   monthlyTableViewDate.setMonth(monthlyTableViewDate.getMonth()-1);
@@ -5299,6 +5356,12 @@ function closeDayDetailModal(){
 }
 $('#dayDetailCloseBtn').addEventListener('click', closeDayDetailModal);
 dayDetailModal.addEventListener('click', (e)=>{ if(e.target === dayDetailModal) closeDayDetailModal(); });
+$('#dayDetailToMonthlyBtn').addEventListener('click', ()=>{
+  if(!dayDetailCurrentDateKey) return;
+  const [y,m,d] = dayDetailCurrentDateKey.split('-').map(Number);
+  closeDayDetailModal();
+  openMonthlyTableModal(new Date(y, m-1, d));
+});
 
 /* 体調評価：ワンタップで選択（同じものをもう一度押すと選択解除）。もう一度押して消せるので入力ミスの訂正も簡単 */
 $('#dayDetailConditionOptions').querySelectorAll('button').forEach(btn=>{
