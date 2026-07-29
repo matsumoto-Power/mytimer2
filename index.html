@@ -1281,7 +1281,7 @@
     <div class="day-detail-list" id="dayDetailList"></div>
     <div class="day-detail-daytag-section" id="dayDetailDaytagSection" style="display:none;">
       <label>📌 この日の日程タブ</label>
-      <div class="day-detail-daytag-hint">タップすると、この日付を「日付指定」「フリープラン」タブに紐づけ／解除できます。紐づけた日はインターバル画面に自動で表示されます。</div>
+      <div class="day-detail-daytag-hint">タップすると、この日付を「日付指定」タブに紐づけ／解除できます。紐づけた日はインターバル画面に自動で表示されます。</div>
       <div class="day-detail-daytag-chips" id="dayDetailDaytagChips"></div>
     </div>
     <button type="button" class="modal-add-btn" id="dayDetailAddBtn">＋ 記録を追加</button>
@@ -1301,6 +1301,7 @@
       <div class="monthly-table-month-label" id="monthlyTableMonthLabel">----年 --月</div>
       <button type="button" class="calendar-nav-btn" id="monthlyTableNextBtn" aria-label="次の月">›</button>
     </div>
+    <div class="tag-search-hint">📌 日付をタップすると、その日の記録ページ（日々の記録）に移動します。</div>
     <div class="monthly-table-scroll" id="monthlyTableScroll">
       <table class="monthly-table" id="monthlyTable"></table>
     </div>
@@ -2927,7 +2928,7 @@ function renderTimerExerciseList(){
   const everydayGroups = [];  // 周期=毎日のタブ
   const weekdayGroups = [];   // 周期=今日の曜日のタブ
   const freeplanGroups = [];  // 周期=フリープランのタブ（手動選択プルダウン用。日付紐づけの有無に関わらず常に候補として出す）
-  const boundTodayGroups = []; // 日付指定／フリープランのうち、今日の日付にカレンダー側等で明示的に紐づけられたタブ
+  const boundTodayGroups = []; // 日付指定のうち、今日の日付にカレンダー側等で明示的に紐づけられたタブ
   const todayDateObj = new Date();
   tabs.forEach(t=>{
     const rec = getEffectiveRecurrence(t.key);
@@ -2936,7 +2937,7 @@ function renderTimerExerciseList(){
     if(rec === 'everyday') everydayGroups.push({tab:t, items});
     else if(rec === todayDow) weekdayGroups.push({tab:t, items});
     else if(rec === 'freeplan') freeplanGroups.push({tab:t, items});
-    if((rec === 'once' || rec === 'freeplan') && isDayTabActiveOnDate(t.key, todayDateObj)){
+    if(rec === 'once' && isDayTabActiveOnDate(t.key, todayDateObj)){
       boundTodayGroups.push({tab:t, items});
     }
   });
@@ -3313,12 +3314,13 @@ async function toggleDateBoundToTab(tabKey, dateKey){
   await saveDayTagDates();
 }
 /* 指定した日程タブが、指定した日付（Dateオブジェクト）に実施対象として自動的に紐づくかどうかを判定する。
-   毎日／曜日は既存通りの判定。日付指定・フリープランは、カレンダー等から明示的に紐づけた日付のみが対象になる。 */
+   毎日／曜日は既存通りの判定。日付指定は、カレンダー等から明示的に紐づけた日付のみが対象になる。
+   （フリープランはインターバル画面の「フリープランから選ぶ」で都度手動選択する運用のため、日付への自動紐づけ対象からは外している） */
 function isDayTabActiveOnDate(tabKey, dateObj){
   const rec = getEffectiveRecurrence(tabKey);
   if(rec === 'everyday') return true;
   if(DOW_KEYS.includes(rec)) return rec === DOW_KEYS[dateObj.getDay()];
-  if(rec === 'once' || rec === 'freeplan'){
+  if(rec === 'once'){
     const dateKey = formatDateKey(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
     return isDateBoundToTab(tabKey, dateKey);
   }
@@ -3706,11 +3708,12 @@ function openDayRenamePanel(tab){
       wrap.innerHTML = '';
     }
   }
-  /* 「日付指定」「フリープラン」は特定の日付に紐づけて初めて自動表示されるため、
-     ここから紐づけ済みの日付を確認・解除でき、カレンダーページへ直接遷移して追加もできるようにする（双方向連動） */
+  /* 「日付指定」は特定の日付に紐づけて初めて自動表示されるため、
+     ここから紐づけ済みの日付を確認・解除でき、カレンダーページへ直接遷移して追加もできるようにする（双方向連動）
+     ※フリープランは「インターバル画面のフリープランから選ぶ」で都度手動選択する運用のため、日付紐づけの対象外 */
   function renderDatesSection(){
     const wrap = $('#dayRenameDatesSection');
-    if(selectedRecurrence !== 'once' && selectedRecurrence !== 'freeplan'){
+    if(selectedRecurrence !== 'once'){
       wrap.innerHTML = '';
       return;
     }
@@ -5180,6 +5183,15 @@ async function loadTrainingPlan(){
   try{
     const rawDayTagDates = await storageGet(DAY_TAG_DATES_KEY);
     dayTagDates = rawDayTagDates ? JSON.parse(rawDayTagDates) : {};
+    // フリープランは日付紐づけの対象外にしたため、過去にフリープランタブへ紐づけていたデータが残っていれば掃除する
+    let dayTagDatesChanged = false;
+    Object.keys(dayTagDates).forEach(key=>{
+      if(getEffectiveRecurrence(key) === 'freeplan'){
+        delete dayTagDates[key];
+        dayTagDatesChanged = true;
+      }
+    });
+    if(dayTagDatesChanged) await saveDayTagDates();
   }catch(err){ dayTagDates = {}; }
   try{
     const rawDayNotes = await storageGet(DAY_NOTE_LOG_KEY);
@@ -5299,7 +5311,8 @@ function renderMonthlyTable(){
   const today = new Date();
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
 
-  let thead = '<thead><tr><th>日付</th><th>体重</th>' + columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
+  // 列（タグ）ごとに、そのタグ自身のカラーで見出しから最下段まで縦に薄く塗り潰す（種目設定ページのタグ色と同じ値を使用）
+  let thead = '<thead><tr><th>日付</th><th>体重</th>' + columns.map(c=>`<th style="background:${c.color}3d;">${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
 
   let rows = '';
   for(let d=1; d<=daysInMonth; d++){
@@ -5311,12 +5324,13 @@ function renderMonthlyTable(){
     const hasWeight = weightVal !== undefined && weightVal !== null && weightVal !== '';
     const weightCell = hasWeight ? `${escapeHTML(String(weightVal))}kg` : '<span class="monthly-table-empty-cell">―</span>';
     const cells = columns.map(col=>{
+      const tint = `background:${col.color}14;`;
       const matched = entries.filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === col.name);
-      if(!matched.length) return '<td><span class="monthly-table-empty-cell">―</span></td>';
+      if(!matched.length) return `<td style="${tint}"><span class="monthly-table-empty-cell">―</span></td>`;
       const cellHtml = matched.map(e =>
         `<span class="monthly-table-entry"><span class="monthly-table-entry-name">${escapeHTML(e.name)}</span><span class="monthly-table-entry-summary">${escapeHTML(e.summary||'')}</span></span>`
       ).join('');
-      return `<td>${cellHtml}</td>`;
+      return `<td style="${tint}">${cellHtml}</td>`;
     }).join('');
     rows += `<tr${isToday?' class="today"':''}><th><button type="button" class="monthly-table-date-btn" data-date="${dateKey}">${d}日（${dow}）</button></th><td>${weightCell}</td>${cells}</tr>`;
   }
@@ -5379,10 +5393,10 @@ function renderDayDetailDaytagChips(){
   const section = $('#dayDetailDaytagSection');
   const chipsWrap = $('#dayDetailDaytagChips');
   if(!dayDetailCurrentDateKey) return;
-  // 「日付指定」「フリープラン」の周期を持つ日程タブだけを候補にする（曜日／毎日は自動判定のため対象外）
+  // 「日付指定」の周期を持つ日程タブだけを候補にする（曜日／毎日は自動判定のため対象外、フリープランはインターバル画面の手動選択で運用するため対象外）
   const candidates = getAllPlanDayTabs().filter(t=>{
     const rec = getEffectiveRecurrence(t.key);
-    return rec === 'once' || rec === 'freeplan';
+    return rec === 'once';
   });
   if(!candidates.length){
     section.style.display = 'none';
