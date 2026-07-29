@@ -411,10 +411,12 @@
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:14px;
   }
   .preset-full-btn{
-    appearance:none; cursor:pointer; border:none; width:100%; padding:13px 16px; border-radius:12px;
+    appearance:none; cursor:pointer; border:1px solid var(--panel-hairline); width:100%; padding:13px 16px; border-radius:12px;
     font-weight:700; font-size:13.5px; letter-spacing:0.3px; min-height:44px;
+    background:rgba(128,128,128,0.1); color:var(--panel-text);
   }
-  .preset-full-btn.save{ background:var(--accent-amber); color:#ffffff; }
+  .preset-full-btn:hover{ background:rgba(128,128,128,0.2); }
+  .preset-full-btn.save{ background:var(--accent-amber); color:#ffffff; border-color:transparent; }
   .preset-full-btn.save:hover{ filter:brightness(1.06); }
   .preset-full-btn.del{ background:rgba(255,93,58,0.16); color:var(--accent-work); border:1px solid rgba(255,93,58,0.4); }
   .preset-full-btn.del:hover{ background:rgba(255,93,58,0.26); }
@@ -1457,6 +1459,10 @@
       <button class="modal-close" id="manualPickerCloseBtn">✕</button>
     </div>
     <div class="tag-search-hint">全ての日程タブに登録されている種目から選べます（複数選択可）。選んだ内容が、その時点の設定のままこの日の記録として追加されます。</div>
+    <div class="ai-export-range-toggle" id="manualPickerSortToggle">
+      <button type="button" class="ai-export-range-btn active" data-sort="day">日程タグの並び順</button>
+      <button type="button" class="ai-export-range-btn" data-sort="tag">タグの並び順</button>
+    </div>
     <div class="day-copy-list" id="manualPickerList"></div>
     <div class="day-copy-actions">
       <button type="button" class="preset-full-btn save" id="manualPickerConfirmBtn">選んだ種目を追加</button>
@@ -5708,45 +5714,80 @@ const manualPickerModal = $('#manualPickerModal');
 const manualPickerList = $('#manualPickerList');
 let manualPickerSelectedIdx = new Set();
 let manualPickerItems = [];
-function openManualPickerModal(){
-  manualPickerSelectedIdx = new Set();
+let manualPickerSortMode = 'day'; // 'day': 日程タブの並び順 / 'tag': 種目タグの並び順
+function buildManualPickerItems(){
   const dayTabs = getAllPlanDayTabs();
   const dayLabelMap = {};
   dayTabs.forEach(t=>{ dayLabelMap[t.key] = t.label; });
-  manualPickerItems = [];
-  Object.keys(trainingPlan).forEach(dayKey=>{
-    if(!dayLabelMap[dayKey]) return; // 削除済みなど、現在表示されていない日程タブのデータは対象外
-    (trainingPlan[dayKey] || []).forEach(item=>{
-      if(!item.name || !item.name.trim()) return;
-      manualPickerItems.push({ dayKey, dayLabel: dayLabelMap[dayKey], item });
+  const items = [];
+  if(manualPickerSortMode === 'tag'){
+    // 種目設定ページでのタグの並び替え順（未分類は最後）に沿って、該当するタグの種目を日程タブ横断で集める
+    const tagsInOrder = [...exerciseTags, UNCATEGORIZED_TAG];
+    tagsInOrder.forEach(tag=>{
+      dayTabs.forEach(t=>{
+        (trainingPlan[t.key] || []).forEach(item=>{
+          if(!item.name || !item.name.trim()) return;
+          const itemTag = resolveItemTag(item);
+          if(itemTag.name !== tag.name) return;
+          items.push({ dayKey: t.key, dayLabel: t.label, item });
+        });
+      });
     });
-  });
-  if(!manualPickerItems.length){
-    manualPickerList.innerHTML = '<div class="tag-search-empty">まだ種目が登録されていません。種目設定ページで種目を追加してください。</div>';
   } else {
-    manualPickerList.innerHTML = manualPickerItems.map((entry, idx)=>{
-      const tag = resolveItemTag(entry.item);
-      const summary = buildExerciseSettingsSummary(entry.item);
-      return `
-        <button type="button" class="day-copy-row" data-idx="${idx}">
-          <span class="day-copy-row-dot" style="background:${tag.color};"></span>
-          <span class="tag-search-row-main">
-            <span class="tag-search-row-name">${escapeHTML(entry.item.name)}</span>
-            <span class="tag-search-row-meta">${escapeHTML(summary)}</span>
-          </span>
-          <span class="tag-search-row-day">${escapeHTML(entry.dayLabel)}</span>
-          <span class="day-copy-check">✓</span>
-        </button>
-      `;
-    }).join('');
-    manualPickerList.querySelectorAll('.day-copy-row').forEach(row=>{
-      const idx = Number(row.dataset.idx);
-      row.addEventListener('click', ()=>{
-        if(manualPickerSelectedIdx.has(idx)){ manualPickerSelectedIdx.delete(idx); row.classList.remove('selected'); }
-        else { manualPickerSelectedIdx.add(idx); row.classList.add('selected'); }
+    // 種目設定ページの日程タブの並び順（ドラッグ/並び替えページで設定した順）に沿って集める
+    dayTabs.forEach(t=>{
+      (trainingPlan[t.key] || []).forEach(item=>{
+        if(!item.name || !item.name.trim()) return;
+        items.push({ dayKey: t.key, dayLabel: t.label, item });
       });
     });
   }
+  return items;
+}
+function renderManualPickerList(){
+  manualPickerItems = buildManualPickerItems();
+  if(!manualPickerItems.length){
+    manualPickerList.innerHTML = '<div class="tag-search-empty">まだ種目が登録されていません。種目設定ページで種目を追加してください。</div>';
+    return;
+  }
+  manualPickerList.innerHTML = manualPickerItems.map((entry, idx)=>{
+    const tag = resolveItemTag(entry.item);
+    const summary = buildExerciseSettingsSummary(entry.item);
+    const selected = manualPickerSelectedIdx.has(idx);
+    return `
+      <button type="button" class="day-copy-row${selected?' selected':''}" data-idx="${idx}">
+        <span class="day-copy-row-dot" style="background:${tag.color};"></span>
+        <span class="tag-search-row-main">
+          <span class="tag-search-row-name">${escapeHTML(entry.item.name)}</span>
+          <span class="tag-search-row-meta">${escapeHTML(summary)}</span>
+        </span>
+        <span class="tag-search-row-day">${escapeHTML(entry.dayLabel)}</span>
+        <span class="day-copy-check">✓</span>
+      </button>
+    `;
+  }).join('');
+  manualPickerList.querySelectorAll('.day-copy-row').forEach(row=>{
+    const idx = Number(row.dataset.idx);
+    row.addEventListener('click', ()=>{
+      if(manualPickerSelectedIdx.has(idx)){ manualPickerSelectedIdx.delete(idx); row.classList.remove('selected'); }
+      else { manualPickerSelectedIdx.add(idx); row.classList.add('selected'); }
+    });
+  });
+}
+$('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    manualPickerSortMode = btn.dataset.sort;
+    $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    // 並び替え後は選択状態が意図せずズレないよう、選択をリセットする
+    manualPickerSelectedIdx = new Set();
+    renderManualPickerList();
+  });
+});
+function openManualPickerModal(){
+  manualPickerSelectedIdx = new Set();
+  manualPickerSortMode = 'day';
+  $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b.dataset.sort==='day'));
+  renderManualPickerList();
   manualPickerModal.classList.add('show');
 }
 function closeManualPickerModal(){
