@@ -147,9 +147,17 @@
   #imagePane.webpage-active .image-nav,
   #imagePane.webpage-active .image-footer,
   #imagePane.webpage-active .group-quick-switch,
-  #imagePane.webpage-active .position-toast{ display:none !important; }
+  #imagePane.webpage-active .position-toast,
+  #imagePane.imageviewer-active .image-empty,
+  #imagePane.imageviewer-active .image-nav,
+  #imagePane.imageviewer-active .image-footer,
+  #imagePane.imageviewer-active .group-quick-switch,
+  #imagePane.imageviewer-active .position-toast{ display:none !important; }
   /* Webページのiframeは、横幅は画像ペインに合わせつつ、中身が縦に長い場合はiframe自身の中でスクロールする（外側は伸ばさない） */
   #webpageIframe{ background:#fff; }
+  /* メディアタブの「画像」項目：スライドショー等の背景画像システムとは別管理の参考画像を、押下時にここへ表示する */
+  .image-viewer-frame{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:#000; }
+  .image-viewer-frame img{ max-width:100%; max-height:100%; object-fit:contain; }
 
   .group-quick-switch{
     position:absolute; top:14px; left:14px; z-index:6; max-width:min(52%, 220px);
@@ -168,6 +176,11 @@
   body.fullscreen-image #slideshowOpenBtn,
   body.fullscreen-image .fullscreen-toggle-btn{ display:none !important; }
   body.fullscreen-image .image-actions{ display:flex; }
+
+  /* ===== トレーニング画面（機能ペイン）側の全画面表示モード：画像ペインを隠し、controlPaneを全画面に広げる ===== */
+  #tab-clock .clock-tab-header{ display:flex; justify-content:flex-end; margin-bottom:12px; }
+  body.fullscreen-control #imagePane{ display:none; }
+  body.fullscreen-control #controlFullscreenToggleBtn.active{ background:var(--accent-amber); color:#ffffff; border-color:transparent; }
 
   .image-nav{ position:absolute; top:50%; transform:translateY(-50%); width:100%; display:flex; justify-content:space-between; padding:0 14px; pointer-events:none; }
   .image-nav button{
@@ -645,6 +658,16 @@
   .exercise-video-row.open .video-ref-chevron{ transform:rotate(90deg); }
   .media-tag-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
   .exercise-video-url-panel{ display:flex; flex-direction:column; gap:6px; padding:0 2px; }
+  .media-image-pick-row{ display:flex; align-items:center; gap:12px; }
+  .media-image-thumb{
+    width:64px; height:64px; border-radius:12px; object-fit:cover; flex:0 0 auto;
+    border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.1);
+  }
+  .media-image-thumb-empty{
+    width:64px; height:64px; border-radius:12px; flex:0 0 auto;
+    border:1px dashed var(--panel-hairline); display:flex; align-items:center; justify-content:center;
+    color:var(--panel-muted); font-size:10.5px; text-align:center; line-height:1.4;
+  }
   .exercise-video-url-panel input[type=text]{
     width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.12); color:var(--panel-text); font-size:12px;
@@ -998,6 +1021,12 @@
     <main>
       <!-- ===== CLOCK TAB ===== -->
       <section class="tab-panel active" id="tab-clock">
+        <div class="clock-tab-header">
+          <button type="button" class="icon-btn" id="controlFullscreenToggleBtn" title="画像表示を隠してトレーニング画面を全画面表示">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+            <span id="controlFullscreenToggleLabel">トレーニング画面を全画面表示</span>
+          </button>
+        </div>
         <div class="clock-wrap">
           <div class="panel clock-card">
             <canvas id="analogClock" width="280" height="280" style="max-width:100%; height:auto;"></canvas>
@@ -1120,6 +1149,7 @@
               <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
+            <div class="calendar-hint">📅 日付をタップすると、その日の詳細ページ（体重・体調・実施記録など）を開けます。</div>
             <button type="button" class="modal-add-btn" id="monthlyTableBtn">📊 月別一覧</button>
             <div class="calendar-hint">📌 インターバル画面でチェックを入れた種目が、タグの色のドットとしてここに表示されます。</div>
           </div>
@@ -1151,6 +1181,11 @@
             <label class="plan-day-section-label">Webページ</label>
             <div class="ei-video-list" id="mediaWebpageList"></div>
             <button type="button" class="modal-add-btn" id="mediaWebpageAddBtn">＋ Webページを追加</button>
+
+            <label class="plan-day-section-label">画像</label>
+            <div class="ei-video-list" id="mediaImageList"></div>
+            <button type="button" class="modal-add-btn" id="mediaImageAddBtn">＋ 画像を追加</button>
+            <input type="file" id="mediaImageFileInput" accept="image/*" style="display:none;">
 
             <label class="plan-day-section-label">メモ</label>
             <div class="ei-video-list" id="mediaNoteList"></div>
@@ -1199,6 +1234,16 @@
       <div class="video-frame-wrap">
         <iframe id="webpageIframe" src="" title="参考Webページ"
           allow="clipboard-write; encrypted-media"></iframe>
+      </div>
+    </div>
+
+    <div class="video-overlay" id="imageViewerOverlay">
+      <button class="video-close-btn" id="imageViewerCloseBtn" title="画像を閉じて元の表示に戻る">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <span>画像を閉じる</span>
+      </button>
+      <div class="image-viewer-frame">
+        <img id="imageViewerImg" src="" alt="参考画像">
       </div>
     </div>
 
@@ -1438,14 +1483,14 @@
   </div>
 </div>
 
-<!-- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定） -->
+<!-- メディアタグで検索：動画・Webページ・画像・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定） -->
 <div class="modal-overlay" id="mediaTagSearchModal">
   <div class="panel modal-box" id="mediaTagSearchBox">
     <div class="modal-head">
       <h3>🔎 タグで検索</h3>
       <button class="modal-close" id="mediaTagSearchCloseBtn">✕</button>
     </div>
-    <div class="tag-search-hint">タグを選ぶと、動画・Webページ・メモを横断してそのタグが付いたものを一覧表示します。結果をタップすると、そのまま開いて編集できます。</div>
+    <div class="tag-search-hint">タグを選ぶと、動画・Webページ・画像・メモを横断してそのタグが付いたものを一覧表示します。結果をタップすると、そのまま開いて編集できます。</div>
     <div class="tag-search-chip-row" id="mediaTagSearchChipRow"></div>
     <div class="tag-search-results" id="mediaTagSearchResults"></div>
   </div>
@@ -1759,7 +1804,7 @@ $('#bgFileInputReplace').addEventListener('change', async (e)=>{
 
 function onImagesChanged(){
   const has = bgImages.length > 0;
-  const videoActive = imagePane.classList.contains('video-active') || imagePane.classList.contains('webpage-active');
+  const videoActive = imagePane.classList.contains('video-active') || imagePane.classList.contains('webpage-active') || imagePane.classList.contains('imageviewer-active');
   $('#imageEmpty').style.display = (has || videoActive) ? 'none' : 'flex';
   $('#imageNav').style.display = has && bgImages.length > 1 && !videoActive ? 'flex' : 'none';
   $('#imageFooter').style.display = has && !videoActive ? 'flex' : 'none';
@@ -1851,6 +1896,7 @@ $('#imageNextBtn').addEventListener('click', ()=>{ showImage(bgIndex+1); restart
 /* --- 画像の全画面表示モード（タイマー等は非表示、スライドショーはそのまま継続） --- */
 function enterImageFullscreen(){
   if(bgIndex < 0 && !imagePane.classList.contains('video-active') && !imagePane.classList.contains('webpage-active')) return;
+  if(document.body.classList.contains('fullscreen-control')) exitControlFullscreen();
   document.body.classList.add('fullscreen-image');
   $('#fullscreenToggleBtn').style.display = 'none';
   $('#fullscreenExitBtn').style.display = 'flex';
@@ -1862,6 +1908,23 @@ function exitImageFullscreen(){
 }
 $('#fullscreenToggleBtn').addEventListener('click', enterImageFullscreen);
 $('#fullscreenExitBtn').addEventListener('click', exitImageFullscreen);
+
+/* --- トレーニング画面（機能ペイン）側の全画面表示：画像ペインを隠し、時計/種目設定/インターバル等の画面を全画面に広げる --- */
+function isControlFullscreen(){ return document.body.classList.contains('fullscreen-control'); }
+function enterControlFullscreen(){
+  if(document.body.classList.contains('fullscreen-image')) exitImageFullscreen(); // 画像側の全画面と同時には成立しないため排他にする
+  document.body.classList.add('fullscreen-control');
+  $('#controlFullscreenToggleBtn').classList.add('active');
+  $('#controlFullscreenToggleLabel').textContent = '全画面表示を終了';
+}
+function exitControlFullscreen(){
+  document.body.classList.remove('fullscreen-control');
+  $('#controlFullscreenToggleBtn').classList.remove('active');
+  $('#controlFullscreenToggleLabel').textContent = 'トレーニング画面を全画面表示';
+}
+$('#controlFullscreenToggleBtn').addEventListener('click', ()=>{
+  if(isControlFullscreen()) exitControlFullscreen(); else enterControlFullscreen();
+});
 
 /* 向きが変わったら、現在表示中の画像に保存済みの位置を再適用 */
 window.matchMedia('(orientation: portrait)').addEventListener('change', ()=>{
@@ -3462,6 +3525,7 @@ const TRAINING_LOG_KEY = 'training-log';
 const MANUAL_LOG_KEY = 'manual-training-log';
 const MEDIA_VIDEOS_KEY = 'media-videos';
 const MEDIA_WEBPAGES_KEY = 'media-webpages';
+const MEDIA_IMAGES_KEY = 'media-images';
 const MEDIA_NOTES_KEY = 'media-notes';
 const MEDIA_TAGS_KEY = 'media-tags';
 const WEIGHT_LOG_KEY = 'weight-log';
@@ -4313,7 +4377,7 @@ tagReorderModal.addEventListener('click', (e)=>{
   if(e.target === tagReorderModal) closeTagReorderModal();
 });
 
-/* --- メディアタグで検索：動画・Webページ・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定の独立機能） --- */
+/* --- メディアタグで検索：動画・Webページ・画像・メモを横断して、選んだタグが付いたものを一覧表示する（メディアページ内限定の独立機能） --- */
 const mediaTagSearchModal = $('#mediaTagSearchModal');
 const mediaTagSearchChipRow = $('#mediaTagSearchChipRow');
 const mediaTagSearchResults = $('#mediaTagSearchResults');
@@ -4347,7 +4411,7 @@ function renderMediaTagSearchChips(){
 }
 function renderMediaTagSearchResults(){
   if(mediaTagSearchSelectedTagId === null){
-    mediaTagSearchResults.innerHTML = '<div class="tag-search-empty">上のタグを選ぶと、動画・Webページ・メモを横断して一覧表示します。</div>';
+    mediaTagSearchResults.innerHTML = '<div class="tag-search-empty">上のタグを選ぶと、動画・Webページ・画像・メモを横断して一覧表示します。</div>';
     return;
   }
   const results = [];
@@ -4360,6 +4424,11 @@ function renderMediaTagSearchResults(){
     if((w.tagId||'') !== mediaTagSearchSelectedTagId) return;
     if(!w.name && !w.url) return;
     results.push({ kind:'webpage', kindLabel:'🔗 Webページ', id:w.id, title:w.name || '（ページ名未設定）' });
+  });
+  mediaImages.forEach(img=>{
+    if((img.tagId||'') !== mediaTagSearchSelectedTagId) return;
+    if(!img.name && !img.dataUrl) return;
+    results.push({ kind:'image', kindLabel:'🖼 画像', id:img.id, title:img.name || '（画像名未設定）' });
   });
   mediaNotes.forEach(n=>{
     if((n.tagId||'') !== mediaTagSearchSelectedTagId) return;
@@ -4394,9 +4463,10 @@ function renderMediaTagSearchResults(){
 function jumpToMediaItemForEdit(kind, itemId){
   if(kind === 'video'){ openMediaVideoRowId = itemId; renderMediaVideos(); }
   else if(kind === 'webpage'){ openMediaWebpageRowId = itemId; renderMediaWebpages(); }
+  else if(kind === 'image'){ openMediaImageRowId = itemId; renderMediaImages(); }
   else if(kind === 'note'){ openMediaNoteRowId = itemId; renderMediaNotes(); }
   setTimeout(()=>{
-    const el = document.querySelector(`.exercise-video-row[data-vid="${itemId}"], .exercise-video-row[data-wid="${itemId}"], .exercise-video-row[data-nid="${itemId}"]`);
+    const el = document.querySelector(`.exercise-video-row[data-vid="${itemId}"], .exercise-video-row[data-wid="${itemId}"], .exercise-video-row[data-imid="${itemId}"], .exercise-video-row[data-nid="${itemId}"]`);
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
   }, 60);
 }
@@ -4876,6 +4946,7 @@ function playReferenceVideo(youtubeUrl){
   const videoId = extractYouTubeId(youtubeUrl);
   if(!videoId) return;
   closeReferenceWebpage(); // 動画とWebページを同時表示しないよう、片方が開いていれば閉じる
+  closeReferenceImageViewer(); // 画像ビューアも同時には表示しない
   $('#videoIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
   imagePane.classList.add('video-active');
   $('#videoOverlay').classList.add('show');
@@ -4901,6 +4972,7 @@ function playReferenceWebpage(url){
   const normalized = normalizeWebpageUrl(url);
   if(!normalized) return;
   closeReferenceVideo(); // 動画とWebページを同時表示しないよう、片方が開いていれば閉じる
+  closeReferenceImageViewer(); // 画像ビューアも同時には表示しない
   $('#webpageIframe').src = normalized;
   imagePane.classList.add('webpage-active');
   $('#webpageOverlay').classList.add('show');
@@ -4913,6 +4985,32 @@ function closeReferenceWebpage(){
   onImagesChanged();
 }
 $('#webpageCloseBtn').addEventListener('click', closeReferenceWebpage);
+
+/* 「外部リンク」設定のWebページ用：アプリ内のiframeではなく、新しいタブ/外部ブラウザで開く */
+function openReferenceWebpageExternal(url){
+  const normalized = normalizeWebpageUrl(url);
+  if(!normalized) return;
+  window.open(normalized, '_blank', 'noopener,noreferrer');
+}
+
+/* --- メディアタブの「画像」項目の表示（画像ペイン内に表示。動画・Webページと同様に排他表示） ---
+   スライドショー等の背景画像システム（bgImages）とは完全に別のデータ・別のグループとして管理する。 */
+function playReferenceImage(dataUrl){
+  if(!dataUrl) return;
+  closeReferenceVideo();
+  closeReferenceWebpage();
+  $('#imageViewerImg').src = dataUrl;
+  imagePane.classList.add('imageviewer-active');
+  $('#imageViewerOverlay').classList.add('show');
+  onImagesChanged();
+}
+function closeReferenceImageViewer(){
+  $('#imageViewerOverlay').classList.remove('show');
+  $('#imageViewerImg').src = '';
+  imagePane.classList.remove('imageviewer-active');
+  onImagesChanged();
+}
+$('#imageViewerCloseBtn').addEventListener('click', closeReferenceImageViewer);
 
 /* --- メディアタブ：種目に紐づかない、雑多な動画を貼っておくための独立リスト ---
    種目編集画面の「参考動画」欄（renderExerciseVideos）と見た目・操作感を揃えているが、
@@ -4930,7 +5028,7 @@ function scheduleMediaSave(){
   }, 600);
 }
 /* --- メディアタブ専用の分類タグ機能 ---
-   動画・Webページ・メモの3種類で共有するタグシステム。種目設定ページのタグ（exerciseTags）とは
+   動画・Webページ・画像・メモの4種類で共有するタグシステム。種目設定ページのタグ（exerciseTags）とは
    完全に独立しており、メディアページ内でのみ使用・表示される。他のページには一切影響しない。 */
 let mediaTags = []; // [{id, name, color}]
 const MEDIA_UNCATEGORIZED_TAG = { id:'', name:'未分類', color:'#94A3B8' };
@@ -4940,6 +5038,10 @@ async function saveMediaTagsToStorage(){
 function resolveMediaTag(item){
   if(!item.tagId) return MEDIA_UNCATEGORIZED_TAG;
   return mediaTags.find(t=>t.id===item.tagId) || MEDIA_UNCATEGORIZED_TAG;
+}
+/* トグルヘッダーに表示する、他のタグ表示（種目タグ等）と統一した色塗りチップ */
+function mediaTagChipHTML(tag){
+  return `<span class="tag-chip" style="background:${tag.color}40; color:${tag.color}; border:1px solid ${tag.color}59;">${escapeHTML(tag.name)}</span>`;
 }
 function mediaTagSelectorHTML(item){
   return `
@@ -5044,18 +5146,20 @@ function bindMediaTagControls(root, item, onChange, scheduleSave){
       e.stopPropagation();
       const tag = mediaTags.find(t=>t.id===item.tagId);
       if(!tag) return;
-      if(!confirm(`タグ「${tag.name}」を削除しますか？このタグが付いている動画・Webページ・メモからも外れます。`)) return;
+      if(!confirm(`タグ「${tag.name}」を削除しますか？このタグが付いている動画・Webページ・画像・メモからも外れます。`)) return;
       mediaTags = mediaTags.filter(t=>t.id!==tag.id);
-      // メディアページ内で3種類が共有するタグのため、動画・Webページ・メモすべてから該当タグを外す
-      [mediaVideos, mediaWebpages, mediaNotes].forEach(list=>{
+      // メディアページ内で4種類が共有するタグのため、動画・Webページ・画像・メモすべてから該当タグを外す
+      [mediaVideos, mediaWebpages, mediaImages, mediaNotes].forEach(list=>{
         (list||[]).forEach(it=>{ if(it.tagId===tag.id) it.tagId=''; });
       });
       await saveMediaTagsToStorage();
       await storageSet(MEDIA_VIDEOS_KEY, JSON.stringify(mediaVideos));
       await storageSet(MEDIA_WEBPAGES_KEY, JSON.stringify(mediaWebpages));
+      await storageSet(MEDIA_IMAGES_KEY, JSON.stringify(mediaImages));
       await storageSet(MEDIA_NOTES_KEY, JSON.stringify(mediaNotes));
       renderMediaVideos();
       renderMediaWebpages();
+      renderMediaImages();
       renderMediaNotes();
     });
   }
@@ -5075,7 +5179,7 @@ function renderMediaVideos(){
     return `
     <div class="exercise-video-row${isOpen?' open':''}" data-vid="${v.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${v.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${v.tagId ? mediaTagChipHTML(tag) : ''}${hasName ? escapeHTML(v.name) : '（動画名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="video-play-btn ev-play" ${extractYouTubeId(v.url) ? '' : 'disabled'}>▶ 再生</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
@@ -5150,12 +5254,14 @@ function renderMediaWebpages(){
     const hasName = w.name && w.name.trim();
     const isOpen = w.id === openMediaWebpageRowId;
     const tag = resolveMediaTag(w);
+    const openMode = w.openMode === 'external' ? 'external' : 'embed';
+    const playBtnLabel = openMode === 'external' ? '▶ 表示' : '▶ 閲覧';
     return `
     <div class="exercise-video-row${isOpen?' open':''}" data-wid="${w.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${w.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle-url"><span class="video-ref-chevron">▸</span>${w.tagId ? mediaTagChipHTML(tag) : ''}${hasName ? escapeHTML(w.name) : '（ページ名未設定）タップしてURLを設定'}</button>
         <div class="exercise-video-actions">
-          <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>▶ 閲覧</button>
+          <button type="button" class="video-play-btn ew-play" ${normalizeWebpageUrl(w.url) ? '' : 'disabled'}>${playBtnLabel}</button>
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
           <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaWebpages.length-1?'disabled':''}>↓</button>
           <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
@@ -5164,6 +5270,10 @@ function renderMediaWebpages(){
       <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
         <input type="text" class="ev-name" data-field="name" value="${escapeHTML(w.name||'')}" placeholder="ページ名（任意）">
         <input type="text" class="ev-url" data-field="url" value="${escapeHTML(w.url||'')}" placeholder="https://example.com/...">
+        <div class="mode-toggle ev-openmode-toggle">
+          <button type="button" class="mode-btn ${openMode==='embed'?'active':''}" data-openmode="embed">画面表示</button>
+          <button type="button" class="mode-btn ${openMode==='external'?'active':''}" data-openmode="external">外部リンク</button>
+        </div>
         ${mediaTagSelectorHTML(w)}
       </div>
     </div>
@@ -5180,7 +5290,19 @@ function renderMediaWebpages(){
     row.querySelector('[data-field="url"]').addEventListener('change', e=>{
       w.url = e.target.value.trim(); scheduleMediaWebpageSave(); renderMediaWebpages();
     });
-    row.querySelector('.ew-play').addEventListener('click', (e)=>{ e.stopPropagation(); playReferenceWebpage(w.url); });
+    row.querySelectorAll('.ev-openmode-toggle .mode-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        w.openMode = btn.dataset.openmode;
+        scheduleMediaWebpageSave();
+        renderMediaWebpages();
+      });
+    });
+    row.querySelector('.ew-play').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if((w.openMode === 'external')) openReferenceWebpageExternal(w.url);
+      else playReferenceWebpage(w.url);
+    });
     row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
@@ -5202,6 +5324,110 @@ $('#mediaWebpageAddBtn').addEventListener('click', ()=>{
   openMediaWebpageRowId = newWebpage.id;
   renderMediaWebpages();
   scheduleMediaWebpageSave();
+});
+
+/* --- メディアタブ：画像を貼っておくための独立リスト（動画・Webページと同じ操作感の追加・タグ付け・並び替え）。
+   スライドショー等の背景画像システム（bgImages／グループ機能）とは完全に別データ・別グループとして管理し、
+   互いに一切影響しない。 */
+let mediaImages = []; // [{id, name, tagId, dataUrl}]
+let openMediaImageRowId = null;
+let mediaImagePickTargetId = null; // ファイル選択ダイアログでどの項目に紐づけるか
+let mediaImageSaveTimeout = null;
+function scheduleMediaImageSave(){
+  if(mediaImageSaveTimeout) clearTimeout(mediaImageSaveTimeout);
+  const statusEl = $('#mediaStatus');
+  if(statusEl) statusEl.textContent = '入力中…';
+  mediaImageSaveTimeout = setTimeout(async ()=>{
+    const ok = await storageSet(MEDIA_IMAGES_KEY, JSON.stringify(mediaImages));
+    if(statusEl) statusEl.textContent = ok ? '保存済み ✓' : '保存に失敗しました';
+  }, 600);
+}
+function renderMediaImages(){
+  const container = $('#mediaImageList');
+  if(!container) return;
+  if(!mediaImages.length){
+    container.innerHTML = '<div class="circuit-empty-hint">まだ画像がありません。「＋ 画像を追加」から追加してください。</div>';
+    return;
+  }
+  container.innerHTML = mediaImages.map((img,i)=>{
+    const hasName = img.name && img.name.trim();
+    const isOpen = img.id === openMediaImageRowId;
+    const tag = resolveMediaTag(img);
+    const thumb = img.dataUrl
+      ? `<img class="media-image-thumb" src="${img.dataUrl}" alt="">`
+      : `<div class="media-image-thumb-empty">未設定</div>`;
+    return `
+    <div class="exercise-video-row${isOpen?' open':''}" data-imid="${img.id}">
+      <div class="exercise-video-header">
+        <button type="button" class="ev-name-btn${hasName?'':' placeholder'}" data-act="toggle"><span class="video-ref-chevron">▸</span>${img.tagId ? mediaTagChipHTML(tag) : ''}${hasName ? escapeHTML(img.name) : '（画像名未設定）タップして設定'}</button>
+        <div class="exercise-video-actions">
+          <button type="button" class="video-play-btn ei-image-play" ${img.dataUrl ? '' : 'disabled'}>▶ 閲覧</button>
+          <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
+          <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaImages.length-1?'disabled':''}>↓</button>
+          <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
+        </div>
+      </div>
+      <div class="exercise-video-url-panel" style="display:${isOpen?'flex':'none'};">
+        <input type="text" class="ev-name" data-field="name" value="${escapeHTML(img.name||'')}" placeholder="画像名（任意）">
+        <div class="media-image-pick-row">
+          ${thumb}
+          <button type="button" class="circuit-sample-btn media-image-pick-btn">🖼 画像を選ぶ</button>
+        </div>
+        ${mediaTagSelectorHTML(img)}
+      </div>
+    </div>
+  `;
+  }).join('');
+  container.querySelectorAll('.exercise-video-row').forEach(row=>{
+    const imid = row.dataset.imid;
+    const img = mediaImages.find(x=>x.id===imid);
+    row.querySelector('[data-act="toggle"]').addEventListener('click', ()=>{
+      openMediaImageRowId = (openMediaImageRowId === imid) ? null : imid;
+      renderMediaImages();
+    });
+    row.querySelector('[data-field="name"]').addEventListener('change', e=>{ img.name=e.target.value; scheduleMediaImageSave(); renderMediaImages(); });
+    row.querySelector('.media-image-pick-btn').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      mediaImagePickTargetId = imid;
+      $('#mediaImageFileInput').click();
+    });
+    const playBtn = row.querySelector('.ei-image-play');
+    if(playBtn) playBtn.addEventListener('click', (e)=>{ e.stopPropagation(); playReferenceImage(img.dataUrl); });
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const idx = mediaImages.findIndex(x=>x.id===imid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ mediaImages.splice(idx,1); if(openMediaImageRowId===imid) openMediaImageRowId=null; }
+        else if(act==='up' && idx>0){ [mediaImages[idx-1],mediaImages[idx]]=[mediaImages[idx],mediaImages[idx-1]]; }
+        else if(act==='down' && idx<mediaImages.length-1){ [mediaImages[idx+1],mediaImages[idx]]=[mediaImages[idx],mediaImages[idx+1]]; }
+        renderMediaImages();
+        scheduleMediaImageSave();
+      });
+    });
+    bindMediaTagControls(row, img, renderMediaImages, scheduleMediaImageSave);
+  });
+}
+$('#mediaImageAddBtn').addEventListener('click', ()=>{
+  const newImage = { id:mkId(), name:'', dataUrl:'', tagId:'' };
+  mediaImages.push(newImage);
+  openMediaImageRowId = newImage.id;
+  renderMediaImages();
+  scheduleMediaImageSave();
+});
+$('#mediaImageFileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // 同じファイルを連続選択してもchangeイベントが発火するようにリセットしておく
+  if(!file || !mediaImagePickTargetId) return;
+  const img = mediaImages.find(x=>x.id===mediaImagePickTargetId);
+  if(!img) return;
+  try{
+    img.dataUrl = await fileToCompressedDataURL(file);
+    renderMediaImages();
+    scheduleMediaImageSave();
+  }catch(err){
+    console.warn('画像の読み込みに失敗しました', err);
+  }
 });
 
 /* --- メディアタブ：内容ごとに分けて何個でも追加できるメモ機能（題名をトグルヘッダーにして開閉） --- */
@@ -5237,7 +5463,7 @@ function renderMediaNotes(){
     return `
     <div class="exercise-video-row${isOpen?' open':''}" data-nid="${n.id}">
       <div class="exercise-video-header">
-        <button type="button" class="ev-name-btn${hasTitle?'':' placeholder'}" data-act="toggle"><span class="video-ref-chevron">▸</span>${n.tagId ? `<span class="media-tag-dot" style="background:${tag.color};"></span>` : ''}${hasTitle ? escapeHTML(n.title) : '（題名未設定）タップして入力'}</button>
+        <button type="button" class="ev-name-btn${hasTitle?'':' placeholder'}" data-act="toggle"><span class="video-ref-chevron">▸</span>${n.tagId ? mediaTagChipHTML(tag) : ''}${hasTitle ? escapeHTML(n.title) : '（題名未設定）タップして入力'}</button>
         <div class="exercise-video-actions">
           <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
           <button type="button" class="circuit-step-btn" data-act="down" ${i===mediaNotes.length-1?'disabled':''}>↓</button>
@@ -5338,6 +5564,10 @@ async function loadTrainingPlan(){
     mediaWebpages = rawWebpages ? JSON.parse(rawWebpages) : [];
   }catch(err){ mediaWebpages = []; }
   try{
+    const rawImages = await storageGet(MEDIA_IMAGES_KEY);
+    mediaImages = rawImages ? JSON.parse(rawImages) : [];
+  }catch(err){ mediaImages = []; }
+  try{
     const rawWeight = await storageGet(WEIGHT_LOG_KEY);
     weightLog = rawWeight ? JSON.parse(rawWeight) : {};
   }catch(err){ weightLog = {}; }
@@ -5383,6 +5613,7 @@ async function loadTrainingPlan(){
   renderExerciseItemList();
   renderMediaVideos();
   renderMediaWebpages();
+  renderMediaImages();
   renderMediaNotes();
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
 }
@@ -5996,7 +6227,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, MEDIA_IMAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
 ];
 
 async function collectBackupData(){
