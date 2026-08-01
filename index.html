@@ -568,14 +568,16 @@
   .video-ref-delete-btn:hover{ background:rgba(255,93,58,0.24); }
   .video-ref-body{ padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
   .video-ref-body .field label{ font-size:10.5px; }
-  .video-ref-body input[type=text],
   .video-ref-body input[type=number],
-  .video-ref-body select,
-  .video-ref-body textarea{
+  .video-ref-body select{
     background:var(--panel-bg-strong);
   }
   .video-ref-body .mode-toggle:not(.ei-subtype-toggle){ background:var(--panel-bg-strong); }
   .video-ref-body .circuit-step-row{ background:var(--panel-bg-strong); }
+  .video-ref-body input[type=text],
+  .video-ref-body textarea{
+    background:transparent;
+  }
   .video-ref-body input[type=text]{
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline);
     color:var(--panel-text); font-size:13px;
@@ -592,7 +594,7 @@
   }
   /* メモ：閲覧時は編集状態にならないよう、読み取り専用の表示＋編集/削除ボタンに分ける。
      枠のタップでの開閉（1行⇔全文）は従来通り、編集ボタンを押したときだけ入力可能なテキストエリアに切り替わる。 */
-  .ei-memo-view{ display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06); min-width:0; max-width:100%; }
+  .ei-memo-view{ display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline); background:transparent; min-width:0; max-width:100%; }
   .ei-memo-view-text{ flex:1; min-width:0; font-size:13px; line-height:1.6; color:var(--panel-text); white-space:pre-wrap; cursor:pointer; overflow:hidden; word-break:break-word; }
   .ei-memo-view-text.collapsed{ max-height:1.6em; white-space:nowrap; text-overflow:ellipsis; }
   .ei-memo-view-actions{ display:flex; gap:6px; flex:0 0 auto; padding-top:1px; }
@@ -681,6 +683,8 @@
     width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.12); color:var(--panel-text); font-size:12px;
   }
+  /* 種目設定ページの参考動画欄だけ、メディアページとは見た目を分けて背景色なしにする */
+  .video-ref-item .exercise-video-url-panel input[type=text]{ background:transparent; }
   .exercise-video-actions{ display:flex; gap:5px; flex:0 0 auto; }
   .exercise-video-actions .video-play-btn{
     width:auto; height:32px; padding:0 12px; border-radius:8px; font-size:12px; font-weight:700; flex:0 0 auto;
@@ -904,6 +908,26 @@
   }
   .ai-export-custom-range span{ color:var(--panel-muted); font-size:12px; flex:0 0 auto; }
   #backupFileInput{ display:none; }
+  .weight-chart-stats{ display:flex; gap:8px; flex-wrap:wrap; }
+  .weight-chart-stat{
+    flex:1 1 110px; display:flex; flex-direction:column; gap:2px; align-items:center; justify-content:center;
+    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:10px 8px;
+  }
+  .weight-chart-stat-label{ font-size:10.5px; color:var(--panel-muted); font-weight:700; letter-spacing:0.5px; }
+  .weight-chart-stat-val{ font-size:16px; font-weight:800; color:var(--panel-text); }
+  .weight-chart-stat-val.up{ color:var(--accent-work); }
+  .weight-chart-stat-val.down{ color:var(--accent-rest); }
+  .weight-chart-wrap{
+    background:rgba(128,128,128,0.06); border:1px solid var(--panel-hairline); border-radius:14px;
+    padding:14px 10px; min-height:260px; display:flex; align-items:center; justify-content:center;
+  }
+  .weight-chart-svg{ width:100%; height:auto; display:block; overflow:visible; }
+  .weight-chart-grid{ stroke:var(--panel-hairline); stroke-width:1; }
+  .weight-chart-axis-label{ font-size:10px; fill:var(--panel-muted); font-family:inherit; }
+  .weight-chart-area{ fill:var(--accent-amber); fill-opacity:0.12; stroke:none; }
+  .weight-chart-line{ fill:none; stroke:var(--accent-amber); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+  .weight-chart-dot{ fill:var(--accent-amber); stroke:var(--panel-bg); stroke-width:1.5; }
+  .weight-chart-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px; }
   .day-detail-weight-row{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
     background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:10px 14px;
@@ -1338,6 +1362,7 @@
     <div class="modal-head">
       <h3 id="dayDetailTitle">7月20日の記録</h3>
       <button class="modal-head-link-btn" id="dayDetailToMonthlyBtn" title="この月の月別一覧を見る">📊 月別一覧</button>
+      <button class="modal-head-link-btn" id="dayDetailToWeightChartBtn" title="体重推移グラフを見る">📈 体重推移</button>
       <button class="modal-close" id="dayDetailCloseBtn">✕</button>
     </div>
     <div class="day-detail-weight-row">
@@ -1385,6 +1410,7 @@
   <div class="panel modal-box wide" id="monthlyTableBox">
     <div class="modal-head">
       <h3>📊 月別一覧</h3>
+      <button class="modal-head-link-btn" id="monthlyTableToWeightChartBtn" title="体重推移グラフを見る">📈 体重推移</button>
       <button class="modal-close" id="monthlyTableCloseBtn">✕</button>
     </div>
     <div class="monthly-table-nav">
@@ -1396,6 +1422,30 @@
     <div class="monthly-table-scroll" id="monthlyTableScroll">
       <table class="monthly-table" id="monthlyTable"></table>
     </div>
+  </div>
+</div>
+
+<!-- 体重推移グラフ：月別一覧・日別詳細の両方から遷移できる専用ページ。縦軸=体重、横軸=日付、期間はプリセット＋範囲指定 -->
+<div class="modal-overlay" id="weightChartModal">
+  <div class="panel modal-box wide" id="weightChartBox">
+    <div class="modal-head">
+      <h3>📈 体重推移</h3>
+      <button class="modal-close" id="weightChartCloseBtn">✕</button>
+    </div>
+    <div class="ai-export-range-toggle" id="weightChartRangeToggle">
+      <button type="button" class="ai-export-range-btn" data-range="2w">2週間</button>
+      <button type="button" class="ai-export-range-btn active" data-range="1m">1ヶ月</button>
+      <button type="button" class="ai-export-range-btn" data-range="3m">3ヶ月</button>
+      <button type="button" class="ai-export-range-btn" data-range="all">全期間</button>
+      <button type="button" class="ai-export-range-btn" data-range="custom">範囲指定</button>
+    </div>
+    <div class="ai-export-custom-range" id="weightChartCustomRange" style="display:none;">
+      <input type="date" id="weightChartFromDate">
+      <span>〜</span>
+      <input type="date" id="weightChartToDate">
+    </div>
+    <div class="weight-chart-stats" id="weightChartStats"></div>
+    <div class="weight-chart-wrap" id="weightChartWrap"></div>
   </div>
 </div>
 
@@ -6078,6 +6128,159 @@ $('#dayDetailToMonthlyBtn').addEventListener('click', ()=>{
   closeDayDetailModal();
   openMonthlyTableModal(new Date(y, m-1, d));
 });
+
+/* --- 体重推移グラフ：月別一覧・日別詳細の両方から開ける。縦軸=体重、横軸=日付。期間はプリセット（2週間/1ヶ月/3ヶ月/全期間）＋範囲指定 --- */
+function parseDateKeyLocal(dateKey){
+  const [y,m,d] = dateKey.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+const weightChartModal = $('#weightChartModal');
+let weightChartRangeMode = '1m';
+let weightChartOriginDateKey = null; // どの日付/月から開いたか（プリセット期間の終端＆範囲指定欄の初期値に使う）
+
+function openWeightChartModal(originDateKey){
+  weightChartOriginDateKey = originDateKey || fmtDateKeyLocal(new Date());
+  weightChartModal.classList.add('show');
+  renderWeightChart();
+}
+function closeWeightChartModal(){
+  weightChartModal.classList.remove('show');
+}
+$('#weightChartCloseBtn').addEventListener('click', closeWeightChartModal);
+weightChartModal.addEventListener('click', (e)=>{ if(e.target===weightChartModal) closeWeightChartModal(); });
+
+$('#dayDetailToWeightChartBtn').addEventListener('click', ()=>{
+  if(!dayDetailCurrentDateKey) return;
+  openWeightChartModal(dayDetailCurrentDateKey);
+});
+$('#monthlyTableToWeightChartBtn').addEventListener('click', ()=>{
+  // 月別一覧で表示中の月の最終日を基準に、そこから遡るプリセット期間を表示する
+  const y = monthlyTableViewDate.getFullYear(), m = monthlyTableViewDate.getMonth();
+  const lastDay = new Date(y, m+1, 0);
+  openWeightChartModal(fmtDateKeyLocal(lastDay));
+});
+
+$('#weightChartRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    weightChartRangeMode = btn.dataset.range;
+    $('#weightChartRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    $('#weightChartCustomRange').style.display = weightChartRangeMode === 'custom' ? 'flex' : 'none';
+    if(weightChartRangeMode === 'custom' && (!$('#weightChartFromDate').value || !$('#weightChartToDate').value)){
+      const end = parseDateKeyLocal(weightChartOriginDateKey);
+      const start = new Date(end); start.setDate(start.getDate()-29);
+      $('#weightChartFromDate').value = fmtDateKeyLocal(start);
+      $('#weightChartToDate').value = fmtDateKeyLocal(end);
+    }
+    renderWeightChart();
+  });
+});
+$('#weightChartFromDate').addEventListener('change', renderWeightChart);
+$('#weightChartToDate').addEventListener('change', renderWeightChart);
+
+function computeWeightChartRange(){
+  const originDate = parseDateKeyLocal(weightChartOriginDateKey);
+  if(weightChartRangeMode === 'custom'){
+    const fromVal = $('#weightChartFromDate').value;
+    const toVal = $('#weightChartToDate').value;
+    if(fromVal && toVal){
+      return fromVal <= toVal ? { start: fromVal, end: toVal } : { start: toVal, end: fromVal };
+    }
+  }
+  if(weightChartRangeMode === 'all'){
+    const keys = Object.keys(weightLog).sort();
+    if(!keys.length) return { start: fmtDateKeyLocal(originDate), end: fmtDateKeyLocal(originDate) };
+    return { start: keys[0], end: keys[keys.length-1] };
+  }
+  const days = { '2w':14, '1m':30, '3m':90 }[weightChartRangeMode] || 30;
+  const start = new Date(originDate); start.setDate(start.getDate()-(days-1));
+  return { start: fmtDateKeyLocal(start), end: fmtDateKeyLocal(originDate) };
+}
+
+function renderWeightChart(){
+  const { start, end } = computeWeightChartRange();
+  const startDate = parseDateKeyLocal(start);
+  const endDate = parseDateKeyLocal(end);
+  const points = [];
+  for(let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)){
+    const key = fmtDateKeyLocal(d);
+    if(weightLog[key] != null) points.push({ key, date: new Date(d), value: weightLog[key] });
+  }
+
+  const statsEl = $('#weightChartStats');
+  const wrap = $('#weightChartWrap');
+  if(!points.length){
+    statsEl.innerHTML = '';
+    wrap.innerHTML = '<div class="weight-chart-empty">この期間の体重記録がありません。カレンダーの日別詳細ページから体重を入力すると、ここにグラフとして表示されます。</div>';
+    return;
+  }
+
+  const values = points.map(p=>p.value);
+  const latest = points[points.length-1].value;
+  const first = points[0].value;
+  const diff = latest - first;
+  const avg = values.reduce((a,b)=>a+b,0) / values.length;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const diffCls = diff > 0.05 ? 'up' : (diff < -0.05 ? 'down' : '');
+  statsEl.innerHTML = `
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">最新</span><span class="weight-chart-stat-val">${latest.toFixed(1)}kg</span></div>
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">この期間の増減</span><span class="weight-chart-stat-val ${diffCls}">${diff>0?'+':''}${diff.toFixed(1)}kg</span></div>
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">平均</span><span class="weight-chart-stat-val">${avg.toFixed(1)}kg</span></div>
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">最小〜最大</span><span class="weight-chart-stat-val">${min.toFixed(1)}〜${max.toFixed(1)}</span></div>
+  `;
+  wrap.innerHTML = buildWeightChartSVG(points, startDate, endDate);
+}
+
+function buildWeightChartSVG(points, rangeStart, rangeEnd){
+  const W = 680, H = 300;
+  const padL = 42, padR = 16, padT = 16, padB = 30;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const values = points.map(p=>p.value);
+  let vMin = Math.min(...values);
+  let vMax = Math.max(...values);
+  if(vMin === vMax){ vMin -= 1; vMax += 1; } // 全部同じ値の時も見やすいよう上下に余白を作る
+  const vPad = (vMax - vMin) * 0.15;
+  vMin -= vPad; vMax += vPad;
+
+  const totalMs = rangeEnd - rangeStart;
+  const xOf = (d) => totalMs > 0 ? padL + ((d - rangeStart) / totalMs) * plotW : padL + plotW/2;
+  const yOf = (v) => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+
+  let gridLines = '';
+  const gridCount = 4;
+  for(let i=0; i<=gridCount; i++){
+    const v = vMin + (vMax-vMin)*i/gridCount;
+    const y = yOf(v);
+    gridLines += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" class="weight-chart-grid"/>`;
+    gridLines += `<text x="${padL-6}" y="${(y+3.5).toFixed(1)}" text-anchor="end" class="weight-chart-axis-label">${v.toFixed(1)}</text>`;
+  }
+
+  let xLabels = '';
+  const maxLabels = 6;
+  const labelStep = Math.max(1, Math.ceil(points.length / maxLabels));
+  points.forEach((p, i)=>{
+    if(i % labelStep === 0 || i === points.length-1){
+      const x = xOf(p.date);
+      xLabels += `<text x="${x.toFixed(1)}" y="${H-padB+18}" text-anchor="middle" class="weight-chart-axis-label">${p.date.getMonth()+1}/${p.date.getDate()}</text>`;
+    }
+  });
+
+  const linePath = points.map((p,i)=> `${i===0?'M':'L'} ${xOf(p.date).toFixed(1)} ${yOf(p.value).toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${xOf(points[points.length-1].date).toFixed(1)} ${(padT+plotH).toFixed(1)} L ${xOf(points[0].date).toFixed(1)} ${(padT+plotH).toFixed(1)} Z`;
+  const dots = points.map(p=>`<circle cx="${xOf(p.date).toFixed(1)}" cy="${yOf(p.value).toFixed(1)}" r="3.5" class="weight-chart-dot"><title>${p.date.getMonth()+1}/${p.date.getDate()}: ${p.value}kg</title></circle>`).join('');
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="weight-chart-svg" preserveAspectRatio="xMidYMid meet">
+      ${gridLines}
+      <path d="${areaPath}" class="weight-chart-area"></path>
+      <path d="${linePath}" class="weight-chart-line"></path>
+      ${dots}
+      ${xLabels}
+    </svg>
+  `;
+}
 
 /* 体調評価：ワンタップで選択（同じものをもう一度押すと選択解除）。もう一度押して消せるので入力ミスの訂正も簡単 */
 $('#dayDetailConditionOptions').querySelectorAll('button').forEach(btn=>{
