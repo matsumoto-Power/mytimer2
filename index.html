@@ -406,7 +406,7 @@
   }
   .circuit-sample-btn:hover{ color:var(--panel-text); background:rgba(128,128,128,0.1); }
   .field-row{ display:flex; gap:12px; }
-  .field{ flex:1; display:flex; flex-direction:column; gap:5px; }
+  .field{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
   .field label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase;}
   .field input[type=number]{
     width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
@@ -450,7 +450,7 @@
   .weather-stat .v{ font-family:'Oswald',sans-serif; font-size:21px; font-weight:600; }
   .weather-stat .l{ font-size:10px; color:var(--panel-muted); letter-spacing:1px; margin-top:2px; }
 
-  .memo-card{ flex:1.3 1 280px; padding:20px 22px; display:flex; flex-direction:column; gap:12px; }
+  .memo-card{ flex:1.3 1 280px; min-width:0; padding:20px 22px; display:flex; flex-direction:column; gap:12px; }
   .memo-card-full{ flex:1 1 100%; }
   .memo-card-full textarea:not(.ei-memo-input){ min-height:260px; }
   .memo-head{ display:flex; align-items:center; justify-content:space-between; }
@@ -535,7 +535,7 @@
   .video-ref-empty{ font-size:13px; color:var(--panel-muted); text-align:center; padding:30px 10px; }
   .video-ref-item{
     border:1px solid var(--panel-hairline); border-radius:14px; overflow:hidden;
-    background:rgba(128,128,128,0.08);
+    background:rgba(128,128,128,0.08); min-width:0; max-width:100%;
   }
   .video-ref-header{
     width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 8px 6px 14px;
@@ -592,7 +592,7 @@
   }
   /* メモ：閲覧時は編集状態にならないよう、読み取り専用の表示＋編集/削除ボタンに分ける。
      枠のタップでの開閉（1行⇔全文）は従来通り、編集ボタンを押したときだけ入力可能なテキストエリアに切り替わる。 */
-  .ei-memo-view{ display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06); }
+  .ei-memo-view{ display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border-radius:10px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06); min-width:0; max-width:100%; }
   .ei-memo-view-text{ flex:1; min-width:0; font-size:13px; line-height:1.6; color:var(--panel-text); white-space:pre-wrap; cursor:pointer; overflow:hidden; word-break:break-word; }
   .ei-memo-view-text.collapsed{ max-height:1.6em; white-space:nowrap; text-overflow:ellipsis; }
   .ei-memo-view-actions{ display:flex; gap:6px; flex:0 0 auto; padding-top:1px; }
@@ -610,7 +610,7 @@
   .video-delete-btn:hover{ color:var(--accent-work); }
 
   /* ===== 種目設定：種目リスト・タグ・動画（動画タブのアコーディオンスタイルを再利用） ===== */
-  .exercise-item-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1; min-height:0; }
+  .exercise-item-list{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; overflow-x:hidden; flex:1; min-width:0; min-height:0; }
   .tag-chip{ flex:0 0 auto; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
   .tag-row{ display:flex; gap:8px; align-items:center; }
   .tag-row .ei-tag-select{ flex:1; }
