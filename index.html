@@ -818,6 +818,7 @@
   .monthly-table-entry-name{ display:block; font-weight:700; }
   .monthly-table-entry-summary{ display:block; color:var(--panel-muted); }
   .monthly-table-empty-cell{ color:var(--panel-muted); }
+  .monthly-table-condition-cell{ text-align:center; font-size:17px; }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .modal-head h3{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .modal-head-link-btn{
@@ -927,6 +928,16 @@
   .weight-chart-area{ fill:var(--accent-amber); fill-opacity:0.12; stroke:none; }
   .weight-chart-line{ fill:none; stroke:var(--accent-amber); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
   .weight-chart-dot{ fill:var(--accent-amber); stroke:var(--panel-bg); stroke-width:1.5; }
+  .weight-chart-color-settings{ display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06); }
+  .weight-chart-color-hint{ font-size:11.5px; color:var(--panel-muted); line-height:1.5; }
+  .weight-chart-color-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .weight-chart-color-label{ font-size:13px; font-weight:600; color:var(--panel-text); }
+  .weight-chart-color-row input[type=color]{
+    appearance:none; -webkit-appearance:none; width:44px; height:32px; padding:0; border:1px solid var(--panel-hairline);
+    border-radius:8px; background:transparent; cursor:pointer;
+  }
+  .weight-chart-color-row input[type=color]::-webkit-color-swatch-wrapper{ padding:2px; }
+  .weight-chart-color-row input[type=color]::-webkit-color-swatch{ border:none; border-radius:6px; }
   .weight-chart-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px; }
   .day-detail-weight-row{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -1360,7 +1371,9 @@
 <div class="modal-overlay" id="dayDetailModal">
   <div class="panel modal-box" id="dayDetailBox">
     <div class="modal-head">
+      <button class="calendar-nav-btn" id="dayDetailPrevDayBtn" aria-label="前日">‹</button>
       <h3 id="dayDetailTitle">7月20日の記録</h3>
+      <button class="calendar-nav-btn" id="dayDetailNextDayBtn" aria-label="翌日">›</button>
       <button class="modal-head-link-btn" id="dayDetailToMonthlyBtn" title="この月の月別一覧を見る">📊 月別一覧</button>
       <button class="modal-head-link-btn" id="dayDetailToWeightChartBtn" title="体重推移グラフを見る">📈 体重推移</button>
       <button class="modal-close" id="dayDetailCloseBtn">✕</button>
@@ -1430,7 +1443,17 @@
   <div class="panel modal-box wide" id="weightChartBox">
     <div class="modal-head">
       <h3>📈 体重推移</h3>
+      <button class="modal-head-link-btn" id="weightChartColorSettingsBtn" title="体調に合わせたドットの色を設定">🎨 ドットの色</button>
       <button class="modal-close" id="weightChartCloseBtn">✕</button>
+    </div>
+    <div class="weight-chart-color-settings" id="weightChartColorSettings" style="display:none;">
+      <div class="weight-chart-color-hint">体調評価を入力した日は、グラフのドットがその日の体調の色になります（体調アイコンの表示/非表示設定に関わらず反映されます）。</div>
+      <div class="weight-chart-color-row" data-cond="1"><span class="weight-chart-color-label">😞 最悪</span><input type="color" data-cond="1"></div>
+      <div class="weight-chart-color-row" data-cond="2"><span class="weight-chart-color-label">🙁 悪い</span><input type="color" data-cond="2"></div>
+      <div class="weight-chart-color-row" data-cond="3"><span class="weight-chart-color-label">😐 普通</span><input type="color" data-cond="3"></div>
+      <div class="weight-chart-color-row" data-cond="4"><span class="weight-chart-color-label">🙂 良い</span><input type="color" data-cond="4"></div>
+      <div class="weight-chart-color-row" data-cond="5"><span class="weight-chart-color-label">😀 とても良い</span><input type="color" data-cond="5"></div>
+      <button type="button" class="small-btn" id="weightChartColorResetBtn">初期値に戻す</button>
     </div>
     <div class="ai-export-range-toggle" id="weightChartRangeToggle">
       <button type="button" class="ai-export-range-btn" data-range="2w">2週間</button>
@@ -3738,6 +3761,7 @@ const MEDIA_TAGS_KEY = 'media-tags';
 const WEIGHT_LOG_KEY = 'weight-log';
 const CONDITION_LOG_KEY = 'condition-log';
 const CONDITION_VISIBLE_KEY = 'condition-tracker-visible';
+const CONDITION_COLOR_KEY = 'condition-dot-colors';
 const DAY_NOTE_LOG_KEY = 'day-note-log';
 const DAY_NOTE_VISIBLE_KEY = 'day-note-visible';
 const DAY_TAG_DATES_KEY = 'day-tag-dates';
@@ -5842,6 +5866,11 @@ async function loadTrainingPlan(){
     conditionTrackerVisible = rawConditionVisible === null ? true : rawConditionVisible === 'true';
   }catch(err){ conditionTrackerVisible = true; }
   try{
+    const rawConditionColors = await storageGet(CONDITION_COLOR_KEY);
+    if(rawConditionColors){ conditionDotColors = { ...DEFAULT_CONDITION_DOT_COLORS, ...JSON.parse(rawConditionColors) }; }
+  }catch(err){ /* デフォルト値のまま続行 */ }
+  applyConditionColorInputs();
+  try{
     const rawDayTagDates = await storageGet(DAY_TAG_DATES_KEY);
     dayTagDates = rawDayTagDates ? JSON.parse(rawDayTagDates) : {};
     // フリープランは日付紐づけの対象外にしたため、過去にフリープランタブへ紐づけていたデータが残っていれば掃除する
@@ -5963,6 +5992,7 @@ function openMonthlyTableModal(targetDate){
 function closeMonthlyTableModal(){
   monthlyTableModal.classList.remove('show');
 }
+const CONDITION_ICONS = { 1:'😞', 2:'🙁', 3:'😐', 4:'🙂', 5:'😀' };
 function renderMonthlyTable(){
   const year = monthlyTableViewDate.getFullYear();
   const month = monthlyTableViewDate.getMonth();
@@ -5973,8 +6003,11 @@ function renderMonthlyTable(){
   const today = new Date();
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
 
+  // 体調評価を非表示にしている場合は、月別一覧にも列を出さない（日別詳細ページの表示/非表示設定と連動）
+  const showCondition = conditionTrackerVisible;
+
   // 列（タグ）ごとに、そのタグ自身のカラーで見出しから最下段まで縦に薄く塗り潰す（種目設定ページのタグ色と同じ値を使用）
-  let thead = '<thead><tr><th>日付</th><th>体重</th>' + columns.map(c=>`<th style="background:${c.color}3d;">${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
+  let thead = '<thead><tr><th>日付</th><th>体重</th>' + (showCondition ? '<th>体調</th>' : '') + columns.map(c=>`<th style="background:${c.color}3d;">${escapeHTML(c.name)}</th>`).join('') + '</tr></thead>';
 
   let rows = '';
   for(let d=1; d<=daysInMonth; d++){
@@ -5985,6 +6018,10 @@ function renderMonthlyTable(){
     const weightVal = weightLog[dateKey];
     const hasWeight = weightVal !== undefined && weightVal !== null && weightVal !== '';
     const weightCell = hasWeight ? `${escapeHTML(String(weightVal))}kg` : '<span class="monthly-table-empty-cell">―</span>';
+    const conditionVal = conditionLog[dateKey];
+    const conditionCell = showCondition
+      ? `<td class="monthly-table-condition-cell">${conditionVal != null ? (CONDITION_ICONS[conditionVal] || '') : '<span class="monthly-table-empty-cell">―</span>'}</td>`
+      : '';
     const cells = columns.map(col=>{
       const tint = `background:${col.color}14;`;
       const matched = entries.filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === col.name);
@@ -5994,7 +6031,7 @@ function renderMonthlyTable(){
       ).join('');
       return `<td style="${tint}">${cellHtml}</td>`;
     }).join('');
-    rows += `<tr${isToday?' class="today"':''}><th><button type="button" class="monthly-table-date-btn" data-date="${dateKey}">${d}日（${dow}）</button></th><td>${weightCell}</td>${cells}</tr>`;
+    rows += `<tr${isToday?' class="today"':''}><th><button type="button" class="monthly-table-date-btn" data-date="${dateKey}">${d}日（${dow}）</button></th><td>${weightCell}</td>${conditionCell}${cells}</tr>`;
   }
   $('#monthlyTable').innerHTML = thead + '<tbody>' + rows + '</tbody>';
   $('#monthlyTable').querySelectorAll('.monthly-table-date-btn').forEach(btn=>{
@@ -6120,6 +6157,15 @@ function closeDayDetailModal(){
   dayDetailModal.classList.remove('show');
   dayDetailCurrentDateKey = null;
 }
+/* 前日／翌日へ移動：openDayDetailModalを呼び直すだけで、体重・体調・メモ・実施記録・日程タグ紐づけなど全項目がその日の内容に総入れ替えされる */
+function shiftDayDetailBy(deltaDays){
+  if(!dayDetailCurrentDateKey) return;
+  const d = parseDateKeyLocal(dayDetailCurrentDateKey);
+  d.setDate(d.getDate() + deltaDays);
+  openDayDetailModal(fmtDateKeyLocal(d));
+}
+$('#dayDetailPrevDayBtn').addEventListener('click', ()=> shiftDayDetailBy(-1));
+$('#dayDetailNextDayBtn').addEventListener('click', ()=> shiftDayDetailBy(1));
 $('#dayDetailCloseBtn').addEventListener('click', closeDayDetailModal);
 dayDetailModal.addEventListener('click', (e)=>{ if(e.target === dayDetailModal) closeDayDetailModal(); });
 $('#dayDetailToMonthlyBtn').addEventListener('click', ()=>{
@@ -6138,6 +6184,32 @@ const weightChartModal = $('#weightChartModal');
 let weightChartRangeMode = '1m';
 let weightChartOriginDateKey = null; // どの日付/月から開いたか（プリセット期間の終端＆範囲指定欄の初期値に使う）
 
+/* 体重推移グラフのドットの色：体調評価（1〜5）に応じて色分けする設定。体調アイコンの表示/非表示設定とは独立して常に反映される。 */
+const DEFAULT_CONDITION_DOT_COLORS = { 1:'#ff5c5c', 2:'#ffd23c', 3:'#3ca7ff', 4:'#3ecf6e', 5:'#ffffff' };
+let conditionDotColors = { ...DEFAULT_CONDITION_DOT_COLORS };
+function applyConditionColorInputs(){
+  $('#weightChartColorSettings').querySelectorAll('input[type=color]').forEach(input=>{
+    input.value = conditionDotColors[input.dataset.cond] || DEFAULT_CONDITION_DOT_COLORS[input.dataset.cond];
+  });
+}
+$('#weightChartColorSettingsBtn').addEventListener('click', ()=>{
+  const panel = $('#weightChartColorSettings');
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+});
+$('#weightChartColorSettings').querySelectorAll('input[type=color]').forEach(input=>{
+  input.addEventListener('input', async (e)=>{
+    conditionDotColors[e.target.dataset.cond] = e.target.value;
+    renderWeightChart();
+    await storageSet(CONDITION_COLOR_KEY, JSON.stringify(conditionDotColors));
+  });
+});
+$('#weightChartColorResetBtn').addEventListener('click', async ()=>{
+  conditionDotColors = { ...DEFAULT_CONDITION_DOT_COLORS };
+  applyConditionColorInputs();
+  renderWeightChart();
+  await storageSet(CONDITION_COLOR_KEY, JSON.stringify(conditionDotColors));
+});
+
 function openWeightChartModal(originDateKey){
   weightChartOriginDateKey = originDateKey || fmtDateKeyLocal(new Date());
   weightChartModal.classList.add('show');
@@ -6145,6 +6217,7 @@ function openWeightChartModal(originDateKey){
 }
 function closeWeightChartModal(){
   weightChartModal.classList.remove('show');
+  $('#weightChartColorSettings').style.display = 'none';
 }
 $('#weightChartCloseBtn').addEventListener('click', closeWeightChartModal);
 weightChartModal.addEventListener('click', (e)=>{ if(e.target===weightChartModal) closeWeightChartModal(); });
@@ -6269,7 +6342,13 @@ function buildWeightChartSVG(points, rangeStart, rangeEnd){
 
   const linePath = points.map((p,i)=> `${i===0?'M':'L'} ${xOf(p.date).toFixed(1)} ${yOf(p.value).toFixed(1)}`).join(' ');
   const areaPath = `${linePath} L ${xOf(points[points.length-1].date).toFixed(1)} ${(padT+plotH).toFixed(1)} L ${xOf(points[0].date).toFixed(1)} ${(padT+plotH).toFixed(1)} Z`;
-  const dots = points.map(p=>`<circle cx="${xOf(p.date).toFixed(1)}" cy="${yOf(p.value).toFixed(1)}" r="3.5" class="weight-chart-dot"><title>${p.date.getMonth()+1}/${p.date.getDate()}: ${p.value}kg</title></circle>`).join('');
+  const dots = points.map(p=>{
+    const cond = conditionLog[p.key];
+    const hasCond = cond != null && conditionDotColors[cond];
+    const fillAttr = hasCond ? ` style="fill:${conditionDotColors[cond]};"` : '';
+    const condLabel = hasCond ? ` ${CONDITION_ICONS[cond] || ''}` : '';
+    return `<circle cx="${xOf(p.date).toFixed(1)}" cy="${yOf(p.value).toFixed(1)}" r="3.5" class="weight-chart-dot"${fillAttr}><title>${p.date.getMonth()+1}/${p.date.getDate()}: ${p.value}kg${condLabel}</title></circle>`;
+  }).join('');
 
   return `
     <svg viewBox="0 0 ${W} ${H}" class="weight-chart-svg" preserveAspectRatio="xMidYMid meet">
@@ -6643,7 +6722,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, MEDIA_IMAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, MEDIA_IMAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, CONDITION_COLOR_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
 ];
 
 async function collectBackupData(){
