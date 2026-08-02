@@ -829,6 +829,12 @@
     width:100%; box-sizing:border-box; padding:9px 11px; border:2px solid var(--accent-amber); border-radius:0;
     background:rgba(255,178,44,0.08); color:var(--panel-text); font-size:inherit; font-family:inherit;
   }
+  .monthly-table-cell{ padding:0 !important; }
+  .monthly-table-cell-btn{
+    appearance:none; cursor:pointer; border:none; background:transparent; color:inherit; font:inherit;
+    width:100%; height:100%; padding:10px 12px; text-align:left; display:block;
+  }
+  .monthly-table-cell-btn:hover{ background:rgba(128,128,128,0.14); }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .modal-head h3{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .modal-head-link-btn{
@@ -1624,6 +1630,18 @@
 </div>
 
 <!-- カレンダー：記録追加を、種目設定に登録済みの全種目から選んで行うための専用モーダル（複数選択可） -->
+<!-- 月別一覧：日付×分類タグの交点セルをタップした時に開く、その組み合わせに絞った記録編集モーダル -->
+<div class="modal-overlay" id="cellEditModal">
+  <div class="panel modal-box" id="cellEditBox">
+    <div class="modal-head">
+      <h3 id="cellEditTitle">--月--日・タグ</h3>
+      <button class="modal-close" id="cellEditCloseBtn">✕</button>
+    </div>
+    <div class="day-detail-list" id="cellEditList"></div>
+    <button type="button" class="modal-add-btn" id="cellEditAddBtn">＋ 記録を追加</button>
+    <div class="plan-day-inline-panel" id="cellEditFormPanel" style="display:none;"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="manualPickerModal">
   <div class="panel modal-box" id="manualPickerBox">
     <div class="modal-head">
@@ -6037,15 +6055,20 @@ function renderMonthlyTable(){
     const cells = columns.map(col=>{
       const tint = `background:${col.color}14;`;
       const matched = entries.filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === col.name);
-      if(!matched.length) return `<td style="${tint}"><span class="monthly-table-empty-cell">―</span></td>`;
-      const cellHtml = matched.map(e =>
-        `<span class="monthly-table-entry"><span class="monthly-table-entry-name">${escapeHTML(e.name)}</span><span class="monthly-table-entry-summary">${escapeHTML(e.summary||'')}</span></span>`
-      ).join('');
-      return `<td style="${tint}">${cellHtml}</td>`;
+      const inner = matched.length
+        ? matched.map(e => `<span class="monthly-table-entry"><span class="monthly-table-entry-name">${escapeHTML(e.name)}</span><span class="monthly-table-entry-summary">${escapeHTML(e.summary||'')}</span></span>`).join('')
+        : '<span class="monthly-table-empty-cell">―</span>';
+      return `<td class="monthly-table-cell" style="${tint}"><button type="button" class="monthly-table-cell-btn" data-date="${dateKey}" data-tagname="${escapeHTML(col.name)}">${inner}</button></td>`;
     }).join('');
     rows += `<tr${isToday?' class="today"':''}><th><button type="button" class="monthly-table-date-btn" data-date="${dateKey}">${d}日（${dow}）</button></th>${weightTd}${conditionCell}${cells}</tr>`;
   }
   $('#monthlyTable').innerHTML = thead + '<tbody>' + rows + '</tbody>';
+  $('#monthlyTable').querySelectorAll('.monthly-table-cell-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tag = [...exerciseTags, UNCATEGORIZED_TAG].find(t=>t.name === btn.dataset.tagname) || UNCATEGORIZED_TAG;
+      openCellEditModal(btn.dataset.date, tag);
+    });
+  });
   $('#monthlyTable').querySelectorAll('.monthly-table-date-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const dateKey = btn.dataset.date;
@@ -6621,7 +6644,13 @@ function openDayDetailForm(existingEntry){
   const nameInput = $('#dayDetailNameInput');
   nameInput.focus();
   const pickBtn = $('#dayDetailPickExistingBtn');
-  if(pickBtn) pickBtn.addEventListener('click', openManualPickerModal);
+  if(pickBtn) pickBtn.addEventListener('click', ()=>{
+    openManualPickerModal(dayDetailCurrentDateKey, null, ()=>{
+      dayDetailFormPanel.style.display = 'none';
+      dayDetailFormPanel.innerHTML = '';
+      renderDayDetailList();
+    });
+  });
   $('#dayDetailSaveBtn').addEventListener('click', async ()=>{
     const name = nameInput.value.trim();
     if(!name){ nameInput.focus(); return; }
@@ -6649,6 +6678,9 @@ const manualPickerList = $('#manualPickerList');
 let manualPickerSelectedIdx = new Set();
 let manualPickerItems = [];
 let manualPickerSortMode = 'day'; // 'day': 日程タブの並び順 / 'tag': 種目タグの並び順
+let manualPickerTargetDateKey = null; // どの日付に追加するか（呼び出し元が都度指定する）
+let manualPickerFilterTagName = null; // nullなら全種目、文字列ならそのタグ名の種目のみに絞り込む（セル編集モーダルからの利用時）
+let manualPickerOnConfirm = null; // 追加完了後に呼ぶコールバック（呼び出し元ごとに後片付け・再描画内容が異なるため）
 function buildManualPickerItems(){
   const dayTabs = getAllPlanDayTabs();
   const dayLabelMap = {};
@@ -6658,6 +6690,7 @@ function buildManualPickerItems(){
     // 種目設定ページでのタグの並び替え順（未分類は最後）に沿って、該当するタグの種目を日程タブ横断で集める
     const tagsInOrder = [...exerciseTags, UNCATEGORIZED_TAG];
     tagsInOrder.forEach(tag=>{
+      if(manualPickerFilterTagName != null && tag.name !== manualPickerFilterTagName) return;
       dayTabs.forEach(t=>{
         (trainingPlan[t.key] || []).forEach(item=>{
           if(!item.name || !item.name.trim()) return;
@@ -6672,6 +6705,7 @@ function buildManualPickerItems(){
     dayTabs.forEach(t=>{
       (trainingPlan[t.key] || []).forEach(item=>{
         if(!item.name || !item.name.trim()) return;
+        if(manualPickerFilterTagName != null && resolveItemTag(item).name !== manualPickerFilterTagName) return;
         items.push({ dayKey: t.key, dayLabel: t.label, item });
       });
     });
@@ -6681,7 +6715,9 @@ function buildManualPickerItems(){
 function renderManualPickerList(){
   manualPickerItems = buildManualPickerItems();
   if(!manualPickerItems.length){
-    manualPickerList.innerHTML = '<div class="tag-search-empty">まだ種目が登録されていません。種目設定ページで種目を追加してください。</div>';
+    manualPickerList.innerHTML = manualPickerFilterTagName != null
+      ? '<div class="tag-search-empty">このタグが付いた種目はまだありません。種目設定ページで種目にタグを設定してください。</div>'
+      : '<div class="tag-search-empty">まだ種目が登録されていません。種目設定ページで種目を追加してください。</div>';
     return;
   }
   manualPickerList.innerHTML = manualPickerItems.map((entry, idx)=>{
@@ -6718,9 +6754,15 @@ $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(bt
     renderManualPickerList();
   });
 });
-function openManualPickerModal(){
+/* targetDateKey: 追加先の日付 / filterTagName: 種目タグ名で絞り込む場合に指定（省略時は全種目対象） / onConfirm: 追加完了後に呼ぶ再描画コールバック */
+function openManualPickerModal(targetDateKey, filterTagName, onConfirm){
   manualPickerSelectedIdx = new Set();
   manualPickerSortMode = 'day';
+  manualPickerTargetDateKey = targetDateKey;
+  manualPickerFilterTagName = (filterTagName === undefined) ? null : filterTagName;
+  manualPickerOnConfirm = onConfirm || null;
+  // タグで絞り込んでいる場合は、並び替えトグル自体に意味がなくなる（結果が変わらない）ため隠す
+  $('#manualPickerSortToggle').style.display = manualPickerFilterTagName != null ? 'none' : 'flex';
   $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b.dataset.sort==='day'));
   renderManualPickerList();
   manualPickerModal.classList.add('show');
@@ -6734,13 +6776,13 @@ manualPickerModal.addEventListener('click', (e)=>{
   if(e.target === manualPickerModal) closeManualPickerModal();
 });
 $('#manualPickerConfirmBtn').addEventListener('click', async ()=>{
-  if(!manualPickerSelectedIdx.size || !dayDetailCurrentDateKey) return;
+  if(!manualPickerSelectedIdx.size || !manualPickerTargetDateKey) return;
   // 選んだ時点の種目の内容（名前・タグ・モード・回数やインターバル設定）をそのままスナップショットとして記録に追加する
   for(const idx of manualPickerSelectedIdx){
     const entry = manualPickerItems[idx];
     if(!entry) continue;
     const item = entry.item;
-    await addManualEntry(dayDetailCurrentDateKey, {
+    await addManualEntry(manualPickerTargetDateKey, {
       name: item.name,
       tagId: item.tagId || '',
       mode: item.mode,
@@ -6749,11 +6791,191 @@ $('#manualPickerConfirmBtn').addEventListener('click', async ()=>{
     });
   }
   closeManualPickerModal();
-  dayDetailFormPanel.style.display = 'none';
-  dayDetailFormPanel.innerHTML = '';
-  renderDayDetailList();
+  if(manualPickerOnConfirm) manualPickerOnConfirm();
   renderCalendar();
 });
+
+/* =========================================================
+   月別一覧：日付×分類タグの交点セルをタップして開く記録編集モーダル
+   ---------------------------------------------------------
+   タグ列は「その日にそのタグの種目を実施した記録」をまとめて表示している列なので、
+   ここでは対象の日付・タグの組み合わせだけに絞った記録一覧の閲覧・削除・追加ができるようにする。
+   記録を追加する際の「既存の種目から選ぶ」も、このタグに属する種目だけに絞り込む。
+========================================================= */
+const cellEditModal = $('#cellEditModal');
+const cellEditList = $('#cellEditList');
+const cellEditFormPanel = $('#cellEditFormPanel');
+let cellEditDateKey = null;
+let cellEditTag = null; // { id, name, color } または UNCATEGORIZED_TAG
+
+function openCellEditModal(dateKey, tag){
+  cellEditDateKey = dateKey;
+  cellEditTag = tag;
+  cellEditFormPanel.style.display = 'none';
+  cellEditFormPanel.innerHTML = '';
+  $('#cellEditTitle').textContent = `${formatDateLabel(dateKey)}・${tag.name}`;
+  renderCellEditList();
+  cellEditModal.classList.add('show');
+}
+function closeCellEditModal(){
+  cellEditModal.classList.remove('show');
+  cellEditDateKey = null;
+  cellEditTag = null;
+}
+$('#cellEditCloseBtn').addEventListener('click', closeCellEditModal);
+cellEditModal.addEventListener('click', (e)=>{ if(e.target === cellEditModal) closeCellEditModal(); });
+
+function renderCellEditList(){
+  if(!cellEditDateKey || !cellEditTag) return;
+  const entries = getDayRecordEntries(cellEditDateKey).filter(e => (e.tagName || UNCATEGORIZED_TAG.name) === cellEditTag.name);
+  if(!entries.length){
+    cellEditList.innerHTML = '<div class="day-detail-empty">この日・このタグの記録はまだありません。</div>';
+    return;
+  }
+  cellEditList.innerHTML = entries.map(e=>{
+    const isAuto = e.source === 'auto';
+    const badge = isAuto ? '<span class="day-detail-source-badge">インターバル記録</span>' : '<span class="day-detail-source-badge custom">カスタム記録</span>';
+    const delTitle = isAuto ? 'この記録を削除（間違えてチェックした場合など）' : '削除';
+    return `
+      <div class="day-detail-row">
+        <span class="day-detail-dot" style="background:${e.tagColor};"></span>
+        <div class="day-detail-text">
+          <span class="day-detail-name">${escapeHTML(e.name)}</span>
+          ${e.summary ? `<span class="day-detail-summary">${escapeHTML(e.summary)}</span>` : ''}
+        </div>
+        ${badge}
+        <button type="button" class="day-detail-row-btn del" data-source="${e.source}" data-id="${e.id}" title="${delTitle}">🗑</button>
+      </div>
+    `;
+  }).join('');
+  cellEditList.querySelectorAll('.day-detail-row-btn.del').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('この記録を削除しますか？')) return;
+      if(btn.dataset.source === 'auto'){ await deleteTrainingLogEntry(cellEditDateKey, btn.dataset.id); }
+      else { await deleteManualEntry(cellEditDateKey, btn.dataset.id); }
+      renderCellEditList();
+      renderMonthlyTable();
+      renderCalendar();
+    });
+  });
+}
+
+$('#cellEditAddBtn').addEventListener('click', ()=> openCellEditForm());
+
+/* 記録の直接追加フォーム。タグは交点セルの文脈で既に確定しているため、タグ選択欄は出さず自動的に付与する。 */
+function openCellEditForm(){
+  const data = {
+    name: '', tagId: cellEditTag.id || '', mode: 'reps',
+    reps: { count: 10, sets: 3 },
+    interval: { subType: 'simple', simple: { work:40, rest:20, sets:8 }, circuit: { workCount:5, repeat:3 } },
+  };
+  cellEditFormPanel.innerHTML = `
+    <div class="plan-day-inline-title">＋ 記録を追加（${escapeHTML(cellEditTag.name)}）</div>
+    <div class="plan-day-inline-row">
+      <input type="text" id="cellEditNameInput" placeholder="例）スクワット、ウォーキング">
+    </div>
+    <div class="mode-toggle" id="cellEditModeToggle">
+      <button type="button" class="mode-btn active" data-mode="reps">回数</button>
+      <button type="button" class="mode-btn" data-mode="interval">インターバル</button>
+    </div>
+    <div id="cellEditModeFields"></div>
+    <button type="button" class="preset-full-btn" id="cellEditPickExistingBtn">📋 既存の種目から選ぶ（${escapeHTML(cellEditTag.name)}のみ）</button>
+    <div class="plan-day-inline-actions">
+      <button type="button" class="preset-full-btn save" id="cellEditSaveBtn">追加</button>
+      <button type="button" class="preset-full-btn" id="cellEditFormCancelBtn">キャンセル</button>
+    </div>
+  `;
+  cellEditFormPanel.style.display = 'flex';
+
+  function renderSubtypeFields(){
+    const wrap = $('#cellEditSubtypeFields');
+    if(!wrap) return;
+    if(data.interval.subType === 'simple'){
+      wrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>ワーク（秒）</label><input type="number" id="ceWork" min="1" value="${data.interval.simple.work}"></div>
+          <div class="field"><label>休憩（秒）</label><input type="number" id="ceRest" min="0" value="${data.interval.simple.rest}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="ceSimpleSets" min="1" value="${data.interval.simple.sets}"></div>
+        </div>
+      `;
+      $('#ceWork').addEventListener('change', e=>{ data.interval.simple.work = Math.max(1, parseInt(e.target.value)||1); });
+      $('#ceRest').addEventListener('change', e=>{ data.interval.simple.rest = Math.max(0, parseInt(e.target.value)||0); });
+      $('#ceSimpleSets').addEventListener('change', e=>{ data.interval.simple.sets = Math.max(1, parseInt(e.target.value)||1); });
+    } else {
+      wrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>実施ワーク数</label><input type="number" id="ceWorkCount" min="1" value="${data.interval.circuit.workCount}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="ceCircuitRepeat" min="1" value="${data.interval.circuit.repeat}"></div>
+        </div>
+      `;
+      $('#ceWorkCount').addEventListener('change', e=>{ data.interval.circuit.workCount = Math.max(1, parseInt(e.target.value)||1); });
+      $('#ceCircuitRepeat').addEventListener('change', e=>{ data.interval.circuit.repeat = Math.max(1, parseInt(e.target.value)||1); });
+    }
+  }
+  function renderModeFields(){
+    const wrap = $('#cellEditModeFields');
+    if(data.mode === 'reps'){
+      wrap.innerHTML = `
+        <div class="field-row">
+          <div class="field"><label>回数</label><input type="number" id="ceRepsCount" min="1" value="${data.reps.count}"></div>
+          <div class="field"><label>セット数</label><input type="number" id="ceRepsSets" min="1" value="${data.reps.sets}"></div>
+        </div>
+      `;
+      $('#ceRepsCount').addEventListener('change', e=>{ data.reps.count = Math.max(1, parseInt(e.target.value)||1); });
+      $('#ceRepsSets').addEventListener('change', e=>{ data.reps.sets = Math.max(1, parseInt(e.target.value)||1); });
+    } else {
+      wrap.innerHTML = `
+        <div class="mode-toggle ei-subtype-toggle" id="cellEditSubtypeToggle">
+          <button type="button" class="mode-btn ${data.interval.subType==='simple'?'active':''}" data-subtype="simple">シンプル</button>
+          <button type="button" class="mode-btn ${data.interval.subType==='circuit'?'active':''}" data-subtype="circuit">カスタムサーキット</button>
+        </div>
+        <div id="cellEditSubtypeFields"></div>
+      `;
+      $('#cellEditSubtypeToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          data.interval.subType = btn.dataset.subtype;
+          $('#cellEditSubtypeToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+          renderSubtypeFields();
+        });
+      });
+      renderSubtypeFields();
+    }
+  }
+  $('#cellEditModeToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      data.mode = btn.dataset.mode;
+      $('#cellEditModeToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      renderModeFields();
+    });
+  });
+  renderModeFields();
+
+  const nameInput = $('#cellEditNameInput');
+  nameInput.focus();
+  $('#cellEditPickExistingBtn').addEventListener('click', ()=>{
+    openManualPickerModal(cellEditDateKey, cellEditTag.name, ()=>{
+      cellEditFormPanel.style.display = 'none';
+      cellEditFormPanel.innerHTML = '';
+      renderCellEditList();
+      renderMonthlyTable();
+    });
+  });
+  $('#cellEditSaveBtn').addEventListener('click', async ()=>{
+    const name = nameInput.value.trim();
+    if(!name){ nameInput.focus(); return; }
+    data.name = name;
+    await addManualEntry(cellEditDateKey, data);
+    cellEditFormPanel.style.display = 'none';
+    cellEditFormPanel.innerHTML = '';
+    renderCellEditList();
+    renderMonthlyTable();
+    renderCalendar();
+  });
+  $('#cellEditFormCancelBtn').addEventListener('click', ()=>{
+    cellEditFormPanel.style.display = 'none';
+    cellEditFormPanel.innerHTML = '';
+  });
+}
 
 /* =========================================================
    データのバックアップ／復元
@@ -6887,12 +7109,12 @@ function getDayRecordEntries(dateKey){
   if(log){
     Object.keys(log).forEach(itemId=>{
       const resolved = resolveLogEntryDisplay(itemId, log[itemId]);
-      if(resolved) entries.push(resolved);
+      if(resolved) entries.push({ ...resolved, source:'auto', id: itemId });
     });
   }
   getManualEntriesForDate(dateKey).forEach(entry=>{
     const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
-    entries.push({ name: entry.name, tagName: tag.name, tagColor: tag.color, summary: buildManualEntrySummary(entry) });
+    entries.push({ name: entry.name, tagName: tag.name, tagColor: tag.color, summary: buildManualEntrySummary(entry), source:'manual', id: entry.id });
   });
   return entries;
 }
