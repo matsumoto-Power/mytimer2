@@ -818,7 +818,19 @@
   .monthly-table-entry-name{ display:block; font-weight:700; }
   .monthly-table-entry-summary{ display:block; color:var(--panel-muted); }
   .monthly-table-empty-cell{ color:var(--panel-muted); }
-  .monthly-table-condition-cell{ text-align:center; font-size:17px; }
+  .monthly-table-condition-cell{ text-align:center; font-size:17px; padding:0 !important; }
+  .monthly-table-condition-btn{
+    appearance:none; cursor:pointer; border:none; background:transparent; color:inherit; font:inherit;
+    width:100%; height:100%; padding:10px 8px; text-align:center;
+  }
+  .monthly-table-condition-btn:hover{ background:rgba(128,128,128,0.14); }
+  .monthly-table-condition-picker{ display:flex; gap:2px; padding:6px 4px; justify-content:center; }
+  .monthly-table-condition-opt{
+    appearance:none; cursor:pointer; border:1px solid transparent; border-radius:6px; background:transparent;
+    font-size:16px; padding:2px 3px; line-height:1;
+  }
+  .monthly-table-condition-opt:hover{ background:rgba(128,128,128,0.18); }
+  .monthly-table-condition-opt.selected{ background:rgba(255,178,44,0.18); border-color:var(--accent-amber); }
   .monthly-table-weight-cell{ padding:0 !important; }
   .monthly-table-weight-btn{
     appearance:none; cursor:pointer; border:none; background:transparent; color:inherit; font:inherit;
@@ -6048,9 +6060,9 @@ function renderMonthlyTable(){
     const weightCell = hasWeight ? `${escapeHTML(String(weightVal))}kg` : '<span class="monthly-table-empty-cell">―</span>';
     const weightTd = `<td class="monthly-table-weight-cell" data-date="${dateKey}"><button type="button" class="monthly-table-weight-btn" data-date="${dateKey}">${weightCell}</button></td>`;
     const conditionVal = conditionLog[dateKey];
-    const conditionTint = (conditionVal != null && conditionDotColors[conditionVal]) ? ` style="background:${conditionDotColors[conditionVal]}14;"` : '';
+    const conditionTint = (conditionVal != null && conditionDotColors[conditionVal]) ? ` style="background:${conditionDotColors[conditionVal]}29;"` : '';
     const conditionCell = showCondition
-      ? `<td class="monthly-table-condition-cell"${conditionTint}>${conditionVal != null ? (CONDITION_ICONS[conditionVal] || '') : '<span class="monthly-table-empty-cell">―</span>'}</td>`
+      ? `<td class="monthly-table-condition-cell" data-date="${dateKey}"${conditionTint}><button type="button" class="monthly-table-condition-btn" data-date="${dateKey}">${conditionVal != null ? (CONDITION_ICONS[conditionVal] || '') : '<span class="monthly-table-empty-cell">―</span>'}</button></td>`
       : '';
     const cells = columns.map(col=>{
       const tint = `background:${col.color}14;`;
@@ -6078,6 +6090,9 @@ function renderMonthlyTable(){
   });
   $('#monthlyTable').querySelectorAll('.monthly-table-weight-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> beginMonthlyTableWeightEdit(btn));
+  });
+  $('#monthlyTable').querySelectorAll('.monthly-table-condition-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> beginMonthlyTableConditionEdit(btn));
   });
 }
 
@@ -6114,6 +6129,46 @@ async function saveWeightEntry(dateKey, rawValue){
   await storageSet(WEIGHT_LOG_KEY, JSON.stringify(weightLog));
   if(dateKey === dayDetailCurrentDateKey) dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
+}
+
+/* 月別一覧の体調セルを直接タップして、5段階アイコンをその場で選べるようにする（日別詳細ページを開かなくても記録・修正できる） */
+function beginMonthlyTableConditionEdit(btn){
+  const dateKey = btn.dataset.date;
+  const td = btn.closest('.monthly-table-condition-cell');
+  if(!td || td.querySelector('.monthly-table-condition-picker')) return; // 既に編集中なら何もしない
+  const current = conditionLog[dateKey];
+  td.innerHTML = `
+    <div class="monthly-table-condition-picker">
+      ${Object.keys(CONDITION_ICONS).map(val => `<button type="button" class="monthly-table-condition-opt${String(current)===val?' selected':''}" data-val="${val}">${CONDITION_ICONS[val]}</button>`).join('')}
+    </div>
+  `;
+  const finish = async ()=>{ renderMonthlyTable(); };
+  td.querySelectorAll('.monthly-table-condition-opt').forEach(optBtn=>{
+    optBtn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      await saveConditionEntry(dateKey, optBtn.dataset.val);
+      finish();
+    });
+  });
+  // ピッカー外（他のセルなど）をタップしたら、選択せずに元の表示へ戻す
+  const outsideHandler = (e)=>{
+    if(!td.contains(e.target)){
+      document.removeEventListener('click', outsideHandler, true);
+      if(document.body.contains(td) && td.querySelector('.monthly-table-condition-picker')) renderMonthlyTable();
+    }
+  };
+  setTimeout(()=> document.addEventListener('click', outsideHandler, true), 0);
+}
+
+/* 体調ログへの保存処理（日別詳細ページの5段階ボタンと共通のロジック）。同じ値をもう一度選ぶと解除する。 */
+async function saveConditionEntry(dateKey, val){
+  if(String(conditionLog[dateKey]) === String(val)){
+    delete conditionLog[dateKey]; // 同じ評価をもう一度選んだら解除
+  } else {
+    conditionLog[dateKey] = Number(val);
+  }
+  await storageSet(CONDITION_LOG_KEY, JSON.stringify(conditionLog));
+  if(dateKey === dayDetailCurrentDateKey) renderDayDetailConditionUI();
 }
 $('#monthlyTableBtn').addEventListener('click', ()=> openMonthlyTableModal());
 $('#monthlyTableCloseBtn').addEventListener('click', closeMonthlyTableModal);
@@ -6438,14 +6493,8 @@ function buildWeightChartSVG(points, rangeStart, rangeEnd){
 $('#dayDetailConditionOptions').querySelectorAll('button').forEach(btn=>{
   btn.addEventListener('click', async ()=>{
     if(!dayDetailCurrentDateKey) return;
-    const val = btn.dataset.val;
-    if(String(conditionLog[dayDetailCurrentDateKey]) === val){
-      delete conditionLog[dayDetailCurrentDateKey]; // 同じボタンをもう一度押したら選択解除
-    } else {
-      conditionLog[dayDetailCurrentDateKey] = Number(val);
-    }
+    await saveConditionEntry(dayDetailCurrentDateKey, btn.dataset.val);
     renderDayDetailConditionUI();
-    await storageSet(CONDITION_LOG_KEY, JSON.stringify(conditionLog));
   });
 });
 /* 使わない人向けの表示/非表示切り替え。設定は保存され、次回以降のモーダル表示にも引き継がれる */
