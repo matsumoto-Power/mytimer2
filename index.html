@@ -967,6 +967,26 @@
   .weight-chart-color-row input[type=color]::-webkit-color-swatch-wrapper{ padding:2px; }
   .weight-chart-color-row input[type=color]::-webkit-color-swatch{ border:none; border-radius:6px; }
   .weight-chart-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:20px; }
+  .stats-section{ display:flex; flex-direction:column; gap:8px; }
+  .stats-section-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .stats-section-title{ font-size:12.5px; font-weight:800; letter-spacing:0.5px; color:var(--panel-muted); }
+  .stats-bucket-toggle{ width:auto; }
+  .stats-trend-wrap{
+    background:rgba(128,128,128,0.06); border:1px solid var(--panel-hairline); border-radius:14px;
+    padding:14px 10px; min-height:180px; display:flex; align-items:center; justify-content:center;
+  }
+  .stats-trend-svg{ width:100%; height:auto; display:block; overflow:visible; }
+  .stats-trend-bar{ fill:var(--accent-amber); }
+  .stats-trend-axis-label{ font-size:9.5px; fill:var(--panel-muted); font-family:inherit; }
+  .stats-trend-value-label{ font-size:10px; fill:var(--panel-text); font-weight:700; font-family:inherit; }
+  .stats-tag-list{ display:flex; flex-direction:column; gap:8px; }
+  .stats-tag-row{ display:flex; flex-direction:column; gap:4px; }
+  .stats-tag-row-head{ display:flex; align-items:center; justify-content:space-between; font-size:12.5px; }
+  .stats-tag-row-name{ display:flex; align-items:center; gap:6px; font-weight:700; color:var(--panel-text); }
+  .stats-tag-row-dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .stats-tag-row-count{ color:var(--panel-muted); font-weight:700; }
+  .stats-tag-row-track{ height:8px; border-radius:5px; background:rgba(128,128,128,0.12); overflow:hidden; }
+  .stats-tag-row-fill{ height:100%; border-radius:5px; }
   .day-detail-weight-row{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
     background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:10px 14px;
@@ -1452,6 +1472,7 @@
     <div class="modal-head">
       <h3>📊 月別一覧</h3>
       <button class="modal-head-link-btn" id="monthlyTableToWeightChartBtn" title="体重推移グラフを見る">📈 体重推移</button>
+      <button class="modal-head-link-btn" id="monthlyTableToStatsBtn" title="タグ別頻度・実施回数推移を見る">📊 統計・振り返り</button>
       <button class="modal-close" id="monthlyTableCloseBtn">✕</button>
     </div>
     <div class="monthly-table-nav">
@@ -1497,6 +1518,43 @@
     </div>
     <div class="weight-chart-stats" id="weightChartStats"></div>
     <div class="weight-chart-wrap" id="weightChartWrap"></div>
+  </div>
+</div>
+
+<!-- 統計・振り返り：タグ別の実施頻度と、週/月ごとの実施回数推移を確認するページ -->
+<div class="modal-overlay" id="statsModal">
+  <div class="panel modal-box wide" id="statsBox">
+    <div class="modal-head">
+      <h3>📊 統計・振り返り</h3>
+      <button class="modal-close" id="statsCloseBtn">✕</button>
+    </div>
+    <div class="ai-export-range-toggle" id="statsRangeToggle">
+      <button type="button" class="ai-export-range-btn" data-range="1m">1ヶ月</button>
+      <button type="button" class="ai-export-range-btn" data-range="3m">3ヶ月</button>
+      <button type="button" class="ai-export-range-btn" data-range="6m">半年</button>
+      <button type="button" class="ai-export-range-btn active" data-range="all">全期間</button>
+      <button type="button" class="ai-export-range-btn" data-range="custom">範囲指定</button>
+    </div>
+    <div class="ai-export-custom-range" id="statsCustomRange" style="display:none;">
+      <input type="date" id="statsFromDate">
+      <span>〜</span>
+      <input type="date" id="statsToDate">
+    </div>
+    <div class="weight-chart-stats" id="statsSummaryRow"></div>
+    <div class="stats-section">
+      <div class="stats-section-head">
+        <div class="stats-section-title">📅 実施回数の推移</div>
+        <div class="mode-toggle stats-bucket-toggle" id="statsBucketToggle">
+          <button type="button" class="mode-btn active" data-bucket="week">週別</button>
+          <button type="button" class="mode-btn" data-bucket="month">月別</button>
+        </div>
+      </div>
+      <div class="stats-trend-wrap" id="statsTrendWrap"></div>
+    </div>
+    <div class="stats-section">
+      <div class="stats-section-title">🏷 タグ別の実施頻度</div>
+      <div class="stats-tag-list" id="statsTagList"></div>
+    </div>
   </div>
 </div>
 
@@ -6487,6 +6545,216 @@ function buildWeightChartSVG(points, rangeStart, rangeEnd){
       ${xLabels}
     </svg>
   `;
+}
+
+/* =========================================================
+   統計・振り返り：タグ別の実施頻度と、週/月ごとの実施回数推移を月別一覧から確認できる
+   ========================================================= */
+const statsModal = $('#statsModal');
+let statsRangeMode = 'all';
+let statsBucketMode = 'week';
+let statsOriginDateKey = null; // どの月から開いたか（プリセット期間の終端＆範囲指定欄の初期値に使う）
+
+function openStatsModal(){
+  statsOriginDateKey = fmtDateKeyLocal(new Date(monthlyTableViewDate.getFullYear(), monthlyTableViewDate.getMonth()+1, 0));
+  statsModal.classList.add('show');
+  renderStats();
+}
+function closeStatsModal(){ statsModal.classList.remove('show'); }
+$('#statsCloseBtn').addEventListener('click', closeStatsModal);
+statsModal.addEventListener('click', (e)=>{ if(e.target===statsModal) closeStatsModal(); });
+$('#monthlyTableToStatsBtn').addEventListener('click', ()=>{ closeMonthlyTableModal(); openStatsModal(); });
+
+$('#statsRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    statsRangeMode = btn.dataset.range;
+    $('#statsRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    $('#statsCustomRange').style.display = statsRangeMode === 'custom' ? 'flex' : 'none';
+    if(statsRangeMode === 'custom' && (!$('#statsFromDate').value || !$('#statsToDate').value)){
+      const end = parseDateKeyLocal(statsOriginDateKey);
+      const start = new Date(end); start.setDate(start.getDate()-89);
+      $('#statsFromDate').value = fmtDateKeyLocal(start);
+      $('#statsToDate').value = fmtDateKeyLocal(end);
+    }
+    renderStats();
+  });
+});
+$('#statsFromDate').addEventListener('change', renderStats);
+$('#statsToDate').addEventListener('change', renderStats);
+$('#statsBucketToggle').querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    statsBucketMode = btn.dataset.bucket;
+    $('#statsBucketToggle').querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    renderStats();
+  });
+});
+
+/* 記録が存在する最も古い日付を、種目ログ・手動記録の両方から探す（「全期間」用） */
+function findEarliestRecordDateKey(){
+  const keys = [...Object.keys(trainingLog), ...Object.keys(manualTrainingLog)].filter(k=>{
+    // 空オブジェクトになっている日付キーは除外
+    const hasAuto = trainingLog[k] && Object.keys(trainingLog[k]).length;
+    const hasManual = manualTrainingLog[k] && manualTrainingLog[k].length;
+    return hasAuto || hasManual;
+  });
+  keys.sort();
+  return keys[0] || null;
+}
+
+function computeStatsRange(){
+  const originDate = parseDateKeyLocal(statsOriginDateKey);
+  if(statsRangeMode === 'custom'){
+    const fromVal = $('#statsFromDate').value;
+    const toVal = $('#statsToDate').value;
+    if(fromVal && toVal){
+      return fromVal <= toVal ? { start: fromVal, end: toVal } : { start: toVal, end: fromVal };
+    }
+  }
+  if(statsRangeMode === 'all'){
+    const earliest = findEarliestRecordDateKey();
+    if(!earliest) return { start: fmtDateKeyLocal(originDate), end: fmtDateKeyLocal(originDate) };
+    return { start: earliest, end: fmtDateKeyLocal(originDate) };
+  }
+  const days = { '1m':30, '3m':90, '6m':182 }[statsRangeMode] || 30;
+  const start = new Date(originDate); start.setDate(start.getDate()-(days-1));
+  return { start: fmtDateKeyLocal(start), end: fmtDateKeyLocal(originDate) };
+}
+
+/* 週の始まり（月曜）の日付キーを返す */
+function mondayOfWeek(date){
+  const d = new Date(date);
+  const dow = d.getDay(); // 0=日
+  const diff = (dow === 0) ? -6 : (1 - dow);
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function renderStats(){
+  const { start, end } = computeStatsRange();
+  const startDate = parseDateKeyLocal(start);
+  const endDate = parseDateKeyLocal(end);
+
+  const tagCounts = new Map(); // tagName -> { count, color }
+  const buckets = new Map();   // bucketKey -> count
+  let daysWithRecord = 0;
+  let totalEntries = 0;
+  const recordedDateKeys = [];
+
+  for(let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)){
+    const dateKey = fmtDateKeyLocal(d);
+    const entries = getDayRecordEntries(dateKey);
+    if(entries.length){
+      daysWithRecord++;
+      recordedDateKeys.push(dateKey);
+      totalEntries += entries.length;
+      entries.forEach(e=>{
+        const name = e.tagName || UNCATEGORIZED_TAG.name;
+        const color = e.tagColor || UNCATEGORIZED_TAG.color;
+        const cur = tagCounts.get(name) || { count:0, color };
+        cur.count++;
+        tagCounts.set(name, cur);
+      });
+      const bucketKey = statsBucketMode === 'week' ? fmtDateKeyLocal(mondayOfWeek(d)) : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      buckets.set(bucketKey, (buckets.get(bucketKey) || 0) + entries.length);
+    }
+  }
+
+  // 現在の連続実施日数（今日から遡って、記録が途切れるまで）
+  let currentStreak = 0;
+  {
+    const cursor = new Date();
+    while(true){
+      const key = fmtDateKeyLocal(cursor);
+      if(getDayRecordEntries(key).length){ currentStreak++; cursor.setDate(cursor.getDate()-1); }
+      else break;
+    }
+  }
+  // 選択期間内の最長連続実施日数
+  let longestStreak = 0, running = 0;
+  for(let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)){
+    const key = fmtDateKeyLocal(d);
+    if(getDayRecordEntries(key).length){ running++; longestStreak = Math.max(longestStreak, running); }
+    else running = 0;
+  }
+
+  $('#statsSummaryRow').innerHTML = `
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">実施日数</span><span class="weight-chart-stat-val">${daysWithRecord}日</span></div>
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">総実施回数</span><span class="weight-chart-stat-val">${totalEntries}回</span></div>
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">現在の連続日数</span><span class="weight-chart-stat-val">${currentStreak}日</span></div>
+    <div class="weight-chart-stat"><span class="weight-chart-stat-label">期間内の最長連続</span><span class="weight-chart-stat-val">${longestStreak}日</span></div>
+  `;
+
+  const trendWrap = $('#statsTrendWrap');
+  if(!buckets.size){
+    trendWrap.innerHTML = '<div class="weight-chart-empty">この期間の実施記録がありません。</div>';
+  } else {
+    trendWrap.innerHTML = buildStatsTrendSVG(buckets, statsBucketMode);
+  }
+
+  const tagListEl = $('#statsTagList');
+  if(!tagCounts.size){
+    tagListEl.innerHTML = '<div class="weight-chart-empty">この期間の実施記録がありません。</div>';
+  } else {
+    const sorted = [...tagCounts.entries()].sort((a,b)=> b[1].count - a[1].count);
+    const maxCount = sorted[0][1].count;
+    tagListEl.innerHTML = sorted.map(([name, info])=>`
+      <div class="stats-tag-row">
+        <div class="stats-tag-row-head">
+          <span class="stats-tag-row-name"><span class="stats-tag-row-dot" style="background:${info.color};"></span>${escapeHTML(name)}</span>
+          <span class="stats-tag-row-count">${info.count}回</span>
+        </div>
+        <div class="stats-tag-row-track"><div class="stats-tag-row-fill" style="width:${Math.max(4, info.count/maxCount*100)}%; background:${info.color};"></div></div>
+      </div>
+    `).join('');
+  }
+}
+
+function buildStatsTrendSVG(bucketsMap, bucketMode){
+  const keys = [...bucketsMap.keys()].sort();
+  const values = keys.map(k=>bucketsMap.get(k));
+  const maxVal = Math.max(...values, 1);
+
+  const W = 680, H = 220;
+  const padL = 30, padR = 12, padT = 20, padB = 34;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = keys.length;
+  const barGap = 6;
+  const barW = Math.max(6, Math.min(38, (plotW - barGap*(n-1)) / n));
+  const usedW = barW*n + barGap*(n-1);
+  const offsetX = padL + Math.max(0, (plotW - usedW) / 2);
+
+  const maxLabels = 8;
+  const labelStep = Math.max(1, Math.ceil(n / maxLabels));
+
+  let bars = '';
+  keys.forEach((k,i)=>{
+    const v = values[i];
+    const barH = (v / maxVal) * plotH;
+    const x = offsetX + i*(barW+barGap);
+    const y = padT + plotH - barH;
+    const label = bucketMode === 'week' ? formatWeekBucketLabel(k) : formatMonthBucketLabel(k);
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1,barH).toFixed(1)}" rx="3" class="stats-trend-bar"><title>${label}: ${v}回</title></rect>`;
+    if(v > 0) bars += `<text x="${(x+barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" class="stats-trend-value-label">${v}</text>`;
+    if(i % labelStep === 0 || i === n-1){
+      bars += `<text x="${(x+barW/2).toFixed(1)}" y="${H-padB+16}" text-anchor="middle" class="stats-trend-axis-label">${label}</text>`;
+    }
+  });
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="stats-trend-svg" preserveAspectRatio="xMidYMid meet">
+      <line x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}" class="weight-chart-grid"/>
+      ${bars}
+    </svg>
+  `;
+}
+function formatWeekBucketLabel(mondayKey){
+  const d = parseDateKeyLocal(mondayKey);
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+function formatMonthBucketLabel(monthKey){
+  const [y,m] = monthKey.split('-');
+  return `${y}/${m}`;
 }
 
 /* 体調評価：ワンタップで選択（同じものをもう一度押すと選択解除）。もう一度押して消せるので入力ミスの訂正も簡単 */
