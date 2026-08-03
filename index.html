@@ -408,6 +408,7 @@
   .field-row{ display:flex; gap:12px; }
   .field{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
   .field label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase;}
+  .field-label-small{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--panel-muted); text-transform:uppercase; display:block; margin-bottom:6px; }
   .field input[type=number]{
     width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-family:'Oswald',sans-serif; font-size:19px; font-weight:600;
@@ -717,6 +718,7 @@
   .calendar-daynum{ display:block; }
   .calendar-dots{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
   .calendar-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
+  .calendar-dot.preview{ opacity:0.32; }
   .calendar-dot-more{
     font-size:9.5px; font-weight:700; color:var(--panel-muted); line-height:1;
     padding:1px 4px; border-radius:999px; background:rgba(128,128,128,0.18); flex:0 0 auto;
@@ -1070,6 +1072,10 @@
   .group-manage-row{ display:flex; gap:8px; }
   .group-manage-row select{ flex:1; }
   .group-manage-row .small-btn{ flex:0 0 auto; }
+  .group-rename-input{
+    flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--accent-amber);
+    background:rgba(255,178,44,0.08); color:var(--panel-text); font-size:13px;
+  }
   .group-save-row{ display:flex; gap:8px; }
   .group-save-row input[type=text]{
     flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
@@ -1085,6 +1091,11 @@
   }
   .modal-add-btn:hover{ background:rgba(128,128,128,0.16); }
   .modal-list{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:80px; }
+  /* 横画面時：画像編集欄だけが個別スクロールすると窮屈なため、モーダル全体を1つのスクロールにまとめる（日別詳細ページと同じ考え方） */
+  @media (orientation: landscape){
+    #slideshowModal .modal-box{ overflow-y:auto; }
+    #slideshowModal .modal-list{ flex:none; overflow-y:visible; min-height:0; }
+  }
   .modal-list-empty{ text-align:center; color:var(--panel-muted); font-size:13px; padding:30px 10px; }
   .modal-item{
     display:flex; align-items:center; gap:10px; background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline);
@@ -1737,8 +1748,10 @@
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
 
+    <label class="field-label-small">グループ選択</label>
     <div class="group-manage-row">
       <select id="modalGroupSelect"><option value="">-- 新規グループ（未保存）--</option></select>
+      <button class="small-btn" id="modalGroupRenameBtn">編集</button>
       <button class="small-btn del" id="modalGroupDeleteBtn">削除</button>
     </div>
     <div class="group-save-row">
@@ -2318,6 +2331,47 @@ function handleGroupSelectChange(id){
 }
 $('#groupQuickSwitch').addEventListener('change', (e)=> handleGroupSelectChange(e.target.value));
 $('#modalGroupSelect').addEventListener('change', (e)=> handleGroupSelectChange(e.target.value));
+
+/* グループ名の変更（画像内容には一切触れず、名前だけを差し替える） */
+$('#modalGroupRenameBtn').addEventListener('click', ()=>{
+  const id = $('#modalGroupSelect').value;
+  if(!id) return; // 「新規グループ（未保存）」は編集対象なし
+  const group = slideshowGroups.find(g=>g.id===id);
+  if(group) beginGroupRename(group);
+});
+function beginGroupRename(group){
+  const row = $('#modalGroupSelect').closest('.group-manage-row');
+  if(row.querySelector('.group-rename-input')) return; // 編集中なら何もしない
+  const select = $('#modalGroupSelect');
+  const renameBtn = $('#modalGroupRenameBtn');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'group-rename-input';
+  input.value = group.name;
+  select.style.display = 'none';
+  renameBtn.style.display = 'none';
+  row.insertBefore(input, renameBtn);
+  input.focus();
+  input.select();
+  const finish = async (commit)=>{
+    input.removeEventListener('blur', onBlur);
+    if(commit){
+      const newName = input.value.trim();
+      if(newName) group.name = newName;
+      await saveSlideshowGroupsToStorage();
+    }
+    input.remove();
+    select.style.display = '';
+    renameBtn.style.display = '';
+    renderGroupSelectors();
+  };
+  const onBlur = ()=> finish(true);
+  input.addEventListener('blur', onBlur);
+  input.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ input.blur(); }
+    else if(e.key === 'Escape'){ finish(false); }
+  });
+}
 
 $('#modalGroupSaveBtn').addEventListener('click', async ()=>{
   const name = $('#modalGroupNameInput').value.trim();
@@ -3216,6 +3270,21 @@ function getCalendarDotColorsForDate(dateKey){
   getManualEntriesForDate(dateKey).forEach(entry=>{
     const tag = exerciseTags.find(t=>t.id===entry.tagId) || UNCATEGORIZED_TAG;
     if(!colors.includes(tag.color)) colors.push(tag.color);
+  });
+  return colors;
+}
+/* 日別詳細ページの「この日の日程タブ」で日付指定タブを紐づけた、まだ実施日を迎えていない日の予告表示用。
+   実施済みの実データとは違い、あくまで予定なので先月/来月のグレーアウト表示と同じ暗さで見せる。 */
+function getPreviewDotColorsForDate(dateKey){
+  const colors = [];
+  getAllPlanDayTabs().forEach(t=>{
+    if(getEffectiveRecurrence(t.key) !== 'once') return;
+    if(!isDateBoundToTab(t.key, dateKey)) return;
+    (trainingPlan[t.key] || []).forEach(it=>{
+      if(!it.name || !it.name.trim()) return;
+      const tag = resolveItemTag(it);
+      if(!colors.includes(tag.color)) colors.push(tag.color);
+    });
   });
   return colors;
 }
@@ -6053,14 +6122,21 @@ function renderCalendar(){
   }
 
   const MAX_VISIBLE_DOTS = 4;
+  const todayKey = fmtDateKeyLocal(today);
   $('#calendarGrid').innerHTML = cells.map(c=>{
     const dateKey = formatDateKey(c.year, c.month, c.day);
-    const dotColors = getCalendarDotColorsForDate(dateKey);
+    let dotColors = getCalendarDotColorsForDate(dateKey);
+    let isPreview = false;
+    if(!dotColors.length && !c.muted && dateKey > todayKey){
+      // まだ実施日を迎えていない、日付指定タブ紐づけ済みの予定を薄く予告表示（実施済みデータが最優先、無ければ予告に切り替え）
+      const previewColors = getPreviewDotColorsForDate(dateKey);
+      if(previewColors.length){ dotColors = previewColors; isPreview = true; }
+    }
     let dotsHtml = '';
     if(dotColors.length){
       const visible = dotColors.slice(0, MAX_VISIBLE_DOTS);
       const overflow = dotColors.length - visible.length;
-      dotsHtml = `<div class="calendar-dots">${visible.map(hex=>`<span class="calendar-dot" style="background:${hex};"></span>`).join('')}${overflow>0?`<span class="calendar-dot-more">+${overflow}</span>`:''}</div>`;
+      dotsHtml = `<div class="calendar-dots">${visible.map(hex=>`<span class="calendar-dot${isPreview?' preview':''}" style="background:${hex};"></span>`).join('')}${overflow>0?`<span class="calendar-dot-more">+${overflow}</span>`:''}</div>`;
     }
     return `<button type="button" class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}" data-date="${dateKey}"><span class="calendar-daynum">${c.day}</span>${dotsHtml}</button>`;
   }).join('');
