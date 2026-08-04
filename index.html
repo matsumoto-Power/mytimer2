@@ -88,6 +88,24 @@
   #imagePane.transition-zoom .slide.zoom-grow{ transform:scale(1.08); }
   #imagePane.position-mode .slide{ transition:opacity 1.6s ease; }
   #imagePane.position-mode{ cursor:grab; }
+  /* グループ単位で有効化できる「動く」演出：明滅（brightness）とゆるやかな位置ドリフト。
+     transform（スライド/ズーム演出が既に使用）とは競合しないプロパティだけを使う。
+     位置調整モード中は編集の邪魔にならないよう一時停止する。 */
+  @keyframes slideAnimPulse{
+    0%, 100% { filter:brightness(1) saturate(1); }
+    50% { filter:brightness(1.16) saturate(1.08); }
+  }
+  @keyframes slideAnimDrift{
+    0%   { background-position: 50% 0%; }
+    25%  { background-position: 55% 4%; }
+    50%  { background-position: 50% 7%; }
+    75%  { background-position: 45% 4%; }
+    100% { background-position: 50% 0%; }
+  }
+  #imagePane.group-animated .slide{
+    animation: slideAnimPulse 3.4s ease-in-out infinite, slideAnimDrift 16s ease-in-out infinite;
+  }
+  #imagePane.group-animated.position-mode .slide{ animation-play-state: paused; }
   #imagePane.position-mode.dragging{ cursor:grabbing; }
   #imagePane .scrim{
     position:absolute; inset:0; pointer-events:none;
@@ -1076,6 +1094,8 @@
     flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--accent-amber);
     background:rgba(255,178,44,0.08); color:var(--panel-text); font-size:13px;
   }
+  .group-animate-toggle{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--panel-text); cursor:pointer; }
+  .group-animate-toggle input[type=checkbox]{ width:16px; height:16px; accent-color:var(--accent-amber); cursor:pointer; }
   .group-save-row{ display:flex; gap:8px; }
   .group-save-row input[type=text]{
     flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--panel-hairline);
@@ -1754,6 +1774,10 @@
       <button class="small-btn" id="modalGroupRenameBtn">編集</button>
       <button class="small-btn del" id="modalGroupDeleteBtn">削除</button>
     </div>
+    <label class="group-animate-toggle" id="modalGroupAnimateRow" style="display:none;">
+      <input type="checkbox" id="modalGroupAnimateCheckbox">
+      <span>🎞 このグループの画像を動かす（明滅＋ゆっくりドリフト）</span>
+    </label>
     <div class="group-save-row">
       <input type="text" id="modalGroupNameInput" placeholder="グループ名（例：やる気アップ、リラックス）">
       <button class="small-btn" id="modalGroupSaveBtn">このグループを保存</button>
@@ -2041,6 +2065,9 @@ function onImagesChanged(){
   $('#imageNav').style.display = has && bgImages.length > 1 && !videoActive ? 'flex' : 'none';
   $('#imageFooter').style.display = has && !videoActive ? 'flex' : 'none';
   $('#fullscreenToggleBtn').style.display = (has || videoActive) && !document.body.classList.contains('fullscreen-image') ? 'flex' : 'none';
+  // グループ単位の「動く」演出（明滅＋ドリフト）は、現在アクティブなグループがanimatedフラグを持つ時だけ適用する
+  const activeGroupForAnim = activeGroupId ? slideshowGroups.find(g=>g.id===activeGroupId) : null;
+  imagePane.classList.toggle('group-animated', !!(activeGroupForAnim && activeGroupForAnim.animated));
   renderDots();
   if(has && !videoActive) showImageControls();
 }
@@ -2287,6 +2314,7 @@ async function loadSlideshowGroups(){
     activeGroupId = null;
   }
   renderGroupSelectors();
+  onImagesChanged(); // bgImagesの復元タイミングと前後関係が不定なため、グループ情報が揃った時点で表示状態（group-animatedクラス等）を再同期する
 }
 async function saveSlideshowGroupsToStorage(){
   await storageSet(GROUPS_KEY, JSON.stringify(slideshowGroups));
@@ -2412,7 +2440,7 @@ async function seedSampleGroupsIfNeeded(){
   }catch(err){ /* 未設定として続行 */ }
   if(slideshowGroups.length === 0){
     slideshowGroups.push({ id:'sample_relax', name:'🌙 リラックス（サンプル）', images:[...SAMPLE_PACK_RELAX_IMAGES], positions: SAMPLE_PACK_RELAX_IMAGES.map(defaultPosition) });
-    slideshowGroups.push({ id:'sample_motivation', name:'🔥 モチベーションアップ（サンプル）', images:[...SAMPLE_PACK_MOTIVATION_IMAGES], positions: SAMPLE_PACK_MOTIVATION_IMAGES.map(defaultPosition) });
+    slideshowGroups.push({ id:'sample_motivation', name:'🔥 モチベーションアップ（サンプル）', images:[...SAMPLE_PACK_MOTIVATION_IMAGES], positions: SAMPLE_PACK_MOTIVATION_IMAGES.map(defaultPosition), animated:true });
     await saveSlideshowGroupsToStorage();
     renderGroupSelectors();
   }
@@ -2431,7 +2459,7 @@ function addSamplePackAsGroup(kind){
     applyGroup(id);
     return;
   }
-  slideshowGroups.push({ id, name, images:[...images], positions: images.map(defaultPosition) });
+  slideshowGroups.push({ id, name, images:[...images], positions: images.map(defaultPosition), animated: !isRelax });
   saveSlideshowGroupsToStorage();
   renderGroupSelectors();
   applyGroup(id);
