@@ -1144,6 +1144,50 @@
   .modal-footer{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .modal-footer .hint{ font-size:11.5px; color:var(--panel-muted); }
   .modal-done-btn{ appearance:none; cursor:pointer; border:none; background:var(--accent-amber); color:#ffffff; padding:11px 24px; border-radius:12px; font-weight:800; font-size:13px; }
+
+  /* ===== トップバー：❓使い方ボタン（タブ一覧の右端に常設） ===== */
+  .topbar{ gap:8px; }
+  .topbar .tabs{ flex:1 1 auto; min-width:0; }
+  .topbar-help-btn{
+    flex:0 0 auto; width:38px; height:38px; padding:0; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+
+  /* ===== オンボーディング（初回起動ガイド）／ヘルプ（使い方）モーダル ===== */
+  .onboarding-screen{ display:none; flex-direction:column; gap:10px; }
+  .onboarding-screen.active{ display:flex; }
+  .onboarding-tab-list{ display:flex; flex-direction:column; gap:10px; }
+  .onboarding-tab-item{
+    display:flex; align-items:flex-start; gap:12px; background:rgba(128,128,128,0.08);
+    border:1px solid var(--panel-hairline); border-radius:12px; padding:12px 14px;
+  }
+  .onboarding-tab-icon{ font-size:20px; line-height:1.3; flex:0 0 auto; }
+  .onboarding-tab-name{ font-weight:800; font-size:13.5px; margin-bottom:2px; }
+  .onboarding-tab-desc{ font-size:12px; color:var(--panel-muted); line-height:1.6; }
+  .onboarding-tip{
+    background:rgba(255,178,44,0.08); border:1px solid rgba(255,178,44,0.3); border-radius:12px; padding:13px 15px;
+  }
+  .onboarding-tip + .onboarding-tip{ margin-top:2px; }
+  .onboarding-tip-title{ font-weight:800; font-size:13px; margin-bottom:5px; color:var(--accent-amber); }
+  .onboarding-tip-body{ font-size:12.5px; color:var(--panel-text); line-height:1.7; }
+  .onboarding-dots{ display:flex; align-items:center; justify-content:center; gap:8px; }
+  .onboarding-dot{
+    appearance:none; cursor:pointer; border:none; width:8px; height:8px; border-radius:50%;
+    background:rgba(128,128,128,0.35); padding:0; transition: all .2s ease;
+  }
+  .onboarding-dot.active{ background:var(--accent-amber); width:20px; border-radius:999px; }
+  .onboarding-actions{ display:flex; align-items:center; gap:10px; }
+  .onboarding-actions .preset-full-btn{ flex:1; }
+  .help-topic-list{ display:flex; flex-direction:column; gap:8px; }
+  .help-topic-item{
+    appearance:none; cursor:pointer; width:100%; text-align:left; display:flex; align-items:center; gap:12px;
+    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:13px 15px;
+    color:var(--panel-text); transition: background .15s ease;
+  }
+  .help-topic-item:hover{ background:rgba(255,178,44,0.12); border-color:rgba(255,178,44,0.35); }
+  .help-topic-icon{ font-size:20px; flex:0 0 auto; }
+  .help-topic-name{ font-weight:800; font-size:13.5px; margin-bottom:2px; }
+  .help-topic-desc{ font-size:12px; color:var(--panel-muted); line-height:1.5; }
 </style>
 </head>
 <body>
@@ -1160,6 +1204,7 @@
         <button class="tab-btn" data-tab="calendar">カレンダー</button>
         <button class="tab-btn" data-tab="media">メディア</button>
       </nav>
+      <button type="button" class="icon-btn topbar-help-btn" id="helpBtn" title="使い方">❓</button>
     </header>
 
     <main>
@@ -1599,6 +1644,76 @@
   </div>
 </div>
 
+<!-- 初回起動オンボーディング：使い方の基本ガイド。❓ボタンからいつでも再生できる -->
+<div class="modal-overlay" id="onboardingModal">
+  <div class="panel modal-box" id="onboardingBox">
+    <div class="modal-head">
+      <h3 id="onboardingTitle">👋 MY TIMERへようこそ</h3>
+      <button class="modal-close" id="onboardingCloseBtn">✕</button>
+    </div>
+    <div id="onboardingScreens">
+      <div class="onboarding-screen active" data-screen="0">
+        <div class="onboarding-tab-list">
+          <div class="onboarding-tab-item">
+            <div class="onboarding-tab-icon">🕐</div>
+            <div><div class="onboarding-tab-name">時計</div><div class="onboarding-tab-desc">アナログ時計・デジタル時計と、今日の天気を表示します。</div></div>
+          </div>
+          <div class="onboarding-tab-item">
+            <div class="onboarding-tab-icon">🏋️</div>
+            <div><div class="onboarding-tab-name">種目設定</div><div class="onboarding-tab-desc">日程タブごとにトレーニング種目を登録・編集します。</div></div>
+          </div>
+          <div class="onboarding-tab-item">
+            <div class="onboarding-tab-icon">⏱</div>
+            <div><div class="onboarding-tab-name">インターバル</div><div class="onboarding-tab-desc">種目のタイマーを実行します。その場限りのフリータイマーもここから。</div></div>
+          </div>
+          <div class="onboarding-tab-item">
+            <div class="onboarding-tab-icon">📅</div>
+            <div><div class="onboarding-tab-name">カレンダー</div><div class="onboarding-tab-desc">実施記録・体重・体調を振り返り、月別一覧や統計も確認できます。</div></div>
+          </div>
+          <div class="onboarding-tab-item">
+            <div class="onboarding-tab-icon">🖼</div>
+            <div><div class="onboarding-tab-name">メディア</div><div class="onboarding-tab-desc">参考動画・Webページ・画像・メモをタグ付けして管理します。</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="onboarding-screen" data-screen="1">
+        <div class="onboarding-tip">
+          <div class="onboarding-tip-title">① 日程周期、迷ったら？</div>
+          <div class="onboarding-tip-body">日程周期には4種類ありますが、迷ったら「毎日」か「曜日」を選んでおけばOKです。あとから種目設定タブでいつでも変更できます。</div>
+        </div>
+        <div class="onboarding-tip">
+          <div class="onboarding-tip-title">② タグは2系統あります</div>
+          <div class="onboarding-tip-body">「種目タグ」（トレーニング種目の分類用）と「メディアタグ」（動画・Webページ・画像・メモの分類用）は別物です。混同しないよう気をつけてください。</div>
+        </div>
+      </div>
+    </div>
+    <div class="onboarding-dots" id="onboardingDots">
+      <button type="button" class="onboarding-dot active" data-dot="0" aria-label="1ページ目"></button>
+      <button type="button" class="onboarding-dot" data-dot="1" aria-label="2ページ目"></button>
+    </div>
+    <div class="onboarding-actions">
+      <button type="button" class="preset-full-btn" id="onboardingBackBtn" style="visibility:hidden;">戻る</button>
+      <button type="button" class="preset-full-btn save" id="onboardingNextBtn">次へ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ❓使い方：ヘルプのトピック一覧。今後トピックを増やす場合は help-topic-item を追加するだけでよい設計 -->
+<div class="modal-overlay" id="helpModal">
+  <div class="panel modal-box" id="helpBox">
+    <div class="modal-head">
+      <h3>❓ 使い方</h3>
+      <button class="modal-close" id="helpCloseBtn">✕</button>
+    </div>
+    <div class="help-topic-list" id="helpTopicList">
+      <button type="button" class="help-topic-item" data-topic="guide">
+        <div class="help-topic-icon">📖</div>
+        <div><div class="help-topic-name">基本ガイド</div><div class="help-topic-desc">5つのタブの概要と、つまずきやすい2つのポイント</div></div>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- スライドショー作成モーダル -->
 <div class="modal-overlay" id="dayDeleteModal">
   <div class="panel modal-box" id="dayDeleteListBox">
@@ -1881,6 +1996,81 @@ $$('.tab-btn').forEach(btn=>{
     btn.classList.add('active');
     $('#tab-'+btn.dataset.tab).classList.add('active');
     btn.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'nearest' });
+  });
+});
+
+/* =========================================================
+   初回起動オンボーディング／❓使い方ヘルプ
+   ---------------------------------------------------------
+   ・初回起動時（ONBOARDING_SEEN_KEYが未保存の間）のみ自動でオンボーディングモーダルを表示する。
+     一度でも閉じれば（✕／背景タップ／「はじめる」のいずれでも）フラグを保存し、以後は自動表示しない。
+   ・ヘッダーの❓ボタンからは、いつでもヘルプモーダル（トピック一覧）を呼び出せる。
+     現状トピックは「📖 基本ガイド」のみ（オンボーディングの中身を再生する）。
+     拡張時は #helpTopicList に .help-topic-item ボタンを追加し、下のクリック処理に
+     data-topic の分岐を1つ足すだけでよい設計にしてある。
+========================================================= */
+const ONBOARDING_SEEN_KEY = 'onboarding-seen';
+const onboardingModal = $('#onboardingModal');
+const onboardingScreens = $$('.onboarding-screen');
+const onboardingDots = $$('.onboarding-dot');
+const ONBOARDING_TITLES = ['👋 MY TIMERへようこそ', '💡 はじめる前に'];
+let onboardingIndex = 0;
+
+function renderOnboardingScreen(){
+  onboardingScreens.forEach((el,i)=> el.classList.toggle('active', i===onboardingIndex));
+  onboardingDots.forEach((el,i)=> el.classList.toggle('active', i===onboardingIndex));
+  $('#onboardingTitle').textContent = ONBOARDING_TITLES[onboardingIndex] || ONBOARDING_TITLES[0];
+  $('#onboardingBackBtn').style.visibility = onboardingIndex===0 ? 'hidden' : 'visible';
+  $('#onboardingNextBtn').textContent = onboardingIndex === onboardingScreens.length-1 ? 'はじめる' : '次へ';
+}
+function openOnboardingModal(){
+  onboardingIndex = 0;
+  renderOnboardingScreen();
+  onboardingModal.classList.add('show');
+}
+async function closeOnboardingModal(){
+  onboardingModal.classList.remove('show');
+  await storageSet(ONBOARDING_SEEN_KEY, '1');
+}
+$('#onboardingNextBtn').addEventListener('click', ()=>{
+  if(onboardingIndex < onboardingScreens.length-1){
+    onboardingIndex++;
+    renderOnboardingScreen();
+  }else{
+    closeOnboardingModal();
+  }
+});
+$('#onboardingBackBtn').addEventListener('click', ()=>{
+  if(onboardingIndex>0){ onboardingIndex--; renderOnboardingScreen(); }
+});
+$('#onboardingCloseBtn').addEventListener('click', closeOnboardingModal);
+onboardingModal.addEventListener('click', (e)=>{ if(e.target===onboardingModal) closeOnboardingModal(); });
+onboardingDots.forEach(dot=>{
+  dot.addEventListener('click', ()=>{ onboardingIndex = Number(dot.dataset.dot); renderOnboardingScreen(); });
+});
+
+async function checkOnboardingFirstRun(){
+  try{
+    const seen = await storageGet(ONBOARDING_SEEN_KEY);
+    if(!seen) openOnboardingModal();
+  }catch(err){ /* 取得に失敗した場合は自動表示しない（邪魔をしない方を優先） */ }
+}
+checkOnboardingFirstRun();
+
+const helpModal = $('#helpModal');
+function openHelpModal(){ helpModal.classList.add('show'); }
+function closeHelpModal(){ helpModal.classList.remove('show'); }
+$('#helpBtn').addEventListener('click', openHelpModal);
+$('#helpCloseBtn').addEventListener('click', closeHelpModal);
+helpModal.addEventListener('click', (e)=>{ if(e.target===helpModal) closeHelpModal(); });
+$$('.help-topic-item').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const topic = btn.dataset.topic;
+    closeHelpModal();
+    if(topic === 'guide'){
+      openOnboardingModal();
+    }
+    // 今後トピックを追加する場合はここに else if(topic === '...'){ ... } を足していく
   });
 });
 
