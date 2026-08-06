@@ -400,13 +400,17 @@
   .circuit-steps-list{ display:flex; flex-direction:column; gap:8px; }
   .circuit-empty-hint{ font-size:12px; color:var(--panel-muted); text-align:center; padding:16px 8px; }
   .circuit-step-row{
-    display:flex; align-items:center; gap:6px; background:rgba(128,128,128,0.1); border:1px solid var(--panel-hairline);
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px; row-gap:8px; background:rgba(128,128,128,0.1); border:1px solid var(--panel-hairline);
     border-radius:12px; padding:7px 8px;
   }
   .circuit-step-idx{ font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; color:var(--panel-muted); width:16px; text-align:center; flex:0 0 auto; }
   .circuit-step-type{
     flex:1 1 70px; min-width:64px; padding:8px 6px; border-radius:9px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.12); color:var(--panel-text); font-size:12px; font-weight:700;
+  }
+  .circuit-step-unit-select{
+    flex:0 0 auto; width:52px; padding:8px 4px; border-radius:9px; border:1px solid var(--panel-hairline);
+    background:rgba(255,178,44,0.14); color:var(--panel-text); font-size:12px; font-weight:700; text-align:center;
   }
   .circuit-step-seconds{
     width:56px; flex:0 0 auto; padding:8px 6px; border-radius:9px; border:1px solid var(--panel-hairline);
@@ -786,6 +790,7 @@
     .digital-time{ font-size: clamp(26px, 13cqw, 42px); }
     .digital-week span{ padding:3px 6px; font-size:9.5px; }
     .circuit-step-type{ font-size:11px; padding:7px 4px; }
+    .circuit-step-unit-select{ width:44px; font-size:11px; padding:7px 2px; }
     .circuit-step-seconds{ width:46px; font-size:12.5px; }
     .circuit-step-btn{ width:25px; height:25px; }
     .circuit-sample-btn{ padding:11px 10px; font-size:11px; }
@@ -2879,6 +2884,81 @@ let sequence = [];        // スタート時に組み立てる実行順の配列
 
 const mkId = () => 'cs_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
+/* カスタムサーキットのステップ編集UI（共通部品）
+   ---------------------------------------------------------
+   フリータイマー／今日の追加メニュー／種目設定の3箇所で全く同じ行UIを使うため、
+   ここで1箇所にまとめておく（前チャットで「片手落ち」の実装漏れを何度も踏んだ反省を踏まえ、
+   個別に複製しないことで実装漏れ・仕様の食い違いを防ぐ）。
+   各ステップは { id, type:'work'|'rest', unit:'time'|'reps', seconds, reps } の形。
+   休憩（rest）は常にタイマー方式（unit:'time'）のみで、回数方式（unit:'reps'）を選べるのはワーク（work）のみ。 */
+function circuitStepRowHTML(s, i, total, isRunning){
+  const dis = isRunning ? 'disabled' : '';
+  const isReps = s.type === 'work' && s.unit === 'reps';
+  const value = isReps ? (s.reps ?? 10) : (s.seconds ?? 30);
+  return `
+    <div class="circuit-step-row" data-sid="${s.id}">
+      <span class="circuit-step-idx">${i+1}</span>
+      <select class="circuit-step-type" data-field="type" ${dis}>
+        <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
+        <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
+      </select>
+      ${s.type === 'work' ? `
+      <select class="circuit-step-unit-select" data-field="unit" ${dis}>
+        <option value="time" ${s.unit!=='reps'?'selected':''}>秒</option>
+        <option value="reps" ${s.unit==='reps'?'selected':''}>回</option>
+      </select>` : ''}
+      <input type="number" class="circuit-step-seconds" data-field="value" min="1" value="${value}" ${dis}>
+      <span class="circuit-step-unit">${isReps ? '回' : '秒'}</span>
+      <button type="button" class="circuit-step-btn" data-act="up" ${(i===0||isRunning)?'disabled':''}>↑</button>
+      <button type="button" class="circuit-step-btn" data-act="down" ${(i===total-1||isRunning)?'disabled':''}>↓</button>
+      <button type="button" class="circuit-step-btn remove" data-act="remove" ${dis}>✕</button>
+    </div>
+  `;
+}
+/* rerender: 並び替え・追加・削除・種別変更のたびに呼ぶ再描画コールバック（呼び出し元ごとに用意する）
+   onChange: 値変更のたびに呼ぶ任意の副作用（例：schedulePlanSave）。省略可。
+   isRunningFn: 実行中は編集不可にしたい場合の判定関数。省略可。 */
+function bindCircuitStepRows(container, steps, rerender, onChange, isRunningFn){
+  container.querySelectorAll('.circuit-step-row').forEach(row=>{
+    const sid = row.dataset.sid;
+    const step = steps.find(s=>s.id===sid);
+    if(!step) return;
+    const typeSel = row.querySelector('[data-field="type"]');
+    if(typeSel) typeSel.addEventListener('change', e=>{
+      step.type = e.target.value;
+      if(step.type === 'rest') step.unit = 'time'; // 休憩は常に秒指定
+      if(onChange) onChange();
+      rerender();
+    });
+    const unitSel = row.querySelector('[data-field="unit"]');
+    if(unitSel) unitSel.addEventListener('change', e=>{
+      step.unit = e.target.value;
+      if(step.unit === 'reps' && !step.reps) step.reps = 10;
+      if(step.unit === 'time' && !step.seconds) step.seconds = 30;
+      if(onChange) onChange();
+      rerender();
+    });
+    const valueInput = row.querySelector('[data-field="value"]');
+    if(valueInput) valueInput.addEventListener('change', e=>{
+      const v = Math.max(1, parseInt(e.target.value)||1);
+      if(step.type === 'work' && step.unit === 'reps'){ step.reps = v; } else { step.seconds = v; }
+      if(onChange) onChange();
+    });
+    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(isRunningFn && isRunningFn()) return;
+        const idx = steps.findIndex(s=>s.id===sid);
+        const act = btn.dataset.act;
+        if(act==='remove'){ steps.splice(idx,1); }
+        else if(act==='up' && idx>0){ [steps[idx-1],steps[idx]]=[steps[idx],steps[idx-1]]; }
+        else if(act==='down' && idx<steps.length-1){ [steps[idx+1],steps[idx]]=[steps[idx],steps[idx+1]]; }
+        if(onChange) onChange();
+        rerender();
+      });
+    });
+  });
+}
+
 /* フリータイマー：種目として保存せず、回数/インターバルの設定だけをその場で入力してすぐ実行するための一時枠。
    とっさの時の利便性を優先し、名前・メモ・タグは持たず、trainingLog等への記録も行わない。 */
 const FREE_TIMER_ID = 'free_timer_temp';
@@ -2903,6 +2983,7 @@ let timerState = {
   remainingOnPause: undefined,
   lastWholeSecond: null, // 秒刻み音の重複再生を防ぐためのトラッカー
   repsCurrentSet: 1, // 回数モード時、Up/Downボタンで手動カウントする現在のセット数
+  awaitingManualAdvance: false, // カスタムサーキットの「ワーク(回)」ステップ中：カウントダウンを止め、手動で次へ進むのを待っている状態
 };
 
 function fmtMMSS(totalSeconds){
@@ -3108,11 +3189,16 @@ function buildSimpleSequence(){
 function buildCircuitSequence(){
   const circuit = (selectedTimerItem && selectedTimerItem.interval.circuit) || { steps: [], repeat: 1 };
   const repeat = Math.max(1, parseInt(circuit.repeat)||1);
-  const steps = (circuit.steps||[]).filter(s => s.seconds > 0);
+  // ワーク(回)ステップは reps>0、それ以外（ワーク(秒)／休憩）は seconds>0 を有効なステップとみなす
+  const steps = (circuit.steps||[]).filter(s => (s.unit === 'reps') ? (s.reps > 0) : (s.seconds > 0));
   const seq = [];
   for(let r=1; r<=repeat; r++){
     steps.forEach((st,i) => seq.push({
-      type:st.type, duration:st.seconds, setNumber:r, totalSets:repeat, stepInSet:i+1, totalStepsInSet:steps.length
+      type:st.type,
+      unit: st.unit === 'reps' ? 'reps' : 'time',
+      duration: st.unit === 'reps' ? null : st.seconds,
+      reps: st.unit === 'reps' ? st.reps : null,
+      setNumber:r, totalSets:repeat, stepInSet:i+1, totalStepsInSet:steps.length
     }));
   }
   return seq;
@@ -3128,7 +3214,37 @@ function setInputsDisabled(disabled){
 
 function updateSetStepLabels(step){
   setSetLabelText(`SET ${step.setNumber} / ${step.totalSets}`, false);
-  stepLabel.textContent = timerMode === 'circuit' ? `STEP ${step.stepInSet} / ${step.totalStepsInSet}` : '';
+  let label = timerMode === 'circuit' ? `STEP ${step.stepInSet} / ${step.totalStepsInSet}` : '';
+  if(step.unit === 'reps') label += (label ? ' ・ ' : '') + 'タップして次へ';
+  stepLabel.textContent = label;
+}
+
+/* ステップを1つ「開始」する共通処理。
+   ・unit:'time' のステップ（ワーク(秒)／休憩）は通常どおりカウントダウンを開始する
+   ・unit:'reps' のステップ（ワーク(回)）はカウントダウンせず、回数表示のまま静止し、
+     ユーザーがスタートボタンをタップして手動で次のステップに進むのを待つ（timerState.awaitingManualAdvance） */
+function activateStep(step){
+  ringNumber.classList.remove('countdown-pulse');
+  updatePhaseBadge(step.type);
+  updateSetStepLabels(step);
+  const color = step.type==='work' ? 'var(--accent-work)' : 'var(--accent-rest)';
+  if(step.unit === 'reps'){
+    timerState.awaitingManualAdvance = true;
+    timerState.phaseDuration = 0;
+    timerState.phaseEnd = 0;
+    timerState.lastWholeSecond = null;
+    ringNumber.textContent = `${step.reps}回`;
+    setRingProgress(1, color);
+    startBtn.textContent = '✓ 完了 → 次へ';
+  } else {
+    timerState.awaitingManualAdvance = false;
+    timerState.phaseDuration = step.duration;
+    timerState.phaseEnd = Date.now() + step.duration*1000;
+    timerState.lastWholeSecond = Math.ceil(step.duration);
+    ringNumber.textContent = fmtMMSS(step.duration);
+    setRingProgress(1, color);
+    startBtn.textContent = '一時停止';
+  }
 }
 
 function startTimer(){
@@ -3147,15 +3263,11 @@ function beginSequence(){
   sequence = buildSequence();
   if(!sequence.length){ resetTimer(); return; } // ステップが1つもない場合は開始しない
   timerState.index = 0;
-  const first = sequence[0];
-  timerState.phaseDuration = first.duration;
-  timerState.phaseEnd = Date.now() + first.duration*1000;
   timerState.status = 'active';
-  timerState.lastWholeSecond = Math.ceil(first.duration);
   playSessionStartBeep(); // スタート時の確認音（約1秒の「ピーッ」）
   timerState.running = true;
-  startBtn.textContent = '一時停止';
   setInputsDisabled(true);
+  activateStep(sequence[0]);
   loopTimer();
 }
 
@@ -3179,6 +3291,7 @@ function resetTimer(){
   timerState.index = -1;
   timerState.remainingOnPause = undefined;
   timerState.lastWholeSecond = null;
+  timerState.awaitingManualAdvance = false;
   if(timerState.rafId) cancelAnimationFrame(timerState.rafId);
   if(timerState.readyTimeoutId){ clearTimeout(timerState.readyTimeoutId); timerState.readyTimeoutId = null; }
   if('speechSynthesis' in window) window.speechSynthesis.cancel();
@@ -3224,7 +3337,7 @@ function resetTimer(){
   const preview = buildSequence();
   if(preview.length){
     const first = preview[0];
-    ringNumber.textContent = fmtMMSS(first.duration);
+    ringNumber.textContent = first.unit === 'reps' ? `${first.reps}回` : fmtMMSS(first.duration);
     updateSetStepLabels(first);
   } else {
     ringNumber.textContent = '00:00';
@@ -3262,6 +3375,14 @@ function decrementRepsSet(){
 
 function loopTimer(){
   if(!timerState.running) return;
+
+  // ワーク(回)ステップ中：カウントダウンは進めず、手動での「次へ」タップを待つだけ
+  // （表示自体は activateStep/advanceStep が既に静止表示済みなので、ここでは何もしない）
+  if(timerState.awaitingManualAdvance){
+    timerState.rafId = requestAnimationFrame(loopTimer);
+    return;
+  }
+
   const step = sequence[timerState.index];
   const remaining = (timerState.phaseEnd - Date.now())/1000;
 
@@ -3297,13 +3418,10 @@ function advanceStep(){
     return;
   }
   const step = sequence[timerState.index];
-  timerState.phaseDuration = step.duration;
-  timerState.phaseEnd = Date.now() + step.duration*1000;
-  timerState.lastWholeSecond = Math.ceil(step.duration);
-  ringNumber.classList.remove('countdown-pulse');
   if(!prevStep || step.type !== prevStep.type){
     playTransitionChime(); // WORK⇔REST切り替わりの「ポーン」
   }
+  activateStep(step);
 }
 
 function finishTimer(){
@@ -3329,6 +3447,11 @@ startBtn.addEventListener('click', ()=>{
   }
   ensureAudioContext();
   primeSpeechSynthesis();
+  if(timerState.running && timerState.awaitingManualAdvance){
+    // カスタムサーキットの「ワーク(回)」ステップ中：一時停止ではなく、手動で次のステップへ進める
+    advanceStep();
+    return;
+  }
   if(!timerState.running){
     if(timerState.status === 'active' && timerState.remainingOnPause !== undefined){
       resumeFromPause();
@@ -3808,7 +3931,7 @@ function renderFreeTimerSubtypeFields(){
     $('#freeTimerCircuitRepeat').addEventListener('change', e=>{ d.interval.circuit.repeat = Math.max(1, parseInt(e.target.value)||1); });
     $('#freeTimerCircuitAdd').addEventListener('click', ()=>{
       if(timerState.status === 'active') return;
-      d.interval.circuit.steps.push({ id: mkId(), type:'work', seconds:30 });
+      d.interval.circuit.steps.push({ id: mkId(), type:'work', unit:'time', seconds:30 });
       renderFreeTimerCircuitSteps();
     });
     renderFreeTimerCircuitSteps();
@@ -3823,37 +3946,8 @@ function renderFreeTimerCircuitSteps(){
     container.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。</div>';
     return;
   }
-  container.innerHTML = steps.map((s,i)=>`
-    <div class="circuit-step-row" data-sid="${s.id}">
-      <span class="circuit-step-idx">${i+1}</span>
-      <select class="circuit-step-type" data-field="type" ${isRunning?'disabled':''}>
-        <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
-        <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
-      </select>
-      <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}" ${isRunning?'disabled':''}>
-      <span class="circuit-step-unit">秒</span>
-      <button type="button" class="circuit-step-btn" data-act="up" ${(i===0||isRunning)?'disabled':''}>↑</button>
-      <button type="button" class="circuit-step-btn" data-act="down" ${(i===steps.length-1||isRunning)?'disabled':''}>↓</button>
-      <button type="button" class="circuit-step-btn remove" data-act="remove" ${isRunning?'disabled':''}>✕</button>
-    </div>
-  `).join('');
-  container.querySelectorAll('.circuit-step-row').forEach(row=>{
-    const sid = row.dataset.sid;
-    const step = steps.find(s=>s.id===sid);
-    row.querySelector('[data-field="type"]').addEventListener('change', e=>{ step.type=e.target.value; });
-    row.querySelector('[data-field="seconds"]').addEventListener('change', e=>{ step.seconds=Math.max(1,parseInt(e.target.value)||1); });
-    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        if(timerState.status === 'active') return;
-        const idx = steps.findIndex(s=>s.id===sid);
-        const act = btn.dataset.act;
-        if(act==='remove'){ steps.splice(idx,1); }
-        else if(act==='up' && idx>0){ [steps[idx-1],steps[idx]]=[steps[idx],steps[idx-1]]; }
-        else if(act==='down' && idx<steps.length-1){ [steps[idx+1],steps[idx]]=[steps[idx],steps[idx+1]]; }
-        renderFreeTimerCircuitSteps();
-      });
-    });
-  });
+  container.innerHTML = steps.map((s,i)=>circuitStepRowHTML(s,i,steps.length,isRunning)).join('');
+  bindCircuitStepRows(container, steps, renderFreeTimerCircuitSteps, null, ()=>timerState.status==='active');
 }
 
 /* 「＋ 追加メニュー」：種目設定ページと共通の入力項目（名称・メモ・回数/インターバル・タグ）をその場で入力し、
@@ -3915,7 +4009,7 @@ function openAdhocPanel(existingItem){
       `;
       $('#adhocCircuitRepeat').addEventListener('change', e=>{ newItem.interval.circuit.repeat = Math.max(1, parseInt(e.target.value)||1); });
       $('#adhocCircuitAdd').addEventListener('click', ()=>{
-        newItem.interval.circuit.steps.push({ id: mkId(), type:'work', seconds:30 });
+        newItem.interval.circuit.steps.push({ id: mkId(), type:'work', unit:'time', seconds:30 });
         renderAdhocCircuitSteps();
       });
       renderAdhocCircuitSteps();
@@ -3930,36 +4024,8 @@ function openAdhocPanel(existingItem){
       container.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。</div>';
       return;
     }
-    container.innerHTML = steps.map((s,i)=>`
-      <div class="circuit-step-row" data-sid="${s.id}">
-        <span class="circuit-step-idx">${i+1}</span>
-        <select class="circuit-step-type" data-field="type">
-          <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
-          <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
-        </select>
-        <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}">
-        <span class="circuit-step-unit">秒</span>
-        <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
-        <button type="button" class="circuit-step-btn" data-act="down" ${i===steps.length-1?'disabled':''}>↓</button>
-        <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
-      </div>
-    `).join('');
-    container.querySelectorAll('.circuit-step-row').forEach(row=>{
-      const sid = row.dataset.sid;
-      const step = steps.find(s=>s.id===sid);
-      row.querySelector('[data-field="type"]').addEventListener('change', e=>{ step.type=e.target.value; });
-      row.querySelector('[data-field="seconds"]').addEventListener('change', e=>{ step.seconds=Math.max(1,parseInt(e.target.value)||1); });
-      row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const idx = steps.findIndex(s=>s.id===sid);
-          const act = btn.dataset.act;
-          if(act==='remove'){ steps.splice(idx,1); }
-          else if(act==='up' && idx>0){ [steps[idx-1],steps[idx]]=[steps[idx],steps[idx-1]]; }
-          else if(act==='down' && idx<steps.length-1){ [steps[idx+1],steps[idx]]=[steps[idx],steps[idx+1]]; }
-          renderAdhocCircuitSteps();
-        });
-      });
-    });
+    container.innerHTML = steps.map((s,i)=>circuitStepRowHTML(s,i,steps.length,false)).join('');
+    bindCircuitStepRows(container, steps, renderAdhocCircuitSteps, null, null);
   }
 
   function renderModeFields(){
@@ -5281,37 +5347,8 @@ function renderExerciseCircuitSteps(item){
     container.innerHTML = '<div class="circuit-empty-hint">まだステップがありません。</div>';
     return;
   }
-  container.innerHTML = steps.map((s,i)=>`
-    <div class="circuit-step-row" data-sid="${s.id}">
-      <span class="circuit-step-idx">${i+1}</span>
-      <select class="circuit-step-type" data-field="type">
-        <option value="work" ${s.type==='work'?'selected':''}>ワーク</option>
-        <option value="rest" ${s.type==='rest'?'selected':''}>休憩</option>
-      </select>
-      <input type="number" class="circuit-step-seconds" data-field="seconds" min="1" value="${s.seconds}">
-      <span class="circuit-step-unit">秒</span>
-      <button type="button" class="circuit-step-btn" data-act="up" ${i===0?'disabled':''}>↑</button>
-      <button type="button" class="circuit-step-btn" data-act="down" ${i===steps.length-1?'disabled':''}>↓</button>
-      <button type="button" class="circuit-step-btn remove" data-act="remove">✕</button>
-    </div>
-  `).join('');
-  container.querySelectorAll('.circuit-step-row').forEach(row=>{
-    const sid = row.dataset.sid;
-    const step = steps.find(s=>s.id===sid);
-    row.querySelector('[data-field="type"]').addEventListener('change', e=>{ step.type=e.target.value; schedulePlanSave(); });
-    row.querySelector('[data-field="seconds"]').addEventListener('change', e=>{ step.seconds=Math.max(1,parseInt(e.target.value)||1); schedulePlanSave(); });
-    row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const idx = steps.findIndex(s=>s.id===sid);
-        const act = btn.dataset.act;
-        if(act==='remove'){ steps.splice(idx,1); }
-        else if(act==='up' && idx>0){ [steps[idx-1],steps[idx]]=[steps[idx],steps[idx-1]]; }
-        else if(act==='down' && idx<steps.length-1){ [steps[idx+1],steps[idx]]=[steps[idx],steps[idx+1]]; }
-        renderExerciseCircuitSteps(item);
-        schedulePlanSave();
-      });
-    });
-  });
+  container.innerHTML = steps.map((s,i)=>circuitStepRowHTML(s,i,steps.length,false)).join('');
+  bindCircuitStepRows(container, steps, ()=>renderExerciseCircuitSteps(item), schedulePlanSave, null);
 }
 
 let openVideoRowId = null; // 現在URL編集欄が開いている動画行のID（一度に1件だけ開く）
@@ -5490,7 +5527,7 @@ function attachExerciseItemEvents(item){
   if(circuitAddBtn){
     renderExerciseCircuitSteps(item);
     circuitAddBtn.addEventListener('click', ()=>{
-      item.interval.circuit.steps.push({ id:mkId(), type:'work', seconds:30 });
+      item.interval.circuit.steps.push({ id:mkId(), type:'work', unit:'time', seconds:30 });
       renderExerciseCircuitSteps(item);
       schedulePlanSave();
     });
