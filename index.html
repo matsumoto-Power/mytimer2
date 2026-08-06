@@ -338,6 +338,11 @@
   .phase-badge.work{ background:rgba(255,93,58,0.18); color:var(--accent-work); border:1px solid rgba(255,93,58,0.4);}
   .phase-badge.rest{ background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4);}
   .phase-badge.idle{ background:rgba(128,128,128,0.16); color:var(--panel-muted); border:1px solid var(--panel-hairline);}
+  .exercise-name-display{
+    font-size:16px; font-weight:800; color:var(--panel-text); text-align:center;
+    letter-spacing:0.5px; line-height:1.4; max-width:92%; margin-top:-4px;
+  }
+  .exercise-name-display:empty{ display:none; }
   .set-label{ font-size:30px; letter-spacing:1px; color:var(--panel-text); font-weight:800;}
   .step-label{ font-size:22px; letter-spacing:1.5px; color:#ffffff; font-weight:800; opacity:1;}
   .timer-controls{ display:flex; gap:10px; margin-top:4px; }
@@ -784,6 +789,7 @@
     .ring-svg{ width:min(60cqw, 210px); }
     .settings-card, .memo-card, .digital-card{ padding:16px; }
     .phase-badge{ font-size:15px; letter-spacing:3px; padding:6px 14px; }
+    .exercise-name-display{ font-size:14px; }
     .icon-btn{ padding:7px 10px; font-size:11px; }
   }
   @container control (max-width: 420px){
@@ -1265,6 +1271,7 @@
         <div class="timer-wrap">
           <div class="panel ring-card">
             <div class="phase-badge idle" id="phaseBadge">READY</div>
+            <div class="exercise-name-display" id="exerciseNameDisplay"></div>
             <svg class="ring-svg" viewBox="0 0 300 300">
               <circle cx="150" cy="150" r="132" fill="none" stroke="rgba(128,128,128,0.18)" stroke-width="14"/>
               <circle id="progressRing" cx="150" cy="150" r="132" fill="none" stroke="var(--accent-amber)" stroke-width="14"
@@ -2874,6 +2881,13 @@ function setSetLabelText(text, small){
 }
 const stepLabel = $('#stepLabel');
 const phaseBadge = $('#phaseBadge');
+const exerciseNameDisplay = $('#exerciseNameDisplay');
+/* READY/FINISHのバッジとサークルタイマーの間に、現在選択・実行中の種目名を表示する。
+   selectedTimerItemが変わるタイミングは必ずresetTimer()を通るため、更新はそこに一本化する。 */
+function updateExerciseNameDisplay(){
+  exerciseNameDisplay.textContent = (selectedTimerItem && selectedTimerItem.name && selectedTimerItem.name.trim())
+    ? selectedTimerItem.name.trim() : '';
+}
 const startBtn = $('#startBtn');
 const resetBtn = $('#resetBtn');
 
@@ -3299,6 +3313,7 @@ function resetTimer(){
   updatePhaseBadge('idle');
   ringNumber.classList.remove('countdown-pulse');
   ringNumber.classList.remove('finish-text');
+  updateExerciseNameDisplay();
 
   if(!selectedTimerItem){
     startBtn.textContent = 'スタート';
