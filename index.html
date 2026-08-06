@@ -429,6 +429,11 @@
   .circuit-step-btn:hover{ background:rgba(128,128,128,0.3); }
   .circuit-step-btn.remove{ background:rgba(255,93,58,0.2); color:var(--accent-work); }
   .circuit-step-btn:disabled{ opacity:0.3; cursor:not-allowed; }
+  .circuit-step-name{
+    flex:1 1 100%; order:10; width:100%; padding:8px 10px; border-radius:9px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:12.5px;
+  }
+  .circuit-step-name::placeholder{ color:var(--panel-muted); }
   .circuit-actions-row{ display:flex; gap:8px; margin-top:4px; }
   .circuit-add-btn{
     flex:1; appearance:none; cursor:pointer; border:1px dashed var(--panel-hairline); background:rgba(128,128,128,0.08);
@@ -2884,9 +2889,11 @@ const phaseBadge = $('#phaseBadge');
 const exerciseNameDisplay = $('#exerciseNameDisplay');
 /* READY/FINISHのバッジとサークルタイマーの間に、現在選択・実行中の種目名を表示する。
    selectedTimerItemが変わるタイミングは必ずresetTimer()を通るため、更新はそこに一本化する。 */
-function updateExerciseNameDisplay(){
-  exerciseNameDisplay.textContent = (selectedTimerItem && selectedTimerItem.name && selectedTimerItem.name.trim())
+function updateExerciseNameDisplay(stepName){
+  const override = (stepName && String(stepName).trim()) ? String(stepName).trim() : '';
+  const fallback = (selectedTimerItem && selectedTimerItem.name && selectedTimerItem.name.trim())
     ? selectedTimerItem.name.trim() : '';
+  exerciseNameDisplay.textContent = override || fallback;
 }
 const startBtn = $('#startBtn');
 const resetBtn = $('#resetBtn');
@@ -2926,6 +2933,8 @@ function circuitStepRowHTML(s, i, total, isRunning){
       <button type="button" class="circuit-step-btn" data-act="up" ${(i===0||isRunning)?'disabled':''}>↑</button>
       <button type="button" class="circuit-step-btn" data-act="down" ${(i===total-1||isRunning)?'disabled':''}>↓</button>
       <button type="button" class="circuit-step-btn remove" data-act="remove" ${dis}>✕</button>
+      ${s.type === 'work' ? `
+      <input type="text" class="circuit-step-name" data-field="name" value="${escapeHTML(s.name||'')}" placeholder="トレーニング名（任意・タイマー画面に表示）" ${dis}>` : ''}
     </div>
   `;
 }
@@ -2956,6 +2965,11 @@ function bindCircuitStepRows(container, steps, rerender, onChange, isRunningFn){
     if(valueInput) valueInput.addEventListener('change', e=>{
       const v = Math.max(1, parseInt(e.target.value)||1);
       if(step.type === 'work' && step.unit === 'reps'){ step.reps = v; } else { step.seconds = v; }
+      if(onChange) onChange();
+    });
+    const nameInput = row.querySelector('[data-field="name"]');
+    if(nameInput) nameInput.addEventListener('change', e=>{
+      step.name = e.target.value;
       if(onChange) onChange();
     });
     row.querySelectorAll('.circuit-step-btn').forEach(btn=>{
@@ -3193,9 +3207,10 @@ function buildSimpleSequence(){
   const work = Math.max(1, parseInt(simple.work)||40);
   const rest = Math.max(0, parseInt(simple.rest)||0);
   const sets = Math.max(1, parseInt(simple.sets)||1);
+  const workName = (simple.workName||'').trim();
   const seq = [];
   for(let s=1; s<=sets; s++){
-    seq.push({type:'work', duration:work, setNumber:s, totalSets:sets, stepInSet:1, totalStepsInSet: rest>0 ? 2 : 1});
+    seq.push({type:'work', duration:work, name:workName, setNumber:s, totalSets:sets, stepInSet:1, totalStepsInSet: rest>0 ? 2 : 1});
     if(rest > 0) seq.push({type:'rest', duration:rest, setNumber:s, totalSets:sets, stepInSet:2, totalStepsInSet:2});
   }
   return seq;
@@ -3212,6 +3227,7 @@ function buildCircuitSequence(){
       unit: st.unit === 'reps' ? 'reps' : 'time',
       duration: st.unit === 'reps' ? null : st.seconds,
       reps: st.unit === 'reps' ? st.reps : null,
+      name: st.type === 'work' ? (st.name||'').trim() : '',
       setNumber:r, totalSets:repeat, stepInSet:i+1, totalStepsInSet:steps.length
     }));
   }
@@ -3231,6 +3247,7 @@ function updateSetStepLabels(step){
   let label = timerMode === 'circuit' ? `STEP ${step.stepInSet} / ${step.totalStepsInSet}` : '';
   if(step.unit === 'reps') label += (label ? ' ・ ' : '') + 'タップして次へ';
   stepLabel.textContent = label;
+  updateExerciseNameDisplay(step.name); // 休憩ステップ（name未設定）では選択中の種目名にフォールバックする
 }
 
 /* ステップを1つ「開始」する共通処理。
@@ -3372,6 +3389,7 @@ function renderRepsSetDisplay(){
   ringNumber.textContent = `${r.count}回`;
   setSetLabelText(`SET ${current} / ${total}`, false);
   stepLabel.textContent = '';
+  updateExerciseNameDisplay(r.workName);
   setRingProgress(current / total, 'var(--accent-amber)');
   startBtn.disabled = current >= total; // 最大セットに達したらUpを無効化
   resetBtn.disabled = current <= 1;     // 1セット目まで戻したらDownを無効化
@@ -5268,6 +5286,10 @@ function renderExerciseItemBody(item){
     </div>
 
     ${item.mode==='reps' ? `
+      <div class="field">
+        <label>トレーニング名（任意・タイマー画面に表示）</label>
+        <input type="text" class="ei-reps-workname" value="${escapeHTML(item.reps.workName||'')}" placeholder="空欄の場合は種目名を表示">
+      </div>
       <div class="field-row">
         <div class="field"><label>回数</label><input type="number" class="ei-reps-input" min="1" value="${item.reps.count}"></div>
         <div class="field"><label>セット数</label><input type="number" class="ei-reps-sets" min="1" value="${item.reps.sets||1}"></div>
@@ -5278,6 +5300,10 @@ function renderExerciseItemBody(item){
         <button type="button" class="mode-btn ${item.interval.subType==='circuit'?'active':''}" data-subtype="circuit">カスタムサーキット</button>
       </div>
       ${item.interval.subType==='simple' ? `
+        <div class="field">
+          <label>トレーニング名（任意・タイマー画面に表示）</label>
+          <input type="text" class="ei-simple-workname" value="${escapeHTML(item.interval.simple.workName||'')}" placeholder="空欄の場合は種目名を表示">
+        </div>
         <div class="field-row">
           <div class="field"><label>ワーク（秒）</label><input type="number" class="ei-simple-work" min="1" value="${item.interval.simple.work}"></div>
           <div class="field"><label>休憩（秒）</label><input type="number" class="ei-simple-rest" min="0" value="${item.interval.simple.rest}"></div>
@@ -5530,6 +5556,8 @@ function attachExerciseItemEvents(item){
   if(repsInput) repsInput.addEventListener('change', ()=>{ item.reps.count=Math.max(1,parseInt(repsInput.value)||1); schedulePlanSave(); });
   const repsSetsInput = root.querySelector('.ei-reps-sets');
   if(repsSetsInput) repsSetsInput.addEventListener('change', ()=>{ item.reps.sets=Math.max(1,parseInt(repsSetsInput.value)||1); schedulePlanSave(); });
+  const repsWorkNameInput = root.querySelector('.ei-reps-workname');
+  if(repsWorkNameInput) repsWorkNameInput.addEventListener('change', ()=>{ item.reps.workName=repsWorkNameInput.value; schedulePlanSave(); });
 
   const simpleWork = root.querySelector('.ei-simple-work');
   const simpleRest = root.querySelector('.ei-simple-rest');
@@ -5537,6 +5565,8 @@ function attachExerciseItemEvents(item){
   if(simpleWork) simpleWork.addEventListener('change', ()=>{ item.interval.simple.work=Math.max(1,parseInt(simpleWork.value)||1); schedulePlanSave(); });
   if(simpleRest) simpleRest.addEventListener('change', ()=>{ item.interval.simple.rest=Math.max(0,parseInt(simpleRest.value)||0); schedulePlanSave(); });
   if(simpleSets) simpleSets.addEventListener('change', ()=>{ item.interval.simple.sets=Math.max(1,parseInt(simpleSets.value)||1); schedulePlanSave(); });
+  const simpleWorkNameInput = root.querySelector('.ei-simple-workname');
+  if(simpleWorkNameInput) simpleWorkNameInput.addEventListener('change', ()=>{ item.interval.simple.workName=simpleWorkNameInput.value; schedulePlanSave(); });
 
   const circuitAddBtn = root.querySelector('.ei-circuit-add');
   if(circuitAddBtn){
