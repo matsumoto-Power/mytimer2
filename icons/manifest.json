@@ -1,7 +1,8 @@
 {
   "name": "MY TIMER",
   "short_name": "MY TIMER",
-  "start_url": ".",
+  "start_url": "../",
+  "scope": "../",
   "display": "standalone",
   "background_color": "#0d1b1e",
   "theme_color": "#0d1b1e",
