@@ -7,6 +7,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
 <link rel="manifest" href="icons/manifest.json">
+<meta name="theme-color" content="#0d1b1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MY TIMER">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -777,6 +781,8 @@
   }
   .calendar-cell.muted{ opacity:0.32; }
   .calendar-cell.today{ background:rgba(168,85,247,0.16); border-color:var(--accent-amber); color:var(--accent-amber); }
+  .calendar-cell.holiday .calendar-daynum{ color:var(--accent-work); }
+  .calendar-cell.holiday.today .calendar-daynum{ color:var(--accent-amber); }
   .calendar-hint{ font-size:11.5px; color:var(--panel-muted); text-align:center; }
 
 
@@ -1214,6 +1220,20 @@
   .help-topic-icon{ font-size:20px; flex:0 0 auto; }
   .help-topic-name{ font-weight:800; font-size:13.5px; margin-bottom:2px; }
   .help-topic-desc{ font-size:12px; color:var(--panel-muted); line-height:1.5; }
+
+  /* ===== PWA：新バージョン更新通知バナー（控えめ・下部固定・押さなければそのまま使い続けられる） ===== */
+  #swUpdateBanner{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%) translateY(0);
+    z-index:9999; display:flex; align-items:center; gap:12px;
+    background:rgba(10,14,16,0.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border:1px solid var(--panel-hairline); border-radius:999px; padding:10px 10px 10px 18px;
+    box-shadow:0 8px 28px rgba(0,0,0,0.35); max-width:92vw; animation: swBannerIn .25s ease;
+  }
+  @keyframes swBannerIn{ from{ opacity:0; transform:translateX(-50%) translateY(10px); } to{ opacity:1; transform:translateX(-50%) translateY(0); } }
+  #swUpdateBanner span{ font-size:12.5px; font-weight:600; color:#F5F3EC; white-space:nowrap; }
+  #swUpdateBanner button{ appearance:none; cursor:pointer; border:none; border-radius:999px; font-weight:700; white-space:nowrap; }
+  #swUpdateBtn{ background:var(--accent-amber); color:#ffffff; padding:8px 16px; font-size:12.5px; }
+  #swDismissBtn{ background:transparent; color:rgba(245,243,236,0.55); padding:8px; font-size:14px; line-height:1; }
 </style>
 </head>
 <body>
@@ -2125,6 +2145,57 @@ $$('.help-topic-item').forEach(btn=>{
     // 今後トピックを追加する場合はここに else if(topic === '...'){ ... } を足していく
   });
 });
+
+/* =========================================================
+   PWA：Service Worker登録・オフライン対応・更新通知
+   ---------------------------------------------------------
+   ・sw.js（キャッシュ優先）を登録し、オフラインでも起動できるようにする
+   ・新しいバージョンのsw.jsが見つかった場合、即切り替えず「更新する」バナーを出す。
+     タップされたら SKIP_WAITING を送り、controllerchange を検知してリロードする。
+     （何もしなければ、今開いているタブは古いバージョンのまま使い続けられる＝作業中断を防ぐ）
+========================================================= */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').then(reg=>{
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', ()=>{
+          // controllerが既にいる＝初回インストールではなく「更新」の場合のみバナーを出す
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            showSwUpdateBanner(newWorker);
+          }
+        });
+      });
+    }).catch(err=>console.warn('[sw] 登録に失敗しました', err));
+  });
+
+  let swRefreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(swRefreshing) return; // controllerchangeは条件によって複数回発火し得るため多重リロードを防ぐ
+    swRefreshing = true;
+    window.location.reload();
+  });
+}
+
+function showSwUpdateBanner(waitingWorker){
+  if($('#swUpdateBanner')) return; // 既に表示中なら重複させない
+  const banner = document.createElement('div');
+  banner.id = 'swUpdateBanner';
+  banner.innerHTML = `
+    <span>新しいバージョンがあります</span>
+    <button type="button" id="swUpdateBtn">更新する</button>
+    <button type="button" id="swDismissBtn" aria-label="閉じる">✕</button>
+  `;
+  document.body.appendChild(banner);
+  banner.querySelector('#swUpdateBtn').addEventListener('click', ()=>{
+    waitingWorker.postMessage('SKIP_WAITING');
+    banner.remove();
+  });
+  banner.querySelector('#swDismissBtn').addEventListener('click', ()=>{
+    banner.remove(); // 閉じても更新自体は取り消さず、次回起動時にまた反映を試みる
+  });
+}
 
 /* =========================================================
    ワンポイントカラー（--accent-amber）の変更
@@ -6450,6 +6521,93 @@ function formatDateKey(y, m, d){
   return `${y}-${mm}-${dd}`;
 }
 
+/* =========================================================
+   日本の祝日判定
+   ---------------------------------------------------------
+   ・固定日祝日／ハッピーマンデー（○月第○月曜）／春分・秋分の日（近似計算式、1980-2099年対応）
+     ・振替休日（祝日が日曜の場合、直後の祝日でない日を振替休日にする）
+     ・国民の休日（前後を祝日に挟まれた平日）
+   にも対応。年ごとに計算結果をキャッシュする。
+========================================================= */
+const holidayYearCache = {};
+function nthMondayOfMonth(year, month1to12, nth){
+  const daysInMonth = new Date(year, month1to12, 0).getDate();
+  let count = 0;
+  for(let d=1; d<=daysInMonth; d++){
+    if(new Date(year, month1to12-1, d).getDay() === 1){
+      count++;
+      if(count === nth) return d;
+    }
+  }
+  return null;
+}
+function vernalEquinoxDay(year){
+  if(year < 1980 || year > 2099) return 20;
+  return Math.floor(20.8431 + 0.242194*(year-1980) - Math.floor((year-1980)/4));
+}
+function autumnalEquinoxDay(year){
+  if(year < 1980 || year > 2099) return 23;
+  return Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4));
+}
+function getHolidayMapForYear(year){
+  if(holidayYearCache[year]) return holidayYearCache[year];
+  const map = {}; // 'MM-DD' -> 祝日名
+  const mdKey = (m,d) => `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const add = (m,d,name) => { if(d) map[mdKey(m,d)] = name; };
+
+  add(1, 1, '元日');
+  add(1, nthMondayOfMonth(year,1,2), '成人の日');
+  add(2, 11, '建国記念の日');
+  if(year >= 2020) add(2, 23, '天皇誕生日');
+  add(3, vernalEquinoxDay(year), '春分の日');
+  add(4, 29, '昭和の日');
+  add(5, 3, '憲法記念日');
+  add(5, 4, 'みどりの日');
+  add(5, 5, 'こどもの日');
+  add(7, nthMondayOfMonth(year,7,3), '海の日');
+  add(8, 11, '山の日');
+  add(9, nthMondayOfMonth(year,9,3), '敬老の日');
+  add(9, autumnalEquinoxDay(year), '秋分の日');
+  add(10, nthMondayOfMonth(year,10,2), 'スポーツの日');
+  add(11, 3, '文化の日');
+  add(11, 23, '勤労感謝の日');
+
+  // 国民の休日：前後を祝日に挟まれた、それ自体は祝日でない平日（日曜を除く）
+  const snapshot = Object.keys(map);
+  for(let m=1; m<=12; m++){
+    const daysInMonth = new Date(year, m, 0).getDate();
+    for(let d=2; d<daysInMonth; d++){
+      const key = mdKey(m,d);
+      if(map[key]) continue;
+      if(new Date(year, m-1, d).getDay() === 0) continue;
+      const prev = new Date(year, m-1, d-1);
+      const next = new Date(year, m-1, d+1);
+      const prevKey = mdKey(prev.getMonth()+1, prev.getDate());
+      const nextKey = mdKey(next.getMonth()+1, next.getDate());
+      if(map[prevKey] && map[nextKey]) map[key] = '国民の休日';
+    }
+  }
+
+  // 振替休日：祝日が日曜に当たる場合、その直後の「祝日でない日」を振替休日にする
+  snapshot.forEach(key=>{
+    const [mm,dd] = key.split('-').map(Number);
+    const dt = new Date(year, mm-1, dd);
+    if(dt.getDay() !== 0) return;
+    const cursor = new Date(dt);
+    for(let guard=0; guard<7; guard++){
+      cursor.setDate(cursor.getDate()+1);
+      const ck = mdKey(cursor.getMonth()+1, cursor.getDate());
+      if(!map[ck]){ map[ck] = '振替休日'; break; }
+    }
+  });
+
+  holidayYearCache[year] = map;
+  return map;
+}
+function getJapaneseHolidayName(year, month1to12, day){
+  return getHolidayMapForYear(year)[`${String(month1to12).padStart(2,'0')}-${String(day).padStart(2,'0')}`] || null;
+}
+
 function renderCalendar(){
   const year = calendarViewDate.getFullYear();
   const month = calendarViewDate.getMonth();
@@ -6496,7 +6654,9 @@ function renderCalendar(){
       const overflow = dotColors.length - visible.length;
       dotsHtml = `<div class="calendar-dots">${visible.map(hex=>`<span class="calendar-dot${isPreview?' preview':''}" style="background:${hex};"></span>`).join('')}${overflow>0?`<span class="calendar-dot-more">+${overflow}</span>`:''}</div>`;
     }
-    return `<button type="button" class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}" data-date="${dateKey}"><span class="calendar-daynum">${c.day}</span>${dotsHtml}</button>`;
+    const holidayName = getJapaneseHolidayName(c.year, c.month+1, c.day);
+    const titleAttr = holidayName ? ` title="${escapeHTML(holidayName)}"` : '';
+    return `<button type="button" class="calendar-cell${c.muted?' muted':''}${c.isToday?' today':''}${holidayName?' holiday':''}" data-date="${dateKey}"${titleAttr}><span class="calendar-daynum">${c.day}</span>${dotsHtml}</button>`;
   }).join('');
   $('#calendarGrid').querySelectorAll('.calendar-cell').forEach(cell=>{
     cell.addEventListener('click', ()=> openDayDetailModal(cell.dataset.date));
@@ -6741,7 +6901,9 @@ function renderDayDetailDaytagChips(){
 }
 function openDayDetailModal(dateKey){
   dayDetailCurrentDateKey = dateKey;
-  dayDetailTitle.textContent = `${formatDateLabel(dateKey)}の記録`;
+  const [hy,hm,hd] = dateKey.split('-').map(Number);
+  const holidayName = getJapaneseHolidayName(hy, hm, hd);
+  dayDetailTitle.textContent = `${formatDateLabel(dateKey)}${holidayName ? `（${holidayName}）` : ''}の記録`;
   dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
   $('#dayDetailNoteInput').value = dayNoteLog[dateKey] || '';
   renderDayDetailConditionUI();
