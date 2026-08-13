@@ -330,6 +330,24 @@
   #tab-clock .clock-wrap{ flex:1; display:flex; gap:18px; align-items:stretch; flex-wrap:wrap; }
   .clock-card{ flex:1 1 260px; display:flex; align-items:center; justify-content:center; padding:22px; min-height:280px; }
   .digital-card{ flex:1 1 260px; display:flex; flex-direction:column; padding:22px; min-height:280px; }
+  .weight-summary-card{ padding:18px 20px; display:flex; flex-direction:column; gap:12px; margin-top:18px; }
+  .weight-summary-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .weight-summary-head h3{ font-size:14px; font-weight:800; margin:0; }
+  .weight-summary-hint{ font-size:11px; color:var(--panel-muted); }
+  .weight-summary-body{ display:flex; gap:10px; flex-wrap:wrap; }
+  .weight-summary-item{
+    flex:1 1 140px; display:flex; flex-direction:column; gap:3px; align-items:center; justify-content:center;
+    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:14px 10px;
+  }
+  .weight-summary-label{ font-size:10.5px; color:var(--panel-muted); font-weight:700; letter-spacing:0.5px; }
+  .weight-summary-value{ font-size:24px; font-weight:800; color:var(--panel-text); }
+  .weight-summary-value .unit{ font-size:13px; font-weight:700; margin-left:2px; color:var(--panel-muted); }
+  .weight-summary-date{ font-size:11px; color:var(--panel-muted); }
+  .weight-summary-diff{ font-size:11.5px; font-weight:700; }
+  .weight-summary-diff.up{ color:var(--accent-work); }
+  .weight-summary-diff.down{ color:var(--accent-rest); }
+  .weight-summary-diff.flat{ color:var(--panel-muted); }
+  .weight-summary-empty{ font-size:12.5px; color:var(--panel-muted); text-align:center; padding:10px; flex:1 1 100%; }
   .digital-card-top{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
   .digital-card-divider{ height:1px; background:var(--panel-hairline); margin:14px 0; flex:0 0 auto; }
   .digital-card-bottom{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:12px; }
@@ -808,7 +826,7 @@
     .digital-week span{ padding:4px 8px; font-size:10.5px; }
     .clock-card{ min-height:200px; padding:16px; }
     .ring-svg{ width:min(60cqw, 210px); }
-    .settings-card, .memo-card, .digital-card{ padding:16px; }
+    .settings-card, .memo-card, .digital-card, .weight-summary-card{ padding:16px; }
     .phase-badge{ font-size:15px; letter-spacing:3px; padding:6px 14px; }
     .exercise-name-display{ font-size:17px; }
     .icon-btn{ padding:7px 10px; font-size:11px; }
@@ -998,6 +1016,15 @@
     background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:13px; font-family:inherit;
   }
   .ai-export-custom-range span{ color:var(--panel-muted); font-size:12px; flex:0 0 auto; }
+  .ai-export-profile{
+    display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:12px;
+    border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06);
+  }
+  .ai-export-profile-hint{ font-size:11.5px; color:var(--panel-muted); line-height:1.5; }
+  .ai-export-profile select, .ai-export-profile input{
+    width:100%; padding:9px 10px; border-radius:10px; border:1px solid var(--panel-hairline);
+    background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:13px; font-family:inherit;
+  }
   #backupFileInput{ display:none; }
   .weight-chart-stats{ display:flex; gap:8px; flex-wrap:wrap; }
   .weight-chart-stat{
@@ -1297,6 +1324,13 @@
               </div>
             </div>
           </div>
+        </div>
+        <div class="panel weight-summary-card" id="weightSummaryCard">
+          <div class="weight-summary-head">
+            <h3>⚖️ 体重の推移</h3>
+            <span class="weight-summary-hint">カレンダーの体重記入欄と連動（表示のみ）</span>
+          </div>
+          <div class="weight-summary-body" id="weightSummaryBody"></div>
         </div>
       </section>
 
@@ -1838,6 +1872,37 @@
     <div class="backup-section">
       <div class="backup-section-title">📊 AI分析用エクスポート</div>
       <div class="backup-hint">指定した期間について、「日付・曜日」「実施した種目名・タグ・実施内容（回数×セット、またはwork/rest×セット）」「その日の体重（記録があれば）」「その日程タブで本来予定していたメニュー」を、シンプルなMarkdown形式で書き出します。AIチャットにそのまま貼り付けて、傾向分析や改善提案を頼みたいときにお使いください。</div>
+      <div class="ai-export-profile" id="aiExportProfile">
+        <div class="ai-export-profile-hint">下記のプロフィールを入力しておくと、書き出すMarkdownに一緒に含まれます（すべて任意項目・空欄の項目は省略されます）。一度入力すればこの端末に保存され、次回以降も引き継がれます。</div>
+        <div class="field-row">
+          <div class="field"><label>年齢</label><input type="number" id="aiExportProfileAge" min="0" max="120" placeholder="例: 30"></div>
+          <div class="field">
+            <label>性別</label>
+            <select id="aiExportProfileGender">
+              <option value="">未回答</option>
+              <option value="男性">男性</option>
+              <option value="女性">女性</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>身長（cm）</label><input type="number" id="aiExportProfileHeight" min="0" max="250" step="0.1" placeholder="例: 170"></div>
+          <div class="field"><label>職業</label><input type="text" id="aiExportProfileOccupation" placeholder="例: 会社員（デスクワーク中心）"></div>
+        </div>
+        <div class="field">
+          <label>運動頻度</label>
+          <select id="aiExportProfileFrequency">
+            <option value="">未回答</option>
+            <option value="ほぼ毎日">ほぼ毎日</option>
+            <option value="週5〜6回">週5〜6回</option>
+            <option value="週3〜4回">週3〜4回</option>
+            <option value="週1〜2回">週1〜2回</option>
+            <option value="月数回程度">月数回程度</option>
+            <option value="ほとんど運動しない">ほとんど運動しない</option>
+          </select>
+        </div>
+      </div>
       <div class="ai-export-range-toggle" id="aiExportRangeToggle">
         <button type="button" class="ai-export-range-btn" data-range="single">日付指定</button>
         <button type="button" class="ai-export-range-btn active" data-range="week">今週</button>
@@ -4374,6 +4439,7 @@ const MEDIA_TAGS_KEY = 'media-tags';
 const WEIGHT_LOG_KEY = 'weight-log';
 const CONDITION_LOG_KEY = 'condition-log';
 const CONDITION_VISIBLE_KEY = 'condition-tracker-visible';
+const AI_EXPORT_PROFILE_KEY = 'ai-export-profile'; // AI分析用エクスポートに添えるプロフィール（年齢/性別/身長/職業/運動頻度）
 const CONDITION_COLOR_KEY = 'condition-dot-colors';
 const DAY_NOTE_LOG_KEY = 'day-note-log';
 const DAY_NOTE_VISIBLE_KEY = 'day-note-visible';
@@ -6462,6 +6528,11 @@ async function loadTrainingPlan(){
     conditionTrackerVisible = rawConditionVisible === null ? true : rawConditionVisible === 'true';
   }catch(err){ conditionTrackerVisible = true; }
   try{
+    const rawAiExportProfile = await storageGet(AI_EXPORT_PROFILE_KEY);
+    aiExportProfile = rawAiExportProfile ? JSON.parse(rawAiExportProfile) : {};
+  }catch(err){ aiExportProfile = {}; }
+  applyAiExportProfileInputs();
+  try{
     const rawConditionColors = await storageGet(CONDITION_COLOR_KEY);
     if(rawConditionColors){ conditionDotColors = { ...DEFAULT_CONDITION_DOT_COLORS, ...JSON.parse(rawConditionColors) }; }
   }catch(err){ /* デフォルト値のまま続行 */ }
@@ -6503,6 +6574,7 @@ async function loadTrainingPlan(){
   renderMediaImages();
   renderMediaNotes();
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
+  if(typeof renderWeightSummaryCard === 'function') renderWeightSummaryCard();
 }
 loadTrainingPlan();
 
@@ -6781,6 +6853,57 @@ async function saveWeightEntry(dateKey, rawValue){
   await storageSet(WEIGHT_LOG_KEY, JSON.stringify(weightLog));
   if(dateKey === dayDetailCurrentDateKey) dayDetailWeightInput.value = (weightLog[dateKey] != null) ? weightLog[dateKey] : '';
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
+  if(typeof renderWeightSummaryCard === 'function') renderWeightSummaryCard();
+}
+
+/* =========================================================
+   時計タブ：体重の推移（最新／その前）表示
+   ---------------------------------------------------------
+   ・カレンダー内蔵の「今日」とは連動せず、あくまで体重が実際に記入された日付の新しい順で2件を出す
+     （例：8/13時点で入力が無ければ、8/12が「最新」、8/11が「その前」になる）
+   ・編集はできない、表示専用のカード。weightLogの変更経路（saveWeightEntry）から都度呼び出して更新する
+========================================================= */
+function formatShortDateLabel(dateKey){
+  const [y,m,d] = dateKey.split('-').map(Number);
+  return `${m}/${d}`;
+}
+function renderWeightSummaryCard(){
+  const body = $('#weightSummaryBody');
+  if(!body) return;
+  const entries = Object.keys(weightLog)
+    .filter(k => weightLog[k] != null)
+    .sort() // 'YYYY-MM-DD'は文字列比較で日付順になる
+    .slice(-2); // 新しい方から2件
+
+  if(entries.length === 0){
+    body.innerHTML = '<div class="weight-summary-empty">まだ体重の記録がありません。カレンダーの日別詳細ページから記入すると、ここに表示されます。</div>';
+    return;
+  }
+
+  const latestKey = entries[entries.length - 1];
+  const prevKey = entries.length >= 2 ? entries[0] : null;
+  const latestVal = weightLog[latestKey];
+  const prevVal = prevKey ? weightLog[prevKey] : null;
+
+  let diffHtml = '';
+  if(prevVal != null){
+    const diff = latestVal - prevVal;
+    const cls = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
+    const sign = diff > 0 ? '+' : '';
+    diffHtml = `<div class="weight-summary-diff ${cls}">${sign}${diff.toFixed(1)}kg</div>`;
+  }
+
+  body.innerHTML = `
+    <div class="weight-summary-item">
+      <div class="weight-summary-label">最新（${formatShortDateLabel(latestKey)}）</div>
+      <div class="weight-summary-value">${latestVal.toFixed(1)}<span class="unit">kg</span></div>
+      ${diffHtml}
+    </div>
+    <div class="weight-summary-item">
+      <div class="weight-summary-label">その前${prevKey ? `（${formatShortDateLabel(prevKey)}）` : ''}</div>
+      <div class="weight-summary-value">${prevVal != null ? `${prevVal.toFixed(1)}<span class="unit">kg</span>` : '<span class="unit">記録なし</span>'}</div>
+    </div>
+  `;
 }
 
 /* 月別一覧の体調セルを直接タップして、5段階アイコンをその場で選べるようにする（日別詳細ページを開かなくても記録・修正できる） */
@@ -6846,6 +6969,7 @@ let dayDetailCurrentDateKey = null;
 let weightLog = {}; // { 'YYYY-MM-DD': 数値 } 体重は任意入力。未入力の日はキー自体を持たない
 let conditionLog = {}; // { 'YYYY-MM-DD': 1〜5 } 体調評価（ワンタップ選択式）。未入力の日はキー自体を持たない
 let conditionTrackerVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
+let aiExportProfile = {}; // AI分析用エクスポートに添えるプロフィール { age, gender, heightCm, occupation, exerciseFrequency }（すべて任意・空欄可）
 let dayNoteLog = {}; // { 'YYYY-MM-DD': '一言メモの文字列' } 未入力の日はキー自体を持たない
 let dayNoteVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
 let dayNoteSaveTimeout = null;
@@ -7959,6 +8083,38 @@ backupModal.addEventListener('click', (e)=>{
 
 /* --- AI分析用エクスポート：指定期間の実施記録・体重・予定メニューを、AIに貼り付けやすいシンプルなMarkdownで書き出す --- */
 let aiExportRangeMode = 'week';
+/* プロフィール（年齢/性別/身長/職業/運動頻度）：任意入力・この端末に保存し、Markdown書き出し時に一緒に含める */
+function applyAiExportProfileInputs(){
+  $('#aiExportProfileAge').value = aiExportProfile.age ?? '';
+  $('#aiExportProfileGender').value = aiExportProfile.gender ?? '';
+  $('#aiExportProfileHeight').value = aiExportProfile.heightCm ?? '';
+  $('#aiExportProfileOccupation').value = aiExportProfile.occupation ?? '';
+  $('#aiExportProfileFrequency').value = aiExportProfile.exerciseFrequency ?? '';
+}
+async function saveAiExportProfile(){
+  aiExportProfile = {
+    age: $('#aiExportProfileAge').value.trim(),
+    gender: $('#aiExportProfileGender').value,
+    heightCm: $('#aiExportProfileHeight').value.trim(),
+    occupation: $('#aiExportProfileOccupation').value.trim(),
+    exerciseFrequency: $('#aiExportProfileFrequency').value,
+  };
+  await storageSet(AI_EXPORT_PROFILE_KEY, JSON.stringify(aiExportProfile));
+}
+['aiExportProfileAge','aiExportProfileGender','aiExportProfileHeight','aiExportProfileOccupation','aiExportProfileFrequency'].forEach(id=>{
+  $('#'+id).addEventListener('change', saveAiExportProfile);
+});
+function buildAiExportProfileLines(){
+  const p = aiExportProfile || {};
+  const rows = [];
+  if(p.age) rows.push(`- 年齢: ${p.age}歳`);
+  if(p.gender) rows.push(`- 性別: ${p.gender}`);
+  if(p.heightCm) rows.push(`- 身長: ${p.heightCm}cm`);
+  if(p.occupation) rows.push(`- 職業: ${p.occupation}`);
+  if(p.exerciseFrequency) rows.push(`- 運動頻度: ${p.exerciseFrequency}`);
+  if(!rows.length) return [];
+  return ['## プロフィール', ...rows, ''];
+}
 $('#aiExportRangeToggle').querySelectorAll('.ai-export-range-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     aiExportRangeMode = btn.dataset.range;
@@ -8034,7 +8190,7 @@ function getDayRecordEntries(dateKey){
 function buildAiExportMarkdown(startDate, endDate){
   const isSingleDay = fmtDateKeyLocal(startDate) === fmtDateKeyLocal(endDate);
   const titleRange = isSingleDay ? fmtDateKeyLocal(startDate) : `${fmtDateKeyLocal(startDate)} 〜 ${fmtDateKeyLocal(endDate)}`;
-  const lines = [`# トレーニング記録（${titleRange}）`, ''];
+  const lines = [`# トレーニング記録（${titleRange}）`, '', ...buildAiExportProfileLines()];
   const cursor = new Date(startDate);
   while(cursor <= endDate){
     const dateKey = fmtDateKeyLocal(cursor);
