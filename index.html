@@ -4311,11 +4311,12 @@ function openAdhocPanel(existingItem){
   $('#adhocNameInput').focus();
   const adhocPickBtn = $('#adhocPickExistingBtn');
   if(adhocPickBtn) adhocPickBtn.addEventListener('click', ()=>{
-    openManualPickerModal(null, null, ()=>{
+    // カレンダー側（日別詳細ページ）と同じ動き：選んだ種目は「今日の実施記録」として追加する
+    openManualPickerModal(getTodayDateKey(), null, ()=>{
       panel.style.display = 'none';
       panel.innerHTML = '';
       renderTimerExerciseList();
-    }, { mode:'items', targetItemsGetter: getTodayAdhocItems });
+    });
   });
   $('#adhocSaveBtn').addEventListener('click', async ()=>{
     const nameInput = $('#adhocNameInput');
@@ -7754,9 +7755,6 @@ let manualPickerSortMode = 'day'; // 'day': 日程タブの並び順 / 'tag': �
 let manualPickerTargetDateKey = null; // どの日付に追加するか（呼び出し元が都度指定する）
 let manualPickerFilterTagName = null; // nullなら全種目、文字列ならそのタグ名の種目のみに絞り込む（セル編集モーダルからの利用時）
 let manualPickerOnConfirm = null; // 追加完了後に呼ぶコールバック（呼び出し元ごとに後片付け・再描画内容が異なるため）
-let manualPickerMode = 'log'; // 'log': 選んだ種目を「実施記録」として指定日に追加（カレンダー系での従来の動き）
-                               // 'items': 選んだ種目をそのまま複製して、指定した種目リストに追加する（インターバルページ「今日の追加メニュー」用）
-let manualPickerTargetItemsGetter = null; // mode:'items' の場合、追加先の配列を返す関数
 function buildManualPickerItems(){
   const dayTabs = getAllPlanDayTabs();
   const dayLabelMap = {};
@@ -7830,17 +7828,13 @@ $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(bt
     renderManualPickerList();
   });
 });
-/* targetDateKey: 追加先の日付（mode:'items'の場合は未使用でnull可） / filterTagName: 種目タグ名で絞り込む場合に指定（省略時は全種目対象） /
-   onConfirm: 追加完了後に呼ぶ再描画コールバック / options.mode: 'log'（既定・実施記録として追加）または 'items'（種目リストにそのまま複製して追加）/
-   options.targetItemsGetter: mode:'items'の場合、追加先の配列を返す関数 */
-function openManualPickerModal(targetDateKey, filterTagName, onConfirm, options){
+/* targetDateKey: 追加先の日付 / filterTagName: 種目タグ名で絞り込む場合に指定（省略時は全種目対象） / onConfirm: 追加完了後に呼ぶ再描画コールバック */
+function openManualPickerModal(targetDateKey, filterTagName, onConfirm){
   manualPickerSelectedIdx = new Set();
   manualPickerSortMode = 'day';
   manualPickerTargetDateKey = targetDateKey;
   manualPickerFilterTagName = (filterTagName === undefined) ? null : filterTagName;
   manualPickerOnConfirm = onConfirm || null;
-  manualPickerMode = (options && options.mode) || 'log';
-  manualPickerTargetItemsGetter = (options && options.targetItemsGetter) || null;
   // タグで絞り込んでいる場合は、並び替えトグル自体に意味がなくなる（結果が変わらない）ため隠す
   $('#manualPickerSortToggle').style.display = manualPickerFilterTagName != null ? 'none' : 'flex';
   $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b.dataset.sort==='day'));
@@ -7856,24 +7850,7 @@ manualPickerModal.addEventListener('click', (e)=>{
   if(e.target === manualPickerModal) closeManualPickerModal();
 });
 $('#manualPickerConfirmBtn').addEventListener('click', async ()=>{
-  if(!manualPickerSelectedIdx.size) return;
-  if(manualPickerMode === 'items'){
-    // 「今日の追加メニュー」用：選んだ種目の設定をそのまま複製して、指定した種目リストに追加する（実施記録は増やさない）
-    if(!manualPickerTargetItemsGetter) return;
-    const targetItems = manualPickerTargetItemsGetter();
-    for(const idx of manualPickerSelectedIdx){
-      const entry = manualPickerItems[idx];
-      if(!entry) continue;
-      const clone = JSON.parse(JSON.stringify(entry.item));
-      clone.id = mkId(); // 元の種目とは別物として扱うため、新しいIDを振り直す
-      targetItems.push(clone);
-    }
-    await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
-    closeManualPickerModal();
-    if(manualPickerOnConfirm) manualPickerOnConfirm();
-    return;
-  }
-  if(!manualPickerTargetDateKey) return;
+  if(!manualPickerSelectedIdx.size || !manualPickerTargetDateKey) return;
   // 選んだ時点の種目の内容（名前・タグ・モード・回数やインターバル設定）をそのままスナップショットとして記録に追加する
   for(const idx of manualPickerSelectedIdx){
     const entry = manualPickerItems[idx];
