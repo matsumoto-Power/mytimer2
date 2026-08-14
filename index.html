@@ -336,8 +336,8 @@
   .weight-summary-hint{ font-size:11px; color:var(--panel-muted); }
   .weight-summary-body{ display:flex; gap:10px; flex-wrap:wrap; }
   .weight-summary-item{
-    flex:1 1 140px; display:flex; flex-direction:column; gap:3px; align-items:center; justify-content:center;
-    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:14px 10px;
+    flex:1 1 110px; display:flex; flex-direction:column; gap:3px; align-items:center; justify-content:center;
+    background:rgba(128,128,128,0.08); border:1px solid var(--panel-hairline); border-radius:12px; padding:14px 8px;
   }
   .weight-summary-label{ font-size:10.5px; color:var(--panel-muted); font-weight:700; letter-spacing:0.5px; }
   .weight-summary-value{ font-size:24px; font-weight:800; color:var(--panel-text); }
@@ -1025,6 +1025,14 @@
     width:100%; padding:9px 10px; border-radius:10px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.08); color:var(--panel-text); font-size:13px; font-family:inherit;
   }
+  .ai-export-profile-toggle{
+    appearance:none; cursor:pointer; width:100%; display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.08);
+    color:var(--panel-text); font-size:12.5px; font-weight:700; transition: background .15s ease;
+  }
+  .ai-export-profile-toggle:hover{ background:rgba(128,128,128,0.16); }
+  .ai-export-profile-toggle-icon{ transition: transform .2s ease; color:var(--panel-muted); }
+  .ai-export-profile-toggle.open .ai-export-profile-toggle-icon{ transform:rotate(180deg); }
   #backupFileInput{ display:none; }
   .weight-chart-stats{ display:flex; gap:8px; flex-wrap:wrap; }
   .weight-chart-stat{
@@ -1872,7 +1880,11 @@
     <div class="backup-section">
       <div class="backup-section-title">📊 AI分析用エクスポート</div>
       <div class="backup-hint">指定した期間について、「日付・曜日」「実施した種目名・タグ・実施内容（回数×セット、またはwork/rest×セット）」「その日の体重（記録があれば）」「その日程タブで本来予定していたメニュー」を、シンプルなMarkdown形式で書き出します。AIチャットにそのまま貼り付けて、傾向分析や改善提案を頼みたいときにお使いください。</div>
-      <div class="ai-export-profile" id="aiExportProfile">
+      <button type="button" class="ai-export-profile-toggle" id="aiExportProfileToggleBtn">
+        <span>👤 プロフィールを入力する（任意・AIへの参考情報）</span>
+        <span class="ai-export-profile-toggle-icon">▾</span>
+      </button>
+      <div class="ai-export-profile" id="aiExportProfile" style="display:none;">
         <div class="ai-export-profile-hint">下記のプロフィールを入力しておくと、書き出すMarkdownに一緒に含まれます（すべて任意項目・空欄の項目は省略されます）。一度入力すればこの端末に保存され、次回以降も引き継がれます。</div>
         <div class="field-row">
           <div class="field"><label>年齢</label><input type="number" id="aiExportProfileAge" min="0" max="120" placeholder="例: 30"></div>
@@ -1891,15 +1903,26 @@
           <div class="field"><label>職業</label><input type="text" id="aiExportProfileOccupation" placeholder="例: 会社員（デスクワーク中心）"></div>
         </div>
         <div class="field">
-          <label>運動頻度</label>
+          <label>運動量（1回あたりの強度の目安）</label>
+          <select id="aiExportProfileVolume">
+            <option value="">未回答</option>
+            <option value="ほとんど運動しない（安静・座位中心）">①ほとんど運動しない（安静・座位中心）</option>
+            <option value="軽い運動（散歩・ストレッチなど、息が乱れない程度）">②軽い運動（散歩・ストレッチなど、息が乱れない程度）</option>
+            <option value="中程度の運動（ウォーキング・軽い筋トレなど、軽く汗ばむ程度）">③中程度の運動（ウォーキング・軽い筋トレなど、軽く汗ばむ程度）</option>
+            <option value="やや激しい運動（ジョギング・本格的な筋トレなど、息が弾む程度）">④やや激しい運動（ジョギング・本格的な筋トレなど、息が弾む程度）</option>
+            <option value="激しい運動（ランニング・高強度トレーニングなど、息が切れる程度）">⑤激しい運動（ランニング・高強度トレーニングなど、息が切れる程度）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>頻度</label>
           <select id="aiExportProfileFrequency">
             <option value="">未回答</option>
             <option value="ほぼ毎日">ほぼ毎日</option>
             <option value="週5〜6回">週5〜6回</option>
             <option value="週3〜4回">週3〜4回</option>
             <option value="週1〜2回">週1〜2回</option>
-            <option value="月数回程度">月数回程度</option>
-            <option value="ほとんど運動しない">ほとんど運動しない</option>
+            <option value="月2〜3回">月2〜3回</option>
+            <option value="月1回程度以下">月1回程度以下</option>
           </select>
         </div>
       </div>
@@ -4191,6 +4214,7 @@ function openAdhocPanel(existingItem){
         ${exerciseTags.map(t=>`<option value="${t.id}" ${newItem.tagId===t.id?'selected':''}>${escapeHTML(t.name)}</option>`).join('')}
       </select>
     </div>
+    ${isEdit ? '' : '<button type="button" class="preset-full-btn" id="adhocPickExistingBtn">📋 既存の種目から選ぶ</button>'}
     <div class="plan-day-inline-actions">
       <button type="button" class="preset-full-btn" id="adhocCancelBtn">キャンセル</button>
       <button type="button" class="preset-full-btn save" id="adhocSaveBtn">${isEdit ? '保存' : '追加'}</button>
@@ -4285,6 +4309,14 @@ function openAdhocPanel(existingItem){
   renderModeFields();
 
   $('#adhocNameInput').focus();
+  const adhocPickBtn = $('#adhocPickExistingBtn');
+  if(adhocPickBtn) adhocPickBtn.addEventListener('click', ()=>{
+    openManualPickerModal(null, null, ()=>{
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      renderTimerExerciseList();
+    }, { mode:'items', targetItemsGetter: getTodayAdhocItems });
+  });
   $('#adhocSaveBtn').addEventListener('click', async ()=>{
     const nameInput = $('#adhocNameInput');
     const name = nameInput.value.trim();
@@ -6857,7 +6889,7 @@ async function saveWeightEntry(dateKey, rawValue){
 }
 
 /* =========================================================
-   時計タブ：体重の推移（最新／その前）表示
+   時計タブ：体重の推移（最新の2つ前／最新の1つ前／最新、数直線順）表示
    ---------------------------------------------------------
    ・カレンダー内蔵の「今日」とは連動せず、あくまで体重が実際に記入された日付の新しい順で2件を出す
      （例：8/13時点で入力が無ければ、8/12が「最新」、8/11が「その前」になる）
@@ -6870,40 +6902,44 @@ function formatShortDateLabel(dateKey){
 function renderWeightSummaryCard(){
   const body = $('#weightSummaryBody');
   if(!body) return;
-  const entries = Object.keys(weightLog)
+  const sortedKeys = Object.keys(weightLog)
     .filter(k => weightLog[k] != null)
-    .sort() // 'YYYY-MM-DD'は文字列比較で日付順になる
-    .slice(-2); // 新しい方から2件
+    .sort(); // 'YYYY-MM-DD'は文字列比較で日付順になる（古い→新しい）
 
-  if(entries.length === 0){
+  if(sortedKeys.length === 0){
     body.innerHTML = '<div class="weight-summary-empty">まだ体重の記録がありません。カレンダーの日別詳細ページから記入すると、ここに表示されます。</div>';
     return;
   }
 
-  const latestKey = entries[entries.length - 1];
-  const prevKey = entries.length >= 2 ? entries[0] : null;
-  const latestVal = weightLog[latestKey];
-  const prevVal = prevKey ? weightLog[prevKey] : null;
+  // 新しい方から最大4件取得し（差分計算用に1件余分に持っておく）、表示は直近3件を「古い→新しい」の数直線順で並べる
+  const last4 = sortedKeys.slice(-4);
+  const shown = last4.slice(-3); // 表示対象：最新の2つ前 / 最新の1つ前 / 最新
+  const labels = ['最新の2つ前', '最新の1つ前', '最新'];
+  const startOffset = 3 - shown.length; // 記録が3件未満の場合、ラベルを右詰めで割り当てる
 
-  let diffHtml = '';
-  if(prevVal != null){
-    const diff = latestVal - prevVal;
-    const cls = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
-    const sign = diff > 0 ? '+' : '';
-    diffHtml = `<div class="weight-summary-diff ${cls}">${sign}${diff.toFixed(1)}kg</div>`;
-  }
+  const itemsHtml = shown.map((key, i)=>{
+    const label = labels[startOffset + i];
+    const val = weightLog[key];
+    // 差分は、表示している値の「1つ前の記録」（last4基準。表示範囲外でも直前の記録があれば使う）と比較する
+    const fullIdx = last4.indexOf(key);
+    const prevKey = fullIdx > 0 ? last4[fullIdx - 1] : null;
+    const prevVal = prevKey != null ? weightLog[prevKey] : null;
+    let diffHtml = '<div class="weight-summary-diff flat">−</div>';
+    if(prevVal != null){
+      const diff = val - prevVal;
+      const cls = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
+      const sign = diff > 0 ? '+' : '';
+      diffHtml = `<div class="weight-summary-diff ${cls}">${sign}${diff.toFixed(1)}kg</div>`;
+    }
+    return `
+      <div class="weight-summary-item">
+        <div class="weight-summary-label">${label}（${formatShortDateLabel(key)}）</div>
+        <div class="weight-summary-value">${val.toFixed(1)}<span class="unit">kg</span></div>
+        ${diffHtml}
+      </div>`;
+  }).join('');
 
-  body.innerHTML = `
-    <div class="weight-summary-item">
-      <div class="weight-summary-label">最新（${formatShortDateLabel(latestKey)}）</div>
-      <div class="weight-summary-value">${latestVal.toFixed(1)}<span class="unit">kg</span></div>
-      ${diffHtml}
-    </div>
-    <div class="weight-summary-item">
-      <div class="weight-summary-label">その前${prevKey ? `（${formatShortDateLabel(prevKey)}）` : ''}</div>
-      <div class="weight-summary-value">${prevVal != null ? `${prevVal.toFixed(1)}<span class="unit">kg</span>` : '<span class="unit">記録なし</span>'}</div>
-    </div>
-  `;
+  body.innerHTML = itemsHtml;
 }
 
 /* 月別一覧の体調セルを直接タップして、5段階アイコンをその場で選べるようにする（日別詳細ページを開かなくても記録・修正できる） */
@@ -6969,7 +7005,7 @@ let dayDetailCurrentDateKey = null;
 let weightLog = {}; // { 'YYYY-MM-DD': 数値 } 体重は任意入力。未入力の日はキー自体を持たない
 let conditionLog = {}; // { 'YYYY-MM-DD': 1〜5 } 体調評価（ワンタップ選択式）。未入力の日はキー自体を持たない
 let conditionTrackerVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
-let aiExportProfile = {}; // AI分析用エクスポートに添えるプロフィール { age, gender, heightCm, occupation, exerciseFrequency }（すべて任意・空欄可）
+let aiExportProfile = {}; // AI分析用エクスポートに添えるプロフィール { age, gender, heightCm, occupation, exerciseVolume, exerciseFrequency }（すべて任意・空欄可）
 let dayNoteLog = {}; // { 'YYYY-MM-DD': '一言メモの文字列' } 未入力の日はキー自体を持たない
 let dayNoteVisible = true; // 使わない人向けの表示/非表示設定（一度非表示にすると次回以降も非表示のまま）
 let dayNoteSaveTimeout = null;
@@ -7718,6 +7754,9 @@ let manualPickerSortMode = 'day'; // 'day': 日程タブの並び順 / 'tag': �
 let manualPickerTargetDateKey = null; // どの日付に追加するか（呼び出し元が都度指定する）
 let manualPickerFilterTagName = null; // nullなら全種目、文字列ならそのタグ名の種目のみに絞り込む（セル編集モーダルからの利用時）
 let manualPickerOnConfirm = null; // 追加完了後に呼ぶコールバック（呼び出し元ごとに後片付け・再描画内容が異なるため）
+let manualPickerMode = 'log'; // 'log': 選んだ種目を「実施記録」として指定日に追加（カレンダー系での従来の動き）
+                               // 'items': 選んだ種目をそのまま複製して、指定した種目リストに追加する（インターバルページ「今日の追加メニュー」用）
+let manualPickerTargetItemsGetter = null; // mode:'items' の場合、追加先の配列を返す関数
 function buildManualPickerItems(){
   const dayTabs = getAllPlanDayTabs();
   const dayLabelMap = {};
@@ -7791,13 +7830,17 @@ $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(bt
     renderManualPickerList();
   });
 });
-/* targetDateKey: 追加先の日付 / filterTagName: 種目タグ名で絞り込む場合に指定（省略時は全種目対象） / onConfirm: 追加完了後に呼ぶ再描画コールバック */
-function openManualPickerModal(targetDateKey, filterTagName, onConfirm){
+/* targetDateKey: 追加先の日付（mode:'items'の場合は未使用でnull可） / filterTagName: 種目タグ名で絞り込む場合に指定（省略時は全種目対象） /
+   onConfirm: 追加完了後に呼ぶ再描画コールバック / options.mode: 'log'（既定・実施記録として追加）または 'items'（種目リストにそのまま複製して追加）/
+   options.targetItemsGetter: mode:'items'の場合、追加先の配列を返す関数 */
+function openManualPickerModal(targetDateKey, filterTagName, onConfirm, options){
   manualPickerSelectedIdx = new Set();
   manualPickerSortMode = 'day';
   manualPickerTargetDateKey = targetDateKey;
   manualPickerFilterTagName = (filterTagName === undefined) ? null : filterTagName;
   manualPickerOnConfirm = onConfirm || null;
+  manualPickerMode = (options && options.mode) || 'log';
+  manualPickerTargetItemsGetter = (options && options.targetItemsGetter) || null;
   // タグで絞り込んでいる場合は、並び替えトグル自体に意味がなくなる（結果が変わらない）ため隠す
   $('#manualPickerSortToggle').style.display = manualPickerFilterTagName != null ? 'none' : 'flex';
   $('#manualPickerSortToggle').querySelectorAll('.ai-export-range-btn').forEach(b=>b.classList.toggle('active', b.dataset.sort==='day'));
@@ -7813,7 +7856,24 @@ manualPickerModal.addEventListener('click', (e)=>{
   if(e.target === manualPickerModal) closeManualPickerModal();
 });
 $('#manualPickerConfirmBtn').addEventListener('click', async ()=>{
-  if(!manualPickerSelectedIdx.size || !manualPickerTargetDateKey) return;
+  if(!manualPickerSelectedIdx.size) return;
+  if(manualPickerMode === 'items'){
+    // 「今日の追加メニュー」用：選んだ種目の設定をそのまま複製して、指定した種目リストに追加する（実施記録は増やさない）
+    if(!manualPickerTargetItemsGetter) return;
+    const targetItems = manualPickerTargetItemsGetter();
+    for(const idx of manualPickerSelectedIdx){
+      const entry = manualPickerItems[idx];
+      if(!entry) continue;
+      const clone = JSON.parse(JSON.stringify(entry.item));
+      clone.id = mkId(); // 元の種目とは別物として扱うため、新しいIDを振り直す
+      targetItems.push(clone);
+    }
+    await storageSet(PLAN_KEY, JSON.stringify(trainingPlan));
+    closeManualPickerModal();
+    if(manualPickerOnConfirm) manualPickerOnConfirm();
+    return;
+  }
+  if(!manualPickerTargetDateKey) return;
   // 選んだ時点の種目の内容（名前・タグ・モード・回数やインターバル設定）をそのままスナップショットとして記録に追加する
   for(const idx of manualPickerSelectedIdx){
     const entry = manualPickerItems[idx];
@@ -8083,13 +8143,29 @@ backupModal.addEventListener('click', (e)=>{
 
 /* --- AI分析用エクスポート：指定期間の実施記録・体重・予定メニューを、AIに貼り付けやすいシンプルなMarkdownで書き出す --- */
 let aiExportRangeMode = 'week';
-/* プロフィール（年齢/性別/身長/職業/運動頻度）：任意入力・この端末に保存し、Markdown書き出し時に一緒に含める */
+/* プロフィール入力欄の開閉（アコーディオン）。デフォルトは閉じた状態で、必要な人だけ開いて入力する */
+$('#aiExportProfileToggleBtn').addEventListener('click', ()=>{
+  const panel = $('#aiExportProfile');
+  const btn = $('#aiExportProfileToggleBtn');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'flex';
+  btn.classList.toggle('open', !isOpen);
+});
+/* プロフィール（年齢/性別/身長/職業/運動量/頻度）：任意入力・この端末に保存し、Markdown書き出し時に一緒に含める。
+   運動量は他の健康診断系サイトの問診にならい、METs（運動強度の指標）を目安にした5段階の選択式にしている。 */
 function applyAiExportProfileInputs(){
   $('#aiExportProfileAge').value = aiExportProfile.age ?? '';
   $('#aiExportProfileGender').value = aiExportProfile.gender ?? '';
   $('#aiExportProfileHeight').value = aiExportProfile.heightCm ?? '';
   $('#aiExportProfileOccupation').value = aiExportProfile.occupation ?? '';
+  $('#aiExportProfileVolume').value = aiExportProfile.exerciseVolume ?? '';
   $('#aiExportProfileFrequency').value = aiExportProfile.exerciseFrequency ?? '';
+  // 既に何か入力済みなら、次回開いた時も見えるようにアコーディオンを開いた状態にしておく
+  const hasAnyValue = Object.values(aiExportProfile).some(v => v);
+  if(hasAnyValue){
+    $('#aiExportProfile').style.display = 'flex';
+    $('#aiExportProfileToggleBtn').classList.add('open');
+  }
 }
 async function saveAiExportProfile(){
   aiExportProfile = {
@@ -8097,11 +8173,12 @@ async function saveAiExportProfile(){
     gender: $('#aiExportProfileGender').value,
     heightCm: $('#aiExportProfileHeight').value.trim(),
     occupation: $('#aiExportProfileOccupation').value.trim(),
+    exerciseVolume: $('#aiExportProfileVolume').value,
     exerciseFrequency: $('#aiExportProfileFrequency').value,
   };
   await storageSet(AI_EXPORT_PROFILE_KEY, JSON.stringify(aiExportProfile));
 }
-['aiExportProfileAge','aiExportProfileGender','aiExportProfileHeight','aiExportProfileOccupation','aiExportProfileFrequency'].forEach(id=>{
+['aiExportProfileAge','aiExportProfileGender','aiExportProfileHeight','aiExportProfileOccupation','aiExportProfileVolume','aiExportProfileFrequency'].forEach(id=>{
   $('#'+id).addEventListener('change', saveAiExportProfile);
 });
 function buildAiExportProfileLines(){
@@ -8111,6 +8188,7 @@ function buildAiExportProfileLines(){
   if(p.gender) rows.push(`- 性別: ${p.gender}`);
   if(p.heightCm) rows.push(`- 身長: ${p.heightCm}cm`);
   if(p.occupation) rows.push(`- 職業: ${p.occupation}`);
+  if(p.exerciseVolume) rows.push(`- 運動量: ${p.exerciseVolume}`);
   if(p.exerciseFrequency) rows.push(`- 運動頻度: ${p.exerciseFrequency}`);
   if(!rows.length) return [];
   return ['## プロフィール', ...rows, ''];
