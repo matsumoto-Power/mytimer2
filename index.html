@@ -8404,6 +8404,14 @@ async function runFullSync(opts){
     syncDateTimestamps = merged.dateTimestamps;
     scheduleSyncTimestampsSave();
 
+    // ストレージへの書き込みだけでは、画面が実際に参照している内側の変数（weightLog等）は古いまま。
+    // 日付キー系のデータは頻繁に変わり、かつページ全体のリロードなしでも安全に反映できるので、ここで明示的に読み直す。
+    try{ if(merged.data[WEIGHT_LOG_KEY] !== local.data[WEIGHT_LOG_KEY]) weightLog = JSON.parse(merged.data[WEIGHT_LOG_KEY] || '{}'); }catch(err){}
+    try{ if(merged.data[CONDITION_LOG_KEY] !== local.data[CONDITION_LOG_KEY]) conditionLog = JSON.parse(merged.data[CONDITION_LOG_KEY] || '{}'); }catch(err){}
+    try{ if(merged.data[TRAINING_LOG_KEY] !== local.data[TRAINING_LOG_KEY]) trainingLog = JSON.parse(merged.data[TRAINING_LOG_KEY] || '{}'); }catch(err){}
+    try{ if(merged.data[MANUAL_LOG_KEY] !== local.data[MANUAL_LOG_KEY]) manualTrainingLog = JSON.parse(merged.data[MANUAL_LOG_KEY] || '{}'); }catch(err){}
+    try{ if(merged.data[DAY_NOTE_LOG_KEY] !== local.data[DAY_NOTE_LOG_KEY]) dayNoteLog = JSON.parse(merged.data[DAY_NOTE_LOG_KEY] || '{}'); }catch(err){}
+
     const meta = await loadSyncMeta();
     meta.connected = true;
     meta.lastSyncedAt = Date.now();
@@ -8415,9 +8423,12 @@ async function runFullSync(opts){
     renderSyncStatusArea();
     if(conflicts.length) showSyncConflictBanner(conflicts);
 
-    // 種目設定・タグなど画面全体に影響するデータが変わった場合のみ、安全な時（タイマー実行中でない時）に限って再読み込みする
-    const bigKeysChanged = [PLAN_KEY, TAGS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY].some(k => merged.data[k] !== local.data[k]);
-    if(localChanged && opts.reloadIfChanged && bigKeysChanged && (!timerState || timerState.status !== 'active')){
+    // 日付キー以外の全データ（種目設定・タグ・メディア・各種設定など）は、その場での部分的な書き換えだと
+    // 反映漏れが起きやすいため、「他の端末からの変更が実際に混ざった時」だけ安全に（タイマー実行中でない時に限り）
+    // 自動でページを読み込み直して確実に反映する。自分自身の変更がそのまま返ってきただけの時は再読み込みしない
+    // （mergedがlocalと一致するため）ので、保存のたびに毎回リロードされることはない。
+    const nonDateKeyedChanged = BACKUP_STORAGE_KEYS.some(k => !DATE_KEYED_STORAGE_KEYS.has(k) && merged.data[k] !== local.data[k]);
+    if(nonDateKeyedChanged && (!timerState || timerState.status !== 'active')){
       window.location.reload();
     } else if(localChanged){
       if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
