@@ -13,6 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="MY TIMER">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --bg-fallback-1:#0d1b1e;
@@ -1002,6 +1003,27 @@
   .backup-section{ display:flex; flex-direction:column; gap:8px; }
   .backup-section-title{ font-size:11.5px; font-weight:800; letter-spacing:1.5px; color:var(--panel-muted); text-transform:uppercase; }
   .backup-hint{ font-size:12px; color:var(--panel-muted); line-height:1.75; }
+  .sync-connect-btn{
+    appearance:none; cursor:pointer; border:none; border-radius:12px; padding:12px 16px; font-weight:800; font-size:13px;
+    background:#ffffff; color:#3c4043; display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .sync-connect-btn:hover{ filter:brightness(0.97); }
+  .sync-google-g{ width:18px; height:18px; flex:0 0 auto; }
+  .sync-status-box{
+    display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:12px;
+    border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06);
+  }
+  .sync-status-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .sync-status-line{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--panel-text); }
+  .sync-status-dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:var(--panel-muted); }
+  .sync-status-dot.ok{ background:var(--accent-rest); }
+  .sync-status-dot.syncing{ background:var(--accent-amber); animation: syncPulse 1s ease-in-out infinite; }
+  .sync-status-dot.error{ background:var(--accent-work); }
+  @keyframes syncPulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+  .sync-status-meta{ font-size:11px; color:var(--panel-muted); }
+  .sync-status-actions{ display:flex; gap:8px; }
+  .sync-status-actions .preset-full-btn{ flex:1; padding:9px 10px; font-size:12px; }
+  .sync-conflict-list{ font-size:11.5px; color:var(--panel-muted); line-height:1.7; margin-top:2px; }
   .backup-status{ font-size:12.5px; color:var(--panel-text); min-height:16px; line-height:1.6; }
   .backup-divider{ height:1px; background:var(--panel-hairline); }
   .ai-export-range-toggle{ display:flex; gap:6px; }
@@ -1269,6 +1291,19 @@
   #swUpdateBanner button{ appearance:none; cursor:pointer; border:none; border-radius:999px; font-weight:700; white-space:nowrap; }
   #swUpdateBtn{ background:var(--accent-amber); color:#ffffff; padding:8px 16px; font-size:12.5px; }
   #swDismissBtn{ background:transparent; color:rgba(245,243,236,0.55); padding:8px; font-size:14px; line-height:1; }
+
+  /* ===== Googleドライブ同期：食い違い自動解決の通知バナー（swUpdateBannerと同系統の見た目） ===== */
+  #syncConflictBanner{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    z-index:9999; display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+    background:rgba(10,14,16,0.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border:1px solid var(--panel-hairline); border-radius:16px; padding:10px 14px;
+    box-shadow:0 8px 28px rgba(0,0,0,0.35); max-width:92vw; animation: swBannerIn .25s ease;
+  }
+  #syncConflictBanner span{ font-size:12px; font-weight:600; color:#F5F3EC; }
+  #syncConflictBanner button{ appearance:none; cursor:pointer; border:none; border-radius:999px; font-weight:700; white-space:nowrap; }
+  #syncConflictDetailBtn{ background:var(--accent-amber); color:#ffffff; padding:7px 14px; font-size:11.5px; }
+  #syncConflictDismissBtn{ background:transparent; color:rgba(245,243,236,0.55); padding:7px; font-size:14px; line-height:1; }
 </style>
 </head>
 <body>
@@ -1878,6 +1913,11 @@
       <button class="modal-close" id="backupCloseBtn">✕</button>
     </div>
     <div class="backup-section">
+      <div class="backup-section-title">☁️ Googleドライブで端末間同期</div>
+      <div class="backup-hint">あなた自身のGoogleドライブに記録を保存し、他の端末（PC・タブレットなど）と自動で同期します。日付ごとの記録（実施記録・体重・体調など）は、別の端末で別の日を編集していればどちらも反映され、同じ日を編集していた場合だけ新しい方が自動採用されます（その場合はこの画面で気づけるようお知らせします）。</div>
+      <div id="syncStatusArea"></div>
+    </div>
+    <div class="backup-section">
       <div class="backup-section-title">📊 AI分析用エクスポート</div>
       <div class="backup-hint">指定した期間について、「日付・曜日」「実施した種目名・タグ・実施内容（回数×セット、またはwork/rest×セット）」「その日の体重（記録があれば）」「その日程タブで本来予定していたメニュー」を、シンプルなMarkdown形式で書き出します。AIチャットにそのまま貼り付けて、傾向分析や改善提案を頼みたいときにお使いください。</div>
       <button type="button" class="ai-export-profile-toggle" id="aiExportProfileToggleBtn">
@@ -2132,7 +2172,80 @@ async function storageGet(key){
   try{ return localStorage.getItem(key); }catch(err){ return null; }
 }
 
+/* =========================================================
+   同期用：変更のあった日付・キーを記録しておく仕組み
+   ---------------------------------------------------------
+   Googleドライブ同期の「日付単位マージ」で、どちらの端末の内容が新しいかを
+   判定するために使う。保存のたびに自動で記録されるので、個別の保存処理側で
+   意識する必要はない（storageSetの内部で差分を見ているだけ）。
+   ・日付キー形式のデータ（実施記録／手動記録／体重／体調／日ごとのメモ）は、
+     実際に値が変わった「日付」だけをピンポイントで記録する
+   ・それ以外（種目設定・タグ・メディア・各種設定など）は、キー単位でまとめて記録する
+========================================================= */
+const DATE_KEYED_STORAGE_KEYS = new Set(); // 実際のキー定数はこの後の定義後に登録する（syncRegisterDateKeyedStorageKeysを参照）
+let syncKeyTimestamps = {};   // { [storageKey]: 最終更新時刻(ms) }（日付キー以外のデータ用）
+let syncDateTimestamps = {};  // { 'training-log:2026-08-14': 最終更新時刻(ms), ... }（日付キーデータ用、ストレージキー名を接頭辞にして種類ごとに分ける）
+let syncTimestampsLoaded = false;
+let syncTimestampsSaveTimer = null;
+function syncRegisterDateKeyedStorageKeys(keys){
+  keys.forEach(k => DATE_KEYED_STORAGE_KEYS.add(k));
+}
+async function ensureSyncTimestampsLoaded(){
+  if(syncTimestampsLoaded) return;
+  syncTimestampsLoaded = true;
+  try{
+    const raw = await storageGet(SYNC_TIMESTAMPS_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      syncKeyTimestamps = parsed.key || {};
+      syncDateTimestamps = parsed.date || {};
+    }
+  }catch(err){ /* 読み込めなくても同期以外の動作に支障はないので握りつぶす */ }
+}
+function scheduleSyncTimestampsSave(){
+  if(syncTimestampsSaveTimer) clearTimeout(syncTimestampsSaveTimer);
+  syncTimestampsSaveTimer = setTimeout(async ()=>{
+    try{
+      await storageSetRaw(SYNC_TIMESTAMPS_KEY, JSON.stringify({ key: syncKeyTimestamps, date: syncDateTimestamps }));
+    }catch(err){ /* 記録に失敗しても致命的ではない */ }
+  }, 600);
+}
+function diffChangedDateKeys(oldObj, newObj){
+  const changed = [];
+  const allDates = new Set([...Object.keys(oldObj||{}), ...Object.keys(newObj||{})]);
+  allDates.forEach(d=>{
+    const a = oldObj ? oldObj[d] : undefined;
+    const b = newObj ? newObj[d] : undefined;
+    if(JSON.stringify(a) !== JSON.stringify(b)) changed.push(d);
+  });
+  return changed;
+}
+
 async function storageSet(key, value){
+  await ensureSyncTimestampsLoaded();
+  const now = Date.now();
+  if(key !== SYNC_TIMESTAMPS_KEY && key !== SYNC_META_KEY){
+    if(DATE_KEYED_STORAGE_KEYS.has(key)){
+      try{
+        const oldRaw = await storageGet(key);
+        const oldObj = oldRaw ? JSON.parse(oldRaw) : {};
+        const newObj = value ? JSON.parse(value) : {};
+        const changedDates = diffChangedDateKeys(oldObj, newObj);
+        if(changedDates.length){
+          changedDates.forEach(d => { syncDateTimestamps[`${key}:${d}`] = now; });
+          scheduleSyncTimestampsSave();
+        }
+      }catch(err){ /* 差分判定に失敗しても保存自体は続行する（同期側が多少不正確になるだけ） */ }
+    } else {
+      syncKeyTimestamps[key] = now;
+      scheduleSyncTimestampsSave();
+    }
+    if(typeof scheduleBackgroundSync === 'function') scheduleBackgroundSync(); // Googleドライブ連携中なら、保存が落ち着いた頃にまとめて同期する
+  }
+  return storageSetRaw(key, value);
+}
+
+async function storageSetRaw(key, value){
   if(hasCloudStorage()){
     try{
       const r = await window.storage.set(key, value, false);
@@ -2145,6 +2258,8 @@ async function storageSet(key, value){
   try{ localStorage.setItem(key, value); return true; }
   catch(err){ console.warn(`保存に失敗しました（キー: ${key}／容量オーバーの可能性）`, err); return false; }
 }
+const SYNC_TIMESTAMPS_KEY = 'sync-change-timestamps'; // 同期の「新しい方を採用」判定に使う、変更時刻の記録
+const SYNC_META_KEY = 'sync-meta'; // Googleドライブ同期の状態（連携有無・最終同期時刻・ファイルIDなど）
 
 /* =========================================================
    タブ切り替え
@@ -4477,6 +4592,8 @@ const CONDITION_COLOR_KEY = 'condition-dot-colors';
 const DAY_NOTE_LOG_KEY = 'day-note-log';
 const DAY_NOTE_VISIBLE_KEY = 'day-note-visible';
 const DAY_TAG_DATES_KEY = 'day-tag-dates';
+// 同期の日付単位マージ対象となる「日付キー形式」のデータをここで登録する
+syncRegisterDateKeyedStorageKeys([TRAINING_LOG_KEY, MANUAL_LOG_KEY, WEIGHT_LOG_KEY, CONDITION_LOG_KEY, DAY_NOTE_LOG_KEY]);
 let dayTagDates = {}; // { [tabKey]: ['YYYY-MM-DD', ...] } 日付指定／フリープランタブに紐づけた具体的な日付
 async function saveDayTagDates(){ await storageSet(DAY_TAG_DATES_KEY, JSON.stringify(dayTagDates)); }
 function isDateBoundToTab(tabKey, dateKey){
@@ -6608,6 +6725,7 @@ async function loadTrainingPlan(){
   renderMediaNotes();
   if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
   if(typeof renderWeightSummaryCard === 'function') renderWeightSummaryCard();
+  if(typeof initSync === 'function') initSync(); // Googleドライブ連携済みなら、起動時に自動で同期する
 }
 loadTrainingPlan();
 
@@ -8067,6 +8185,357 @@ const BACKUP_STORAGE_KEYS = [
   TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, MEDIA_IMAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, CONDITION_COLOR_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
 ];
 
+/* =========================================================
+   Googleドライブでの端末間同期
+   ---------------------------------------------------------
+   ・利用者自身のGoogleドライブに、このアプリが作った専用ファイル（drive.fileスコープ＝
+     アプリが作ったファイルにしかアクセスできない、限定的な権限）としてバックアップ相当のJSONを保存する
+   ・タイミング：アプリを開いた時／記録を保存した時（保存が落ち着いてから少し待って）に自動で行う
+   ・マージ方式：日付キー形式のデータ（実施記録・手動記録・体重・体調・日ごとのメモ）は「日付」単位で比較し、
+     別の日を編集していれば両方反映、同じ日で食い違えば新しい方を自動採用しつつ気づけるよう表示する。
+     それ以外のデータ（種目設定・タグ・メディア・各種設定など）は、キー単位で新しい方をまとめて採用する。
+========================================================= */
+const GOOGLE_CLIENT_ID = '970043552215-d12tdiia2u5fmr8acmbrklharpe790dr.apps.googleusercontent.com';
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_SYNC_FILENAME = 'my-timer-sync-data.json';
+
+let gDriveTokenClient = null;
+let gDriveAccessToken = null;
+let gDriveConnected = false;
+let gDriveSyncStatus = 'idle'; // 'idle' | 'syncing' | 'error'
+let gDriveLastError = '';
+let gDriveLastConflicts = [];
+let gDriveSyncInProgress = false;
+let gDrivePushTimer = null;
+
+function initGoogleTokenClient(){
+  if(gDriveTokenClient) return true;
+  if(typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) return false;
+  gDriveTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GOOGLE_DRIVE_SCOPE,
+    callback: ()=>{}, // 呼び出しごとに上書きする
+  });
+  return true;
+}
+function requestGoogleToken(interactive){
+  return new Promise((resolve, reject)=>{
+    if(!initGoogleTokenClient()){
+      reject(new Error('Googleログイン用のスクリプトを読み込めませんでした（通信環境をご確認ください）'));
+      return;
+    }
+    gDriveTokenClient.callback = (resp)=>{
+      if(resp && resp.access_token){
+        gDriveAccessToken = resp.access_token;
+        resolve(resp.access_token);
+      } else {
+        reject(new Error('Googleの認証に失敗しました'));
+      }
+    };
+    gDriveTokenClient.error_callback = (err)=>{
+      reject(new Error((err && err.type) || 'Googleの認証がキャンセルされました'));
+    };
+    try{
+      gDriveTokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+    }catch(err){ reject(err); }
+  });
+}
+
+/* --- Google Drive REST API（drive.fileスコープ内で完結する最小限の操作） --- */
+async function driveFindSyncFile(){
+  const q = encodeURIComponent(`name='${DRIVE_SYNC_FILENAME}' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name,modifiedTime)`, {
+    headers: { Authorization: `Bearer ${gDriveAccessToken}` }
+  });
+  if(!res.ok) throw new Error('Googleドライブ内のファイル検索に失敗しました');
+  const data = await res.json();
+  return (data.files && data.files[0]) || null;
+}
+async function driveCreateSyncFile(content){
+  const metadata = { name: DRIVE_SYNC_FILENAME, mimeType: 'application/json' };
+  const boundary = 'my_timer_sync_boundary';
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n` +
+    `--${boundary}--`;
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${gDriveAccessToken}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  });
+  if(!res.ok) throw new Error('Googleドライブへのファイル作成に失敗しました');
+  const data = await res.json();
+  return data.id;
+}
+async function driveDownloadFile(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${gDriveAccessToken}` }
+  });
+  if(!res.ok) throw new Error('Googleドライブからの取得に失敗しました');
+  return await res.text();
+}
+async function driveUpdateFile(fileId, content){
+  const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${gDriveAccessToken}`, 'Content-Type': 'application/json' },
+    body: content
+  });
+  if(!res.ok) throw new Error('Googleドライブへの保存に失敗しました');
+}
+
+async function loadSyncMeta(){
+  try{
+    const raw = await storageGet(SYNC_META_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(err){ return {}; }
+}
+async function saveSyncMeta(meta){
+  await storageSetRaw(SYNC_META_KEY, JSON.stringify(meta));
+}
+async function ensureDriveFileId(){
+  const meta = await loadSyncMeta();
+  if(meta.fileId){
+    try{
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}?fields=id,trashed`, {
+        headers: { Authorization: `Bearer ${gDriveAccessToken}` }
+      });
+      if(res.ok){
+        const info = await res.json();
+        if(!info.trashed) return meta.fileId;
+      }
+    }catch(err){ /* 確認に失敗したら検索し直す */ }
+  }
+  const found = await driveFindSyncFile();
+  if(found){
+    meta.fileId = found.id;
+    await saveSyncMeta(meta);
+    return found.id;
+  }
+  return null; // まだ一度もアップロードしていない
+}
+
+/* --- 同期ペイロードの組み立てとマージ --- */
+async function buildLocalSyncPayload(){
+  await ensureSyncTimestampsLoaded();
+  const data = {};
+  for(const key of BACKUP_STORAGE_KEYS){
+    data[key] = await storageGet(key);
+  }
+  return { version: 1, data, keyTimestamps: syncKeyTimestamps, dateTimestamps: syncDateTimestamps };
+}
+function mergeSyncPayloads(local, remote){
+  if(!remote || !remote.data) return { merged: local, conflicts: [] };
+  const conflicts = [];
+  const mergedData = {};
+  const localDateTs = local.dateTimestamps || {};
+  const remoteDateTs = remote.dateTimestamps || {};
+  const localKeyTs = local.keyTimestamps || {};
+  const remoteKeyTs = remote.keyTimestamps || {};
+  const mergedDateTs = { ...remoteDateTs, ...localDateTs };
+  const mergedKeyTs = { ...remoteKeyTs, ...localKeyTs };
+
+  for(const key of BACKUP_STORAGE_KEYS){
+    const localRaw = local.data[key];
+    const remoteRaw = remote.data[key];
+    if(DATE_KEYED_STORAGE_KEYS.has(key)){
+      let localObj = {}; try{ localObj = localRaw ? JSON.parse(localRaw) : {}; }catch(e){}
+      let remoteObj = {}; try{ remoteObj = remoteRaw ? JSON.parse(remoteRaw) : {}; }catch(e){}
+      const mergedObj = {};
+      const allDates = new Set([...Object.keys(localObj), ...Object.keys(remoteObj)]);
+      allDates.forEach(d=>{
+        const lv = localObj[d], rv = remoteObj[d];
+        const same = JSON.stringify(lv) === JSON.stringify(rv);
+        if(same || rv === undefined){ mergedObj[d] = lv; return; }
+        if(lv === undefined){ mergedObj[d] = rv; return; }
+        const lt = localDateTs[`${key}:${d}`] || 0;
+        const rt = remoteDateTs[`${key}:${d}`] || 0;
+        mergedObj[d] = (rt > lt) ? rv : lv;
+        conflicts.push({ key, date: d });
+      });
+      mergedData[key] = JSON.stringify(mergedObj);
+    } else {
+      if(localRaw === remoteRaw || remoteRaw === undefined){ mergedData[key] = localRaw; }
+      else if(localRaw === undefined){ mergedData[key] = remoteRaw; }
+      else {
+        const lt = localKeyTs[key] || 0;
+        const rt = remoteKeyTs[key] || 0;
+        mergedData[key] = (rt > lt) ? remoteRaw : localRaw;
+      }
+    }
+  }
+  return { merged: { version:1, data: mergedData, keyTimestamps: mergedKeyTs, dateTimestamps: mergedDateTs }, conflicts };
+}
+
+/* --- 同期の実行 --- */
+async function runFullSync(opts){
+  opts = opts || {};
+  if(gDriveSyncInProgress || !gDriveConnected) return;
+  gDriveSyncInProgress = true;
+  gDriveSyncStatus = 'syncing';
+  renderSyncStatusArea();
+  try{
+    await requestGoogleToken(false); // 同意済みなら画面を出さずに静かにトークンを取り直す
+    let fileId = await ensureDriveFileId();
+    const local = await buildLocalSyncPayload();
+    let remote = null;
+    if(fileId){
+      const text = await driveDownloadFile(fileId);
+      try{ remote = JSON.parse(text); }catch(e){ remote = null; }
+    }
+    const { merged, conflicts } = mergeSyncPayloads(local, remote);
+    const mergedText = JSON.stringify(merged);
+
+    if(fileId){ await driveUpdateFile(fileId, mergedText); }
+    else{
+      fileId = await driveCreateSyncFile(mergedText);
+      const meta = await loadSyncMeta();
+      meta.fileId = fileId;
+      await saveSyncMeta(meta);
+    }
+
+    let localChanged = false;
+    for(const key of BACKUP_STORAGE_KEYS){
+      if(merged.data[key] !== local.data[key]){
+        await storageSetRaw(key, merged.data[key]);
+        localChanged = true;
+      }
+    }
+    syncKeyTimestamps = merged.keyTimestamps;
+    syncDateTimestamps = merged.dateTimestamps;
+    scheduleSyncTimestampsSave();
+
+    const meta = await loadSyncMeta();
+    meta.connected = true;
+    meta.lastSyncedAt = Date.now();
+    await saveSyncMeta(meta);
+
+    gDriveSyncStatus = 'idle';
+    gDriveLastError = '';
+    gDriveLastConflicts = conflicts;
+    renderSyncStatusArea();
+    if(conflicts.length) showSyncConflictBanner(conflicts);
+
+    // 種目設定・タグなど画面全体に影響するデータが変わった場合のみ、安全な時（タイマー実行中でない時）に限って再読み込みする
+    const bigKeysChanged = [PLAN_KEY, TAGS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY].some(k => merged.data[k] !== local.data[k]);
+    if(localChanged && opts.reloadIfChanged && bigKeysChanged && (!timerState || timerState.status !== 'active')){
+      window.location.reload();
+    } else if(localChanged){
+      if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
+      if(typeof renderWeightSummaryCard === 'function') renderWeightSummaryCard();
+    }
+  }catch(err){
+    console.warn('[sync] 同期に失敗しました', err);
+    gDriveSyncStatus = 'error';
+    gDriveLastError = (err && err.message) || String(err);
+    renderSyncStatusArea();
+  } finally {
+    gDriveSyncInProgress = false;
+  }
+}
+function scheduleBackgroundSync(){
+  if(!gDriveConnected) return;
+  if(gDrivePushTimer) clearTimeout(gDrivePushTimer);
+  gDrivePushTimer = setTimeout(()=>{ runFullSync({ reloadIfChanged:false }); }, 4000); // 保存が落ち着いてから少し待ってまとめて同期する
+}
+
+async function connectGoogleDrive(){
+  try{
+    await requestGoogleToken(true); // 初回は同意画面を出す
+    gDriveConnected = true;
+    const meta = await loadSyncMeta();
+    meta.connected = true;
+    await saveSyncMeta(meta);
+    renderSyncStatusArea();
+    await runFullSync({ reloadIfChanged:true });
+  }catch(err){
+    console.warn('[sync] Googleへの接続に失敗しました', err);
+    gDriveSyncStatus = 'error';
+    gDriveLastError = (err && err.message) || String(err);
+    renderSyncStatusArea();
+  }
+}
+async function disconnectGoogleDrive(){
+  gDriveConnected = false;
+  if(gDriveAccessToken && typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && google.accounts.oauth2.revoke){
+    try{ google.accounts.oauth2.revoke(gDriveAccessToken, ()=>{}); }catch(err){ /* 失敗しても連携解除自体は続行 */ }
+  }
+  gDriveAccessToken = null;
+  const meta = await loadSyncMeta();
+  meta.connected = false;
+  await saveSyncMeta(meta);
+  renderSyncStatusArea();
+}
+
+function formatSyncDateTime(ms){
+  if(!ms) return '';
+  const d = new Date(ms);
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${mm}/${dd} ${hh}:${mi}`;
+}
+function showSyncConflictBanner(conflicts){
+  const uniqueDates = [...new Set(conflicts.map(c=>c.date))];
+  const listText = uniqueDates.slice(0,5).map(d=>`・${d}`).join('\n') + (uniqueDates.length>5 ? `\n…他${uniqueDates.length-5}件` : '');
+  const banner = document.createElement('div');
+  banner.id = 'syncConflictBanner';
+  banner.innerHTML = `
+    <span>他の端末と食い違う記録があったため、新しい方を自動採用しました（${uniqueDates.length}日分）</span>
+    <button type="button" id="syncConflictDetailBtn">詳細</button>
+    <button type="button" id="syncConflictDismissBtn" aria-label="閉じる">✕</button>
+  `;
+  document.body.appendChild(banner);
+  banner.querySelector('#syncConflictDismissBtn').addEventListener('click', ()=> banner.remove());
+  banner.querySelector('#syncConflictDetailBtn').addEventListener('click', ()=>{
+    alert(`食い違いがあり、新しい方を自動採用した日付:\n${listText}`);
+  });
+}
+
+function renderSyncStatusArea(){
+  const area = $('#syncStatusArea');
+  if(!area) return;
+  if(!gDriveConnected){
+    area.innerHTML = `
+      <button type="button" class="sync-connect-btn" id="syncConnectBtn">
+        <svg class="sync-google-g" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.5 29.5 3.5 24 3.5 12.7 3.5 3.5 12.7 3.5 24S12.7 44.5 24 44.5 44.5 35.3 44.5 24c0-1.2-.1-2.4-.3-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.9 19 13.5 24 13.5c3.1 0 5.8 1.1 8 3l6-6C34.5 6.5 29.5 4.5 24 4.5 16 4.5 9 8.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 44.5c5.4 0 10.3-1.8 14.1-5.1l-6.5-5.5c-2 1.4-4.6 2.3-7.6 2.3-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9 39.9 16 44.5 24 44.5z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.5C40.9 36.5 44.5 30.8 44.5 24c0-1.2-.1-2.4-.3-3.5z"/></svg>
+        Googleでログインして同期を始める
+      </button>
+    `;
+    $('#syncConnectBtn').addEventListener('click', connectGoogleDrive);
+    return;
+  }
+  const dotClass = gDriveSyncStatus === 'syncing' ? 'syncing' : (gDriveSyncStatus === 'error' ? 'error' : 'ok');
+  const statusText = gDriveSyncStatus === 'syncing' ? '同期中…' : (gDriveSyncStatus === 'error' ? `同期エラー：${gDriveLastError}` : '連携済み');
+  area.innerHTML = `
+    <div class="sync-status-box">
+      <div class="sync-status-row">
+        <div class="sync-status-line"><span class="sync-status-dot ${dotClass}"></span>${statusText}</div>
+      </div>
+      <div class="sync-status-meta" id="syncLastSyncedText">最終同期：確認中…</div>
+      <div class="sync-status-actions">
+        <button type="button" class="preset-full-btn" id="syncNowBtn">🔄 今すぐ同期</button>
+        <button type="button" class="preset-full-btn" id="syncDisconnectBtn">連携を解除</button>
+      </div>
+    </div>
+  `;
+  $('#syncNowBtn').addEventListener('click', ()=> runFullSync({ reloadIfChanged:true }));
+  $('#syncDisconnectBtn').addEventListener('click', disconnectGoogleDrive);
+  loadSyncMeta().then(meta=>{
+    const el = $('#syncLastSyncedText');
+    if(el) el.textContent = meta.lastSyncedAt ? `最終同期：${formatSyncDateTime(meta.lastSyncedAt)}` : '最終同期：まだ一度も同期していません';
+  });
+}
+
+async function initSync(){
+  renderSyncStatusArea();
+  const meta = await loadSyncMeta();
+  if(!meta.connected) return;
+  gDriveConnected = true;
+  renderSyncStatusArea();
+  await runFullSync({ reloadIfChanged:true }); // アプリを開いた時の自動同期
+}
+
 async function collectBackupData(){
   const data = {};
   for(const key of BACKUP_STORAGE_KEYS){
@@ -8108,6 +8577,7 @@ const backupStatusText = $('#backupStatusText');
 function openBackupModal(){
   backupStatusText.textContent = '';
   backupModal.classList.add('show');
+  renderSyncStatusArea();
 }
 function closeBackupModal(){
   backupModal.classList.remove('show');
