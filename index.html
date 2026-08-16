@@ -866,6 +866,9 @@
   .modal-box{
     width:min(560px, 100%); max-height:85vh; display:flex; flex-direction:column; gap:14px; padding:22px;
   }
+  /* 横画面（縦の高さが狭い）時や、AIプロフィールの折りたたみを開いた時など、中身が枠の高さを超える場合に
+     隠れて見えなくならないよう、常にこのモーダル自体をスクロールできるようにしておく */
+  #backupBox{ overflow-y:auto; }
   .modal-box.wide{ width:min(920px, 100%); }
   .monthly-table-nav{ display:flex; align-items:center; justify-content:center; gap:18px; }
   .monthly-table-month-label{ font-size:15px; font-weight:800; letter-spacing:1px; min-width:120px; text-align:center; }
