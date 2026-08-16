@@ -1021,6 +1021,10 @@
   .sync-status-dot.error{ background:var(--accent-work); }
   @keyframes syncPulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
   .sync-status-meta{ font-size:11px; color:var(--panel-muted); }
+  .sync-autosync-toggle{
+    display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--panel-text); cursor:pointer;
+  }
+  .sync-autosync-toggle input{ flex:0 0 auto; width:16px; height:16px; accent-color:var(--accent-amber); cursor:pointer; }
   .sync-status-actions{ display:flex; gap:8px; }
   .sync-status-actions .preset-full-btn{ flex:1; padding:9px 10px; font-size:12px; }
   .sync-conflict-list{ font-size:11.5px; color:var(--panel-muted); line-height:1.7; margin-top:2px; }
@@ -1304,6 +1308,8 @@
   #syncConflictBanner button{ appearance:none; cursor:pointer; border:none; border-radius:999px; font-weight:700; white-space:nowrap; }
   #syncConflictDetailBtn{ background:var(--accent-amber); color:#ffffff; padding:7px 14px; font-size:11.5px; }
   #syncConflictDismissBtn{ background:transparent; color:rgba(245,243,236,0.55); padding:7px; font-size:14px; line-height:1; }
+  #syncConflictBanner.ambiguous{ border-color:rgba(255,93,58,0.5); box-shadow:0 8px 28px rgba(255,93,58,0.25); }
+  #syncConflictBanner.ambiguous #syncConflictDetailBtn{ background:var(--accent-work); }
 </style>
 </head>
 <body>
@@ -8201,12 +8207,14 @@ const DRIVE_SYNC_FILENAME = 'my-timer-sync-data.json';
 
 let gDriveTokenClient = null;
 let gDriveAccessToken = null;
+let gDriveTokenExpiresAt = 0; // このトークンの有効期限（ms epoch）。切れるまでは毎回Googleに確認しに行かない
 let gDriveConnected = false;
 let gDriveSyncStatus = 'idle'; // 'idle' | 'syncing' | 'error'
 let gDriveLastError = '';
 let gDriveLastConflicts = [];
 let gDriveSyncInProgress = false;
 let gDrivePushTimer = null;
+let gDriveAutoSyncEnabled = true; // 自動同期のON/OFF。OFFでも「今すぐ同期」ボタンでの手動同期は常に使える
 
 function initGoogleTokenClient(){
   if(gDriveTokenClient) return true;
@@ -8219,6 +8227,10 @@ function initGoogleTokenClient(){
   return true;
 }
 function requestGoogleToken(interactive){
+  // 既に有効なトークンを持っていれば、Googleへ確認しに行かずそのまま使い回す（保存のたびに毎回聞きに行くと煩わしいため）
+  if(!interactive && gDriveAccessToken && Date.now() < gDriveTokenExpiresAt){
+    return Promise.resolve(gDriveAccessToken);
+  }
   return new Promise((resolve, reject)=>{
     if(!initGoogleTokenClient()){
       reject(new Error('Googleログイン用のスクリプトを読み込めませんでした（通信環境をご確認ください）'));
@@ -8227,6 +8239,8 @@ function requestGoogleToken(interactive){
     gDriveTokenClient.callback = (resp)=>{
       if(resp && resp.access_token){
         gDriveAccessToken = resp.access_token;
+        const expiresInSec = Number(resp.expires_in) || 3600;
+        gDriveTokenExpiresAt = Date.now() + (expiresInSec * 1000) - 60000; // 念のため1分早めに切れる扱いにしておく
         resolve(resp.access_token);
       } else {
         reject(new Error('Googleの認証に失敗しました'));
@@ -8350,7 +8364,7 @@ function mergeSyncPayloads(local, remote){
         const lt = localDateTs[`${key}:${d}`] || 0;
         const rt = remoteDateTs[`${key}:${d}`] || 0;
         mergedObj[d] = (rt > lt) ? rv : lv;
-        conflicts.push({ key, date: d });
+        conflicts.push({ key, date: d, confident: lt !== rt }); // lt===rt（多くは共に0＝更新時刻不明）の場合は自信のない解決なので区別しておく
       });
       mergedData[key] = JSON.stringify(mergedObj);
     } else {
@@ -8360,6 +8374,10 @@ function mergeSyncPayloads(local, remote){
         const lt = localKeyTs[key] || 0;
         const rt = remoteKeyTs[key] || 0;
         mergedData[key] = (rt > lt) ? remoteRaw : localRaw;
+        // 同期機能を使い始める前から存在していて、まだ一度も編集し直していないデータは更新時刻が記録されておらず、
+        // lt===rt（多くは共に0）で「自信のない」判定になる。この場合は片方の内容を静かに消してしまわないよう、
+        // 通常より目立つ形でユーザーに知らせる（confident:falseとして区別）。
+        conflicts.push({ key, confident: lt !== rt });
       }
     }
   }
@@ -8427,8 +8445,11 @@ async function runFullSync(opts){
     // 反映漏れが起きやすいため、「他の端末からの変更が実際に混ざった時」だけ安全に（タイマー実行中でない時に限り）
     // 自動でページを読み込み直して確実に反映する。自分自身の変更がそのまま返ってきただけの時は再読み込みしない
     // （mergedがlocalと一致するため）ので、保存のたびに毎回リロードされることはない。
+    // ただし、更新時刻が不明で自信の持てない競合（＝上の警告バナー）があった場合は、
+    // リロードでバナーごと消してしまわないよう、その回だけは自動リロードを見送る。
+    const ambiguousKeyLevelConflict = conflicts.some(c => !c.date && c.confident === false);
     const nonDateKeyedChanged = BACKUP_STORAGE_KEYS.some(k => !DATE_KEYED_STORAGE_KEYS.has(k) && merged.data[k] !== local.data[k]);
-    if(nonDateKeyedChanged && (!timerState || timerState.status !== 'active')){
+    if(nonDateKeyedChanged && !ambiguousKeyLevelConflict && (!timerState || timerState.status !== 'active')){
       window.location.reload();
     } else if(localChanged){
       if(typeof renderCalendar === 'function' && $('#calendarGrid')) renderCalendar();
@@ -8444,9 +8465,17 @@ async function runFullSync(opts){
   }
 }
 function scheduleBackgroundSync(){
-  if(!gDriveConnected) return;
+  if(!gDriveConnected || !gDriveAutoSyncEnabled) return;
   if(gDrivePushTimer) clearTimeout(gDrivePushTimer);
   gDrivePushTimer = setTimeout(()=>{ runFullSync({ reloadIfChanged:false }); }, 4000); // 保存が落ち着いてから少し待ってまとめて同期する
+}
+async function toggleAutoSync(enabled){
+  gDriveAutoSyncEnabled = enabled;
+  const meta = await loadSyncMeta();
+  meta.autoSync = enabled;
+  await saveSyncMeta(meta);
+  if(gDrivePushTimer && !enabled){ clearTimeout(gDrivePushTimer); gDrivePushTimer = null; }
+  renderSyncStatusArea();
 }
 
 async function connectGoogleDrive(){
@@ -8471,6 +8500,7 @@ async function disconnectGoogleDrive(){
     try{ google.accounts.oauth2.revoke(gDriveAccessToken, ()=>{}); }catch(err){ /* 失敗しても連携解除自体は続行 */ }
   }
   gDriveAccessToken = null;
+  gDriveTokenExpiresAt = 0;
   const meta = await loadSyncMeta();
   meta.connected = false;
   await saveSyncMeta(meta);
@@ -8486,20 +8516,56 @@ function formatSyncDateTime(ms){
   const mi = String(d.getMinutes()).padStart(2,'0');
   return `${mm}/${dd} ${hh}:${mi}`;
 }
+/* 同期の競合バナーで使う、ストレージキー→日本語表示名の対応表 */
+const SYNC_KEY_LABELS = {
+  'training-plan': '種目設定', 'exercise-tags': '種目タグ', 'deleted-day-tabs': '削除した日程タブ',
+  'custom-day-tabs': '追加した日程タブ', 'day-tab-order': '日程タブの並び順', 'day-label-overrides': '日程タブの名前',
+  'day-tag-recurrence': '日程タブの周期設定', 'day-tag-color': '日程タブの色', 'day-tag-dates': '日程タブの日付割り当て',
+  'bg-images': '背景画像', 'bg-positions': '背景画像の並び順', 'slideshow-groups': 'スライドショーのグループ',
+  'active-slideshow-group-id': '選択中のスライドショー', 'media-videos': 'メディア（動画）', 'media-webpages': 'メディア（Webページ）',
+  'media-images': 'メディア（画像）', 'media-notes': 'メディア（メモ）', 'media-tags': 'メディアタグ',
+  'accent-color': 'ワンポイントカラー', 'slideshow-interval-sec': 'スライドショーの間隔', 'slideshow-transition': 'スライドショーの切り替え効果',
+  'condition-tracker-visible': '体調記録欄の表示設定', 'condition-dot-colors': '体調アイコンの色', 'day-note-visible': '日ごとメモの表示設定',
+};
+function syncKeyLabel(key){ return SYNC_KEY_LABELS[key] || key; }
+
 function showSyncConflictBanner(conflicts){
-  const uniqueDates = [...new Set(conflicts.map(c=>c.date))];
-  const listText = uniqueDates.slice(0,5).map(d=>`・${d}`).join('\n') + (uniqueDates.length>5 ? `\n…他${uniqueDates.length-5}件` : '');
+  const dateConflicts = conflicts.filter(c => c.date);
+  const keyConflicts = conflicts.filter(c => !c.date);
+  const ambiguousKeyConflicts = keyConflicts.filter(c => c.confident === false);
+
+  const uniqueDates = [...new Set(dateConflicts.map(c=>c.date))];
+  const dateListText = uniqueDates.slice(0,5).map(d=>`・${d}`).join('\n') + (uniqueDates.length>5 ? `\n…他${uniqueDates.length-5}件` : '');
+
+  const uniqueAmbiguousKeys = [...new Set(ambiguousKeyConflicts.map(c=>c.key))];
+  const ambiguousListText = uniqueAmbiguousKeys.map(k=>`・${syncKeyLabel(k)}`).join('\n');
+
   const banner = document.createElement('div');
   banner.id = 'syncConflictBanner';
-  banner.innerHTML = `
-    <span>他の端末と食い違う記録があったため、新しい方を自動採用しました（${uniqueDates.length}日分）</span>
-    <button type="button" id="syncConflictDetailBtn">詳細</button>
-    <button type="button" id="syncConflictDismissBtn" aria-label="閉じる">✕</button>
-  `;
+
+  if(uniqueAmbiguousKeys.length){
+    // 更新時刻が分からず、どちらを優先すべきか自信を持って判定できなかったケース。
+    // データが静かに消える可能性があるため、通常の競合通知より強く・消えにくい形で知らせる。
+    banner.classList.add('ambiguous');
+    banner.innerHTML = `
+      <span>⚠️ ${uniqueAmbiguousKeys.map(syncKeyLabel).join('・')}が他の端末と内容が異なり、更新時刻が不明なためこの端末の内容を優先しました。他の端末側の内容が必要な場合は、そちら側で先に「⬇ JSONファイルを書き出す」で保存してから、改めて同期してください。</span>
+      <button type="button" id="syncConflictDetailBtn">詳細</button>
+      <button type="button" id="syncConflictDismissBtn" aria-label="閉じる">✕</button>
+    `;
+  } else {
+    banner.innerHTML = `
+      <span>他の端末と食い違う記録があったため、新しい方を自動採用しました（${uniqueDates.length}日分）</span>
+      <button type="button" id="syncConflictDetailBtn">詳細</button>
+      <button type="button" id="syncConflictDismissBtn" aria-label="閉じる">✕</button>
+    `;
+  }
   document.body.appendChild(banner);
   banner.querySelector('#syncConflictDismissBtn').addEventListener('click', ()=> banner.remove());
   banner.querySelector('#syncConflictDetailBtn').addEventListener('click', ()=>{
-    alert(`食い違いがあり、新しい方を自動採用した日付:\n${listText}`);
+    const parts = [];
+    if(uniqueAmbiguousKeys.length) parts.push(`【要確認・更新時刻不明のため、この端末を優先】\n${ambiguousListText}`);
+    if(uniqueDates.length) parts.push(`【新しい方を自動採用した日付】\n${dateListText}`);
+    alert(parts.join('\n\n'));
   });
 }
 
@@ -8524,6 +8590,10 @@ function renderSyncStatusArea(){
         <div class="sync-status-line"><span class="sync-status-dot ${dotClass}"></span>${statusText}</div>
       </div>
       <div class="sync-status-meta" id="syncLastSyncedText">最終同期：確認中…</div>
+      <label class="sync-autosync-toggle">
+        <input type="checkbox" id="syncAutoToggle" ${gDriveAutoSyncEnabled ? 'checked' : ''}>
+        <span>保存のたびに自動で同期する（オフでも「今すぐ同期」は使えます）</span>
+      </label>
       <div class="sync-status-actions">
         <button type="button" class="preset-full-btn" id="syncNowBtn">🔄 今すぐ同期</button>
         <button type="button" class="preset-full-btn" id="syncDisconnectBtn">連携を解除</button>
@@ -8532,6 +8602,7 @@ function renderSyncStatusArea(){
   `;
   $('#syncNowBtn').addEventListener('click', ()=> runFullSync({ reloadIfChanged:true }));
   $('#syncDisconnectBtn').addEventListener('click', disconnectGoogleDrive);
+  $('#syncAutoToggle').addEventListener('change', (e)=> toggleAutoSync(e.target.checked));
   loadSyncMeta().then(meta=>{
     const el = $('#syncLastSyncedText');
     if(el) el.textContent = meta.lastSyncedAt ? `最終同期：${formatSyncDateTime(meta.lastSyncedAt)}` : '最終同期：まだ一度も同期していません';
@@ -8541,6 +8612,7 @@ function renderSyncStatusArea(){
 async function initSync(){
   renderSyncStatusArea();
   const meta = await loadSyncMeta();
+  gDriveAutoSyncEnabled = meta.autoSync !== false; // 未設定時は自動同期ON扱い
   if(!meta.connected) return;
   gDriveConnected = true;
   renderSyncStatusArea();
