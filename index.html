@@ -1009,6 +1009,10 @@
   }
   .sync-connect-btn:hover{ filter:brightness(0.97); }
   .sync-google-g{ width:18px; height:18px; flex:0 0 auto; }
+  .sync-first-connect-hint{
+    font-size:11px; color:var(--panel-muted); line-height:1.6; margin-top:8px;
+    background:rgba(255,178,44,0.08); border:1px solid rgba(255,178,44,0.25); border-radius:10px; padding:9px 11px;
+  }
   .sync-status-box{
     display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:12px;
     border:1px solid var(--panel-hairline); background:rgba(128,128,128,0.06);
@@ -1919,11 +1923,6 @@
       <button class="modal-close" id="backupCloseBtn">✕</button>
     </div>
     <div class="backup-section">
-      <div class="backup-section-title">☁️ Googleドライブで端末間同期</div>
-      <div class="backup-hint">あなた自身のGoogleドライブに記録を保存し、他の端末（PC・タブレットなど）と自動で同期します。日付ごとの記録（実施記録・体重・体調など）は、別の端末で別の日を編集していればどちらも反映され、同じ日を編集していた場合だけ新しい方が自動採用されます（その場合はこの画面で気づけるようお知らせします）。</div>
-      <div id="syncStatusArea"></div>
-    </div>
-    <div class="backup-section">
       <div class="backup-section-title">📊 AI分析用エクスポート</div>
       <div class="backup-hint">指定した期間について、「日付・曜日」「実施した種目名・タグ・実施内容（回数×セット、またはwork/rest×セット）」「その日の体重（記録があれば）」「その日程タブで本来予定していたメニュー」を、シンプルなMarkdown形式で書き出します。AIチャットにそのまま貼り付けて、傾向分析や改善提案を頼みたいときにお使いください。</div>
       <button type="button" class="ai-export-profile-toggle" id="aiExportProfileToggleBtn">
@@ -1999,6 +1998,12 @@
       <div class="backup-section-title">読み込み（インポート）</div>
       <div class="backup-hint">書き出したJSONファイルを選択すると、現在この端末にあるデータをすべて上書きして復元します（元に戻せません）。PCとスマホの間でデータを移したい場合も、この方法で書き出し→読み込みしてください。</div>
       <button type="button" class="preset-full-btn" id="backupImportBtn">⬆ JSONファイルを読み込む</button>
+    </div>
+    <div class="backup-divider"></div>
+    <div class="backup-section">
+      <div class="backup-section-title">☁️ Googleドライブで端末間同期</div>
+      <div class="backup-hint">あなた自身のGoogleドライブに記録を保存し、他の端末（PC・タブレットなど）と自動で同期します。日付ごとの記録（実施記録・体重・体調など）は、別の端末で別の日を編集していればどちらも反映され、同じ日を編集していた場合だけ新しい方が自動採用されます（その場合はこの画面で気づけるようお知らせします）。</div>
+      <div id="syncStatusArea"></div>
     </div>
     <div class="backup-status" id="backupStatusText"></div>
   </div>
@@ -8578,6 +8583,7 @@ function renderSyncStatusArea(){
         <svg class="sync-google-g" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.5 29.5 3.5 24 3.5 12.7 3.5 3.5 12.7 3.5 24S12.7 44.5 24 44.5 44.5 35.3 44.5 24c0-1.2-.1-2.4-.3-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.9 19 13.5 24 13.5c3.1 0 5.8 1.1 8 3l6-6C34.5 6.5 29.5 4.5 24 4.5 16 4.5 9 8.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 44.5c5.4 0 10.3-1.8 14.1-5.1l-6.5-5.5c-2 1.4-4.6 2.3-7.6 2.3-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9 39.9 16 44.5 24 44.5z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.5C40.9 36.5 44.5 30.8 44.5 24c0-1.2-.1-2.4-.3-3.5z"/></svg>
         Googleでログインして同期を始める
       </button>
+      <div class="sync-first-connect-hint">💡 2台目以降の端末を連携する前に、先に1台目で「⬇ JSONファイルを書き出す」をしておくことをおすすめします。</div>
     `;
     $('#syncConnectBtn').addEventListener('click', connectGoogleDrive);
     return;
