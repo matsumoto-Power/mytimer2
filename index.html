@@ -8196,7 +8196,7 @@ const BACKUP_STORAGE_KEYS = [
   IMAGES_KEY, POSITIONS_KEY, GROUPS_KEY, ACTIVE_GROUP_KEY,
   TAGS_KEY, PLAN_KEY, DELETED_DAYS_KEY, CUSTOM_DAYS_KEY, DAY_TAB_ORDER_KEY,
   DAY_LABEL_OVERRIDES_KEY, DAY_TAG_RECURRENCE_KEY, DAY_TAG_COLOR_KEY,
-  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, MEDIA_IMAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, CONDITION_COLOR_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY,
+  TRAINING_LOG_KEY, MANUAL_LOG_KEY, MEDIA_VIDEOS_KEY, MEDIA_WEBPAGES_KEY, MEDIA_IMAGES_KEY, WEIGHT_LOG_KEY, MEDIA_NOTES_KEY, MEDIA_TAGS_KEY, CONDITION_LOG_KEY, CONDITION_VISIBLE_KEY, CONDITION_COLOR_KEY, DAY_TAG_DATES_KEY, DAY_NOTE_LOG_KEY, DAY_NOTE_VISIBLE_KEY, AI_EXPORT_PROFILE_KEY,
 ];
 
 /* =========================================================
@@ -8534,6 +8534,7 @@ const SYNC_KEY_LABELS = {
   'media-images': 'メディア（画像）', 'media-notes': 'メディア（メモ）', 'media-tags': 'メディアタグ',
   'accent-color': 'ワンポイントカラー', 'slideshow-interval-sec': 'スライドショーの間隔', 'slideshow-transition': 'スライドショーの切り替え効果',
   'condition-tracker-visible': '体調記録欄の表示設定', 'condition-dot-colors': '体調アイコンの色', 'day-note-visible': '日ごとメモの表示設定',
+  'ai-export-profile': 'AI分析用プロフィール',
 };
 function syncKeyLabel(key){ return SYNC_KEY_LABELS[key] || key; }
 
