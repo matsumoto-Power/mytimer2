@@ -9,7 +9,7 @@
    ★ 新しいバージョンをデプロイするたびに、この APP_VERSION の値を変更してください。
      変更しないと、ブラウザが「内容は前と同じ」と判断し、更新通知が出ません。
 ========================================================= */
-const APP_VERSION = 'v17-20260815';
+const APP_VERSION = 'v18-20260816';
 const CACHE_NAME = `my-timer-cache-${APP_VERSION}`;
 
 const PRECACHE_URLS = [
