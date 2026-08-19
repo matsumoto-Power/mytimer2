@@ -617,15 +617,19 @@
   .video-ref-header:hover{ background:rgba(128,128,128,0.08); }
   .video-ref-toggle-area{
     appearance:none; cursor:pointer; border:none; background:transparent; min-width:0;
-    color:var(--panel-text); padding:7px 6px; display:flex; align-items:center; justify-content:flex-start; gap:10px;
+    color:var(--panel-text); padding:7px 6px; display:flex; align-items:center; justify-content:flex-start; gap:8px;
     font-weight:700; font-size:14px; flex:1 1 auto; text-align:left;
   }
   .video-ref-chevron{ display:inline-flex; transition:transform .2s ease; color:var(--panel-muted); flex:0 0 auto; }
   .video-ref-item.open .video-ref-chevron{ transform:rotate(90deg); }
-  .video-ref-name{ flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+  /* 表示の優先順位：①分類タグは常に全表示（flex:0 0 auto=縮まない）
+     ②トレーニング名はできる限り表示し、幅が足りなければ末尾を省略（flex:1 1 auto=優先的にスペースを確保）
+     ③回数/インターバル×セット数は優先度最下位。flex-basis:0%にして「余ったスペースがあれば使う」形にし、
+       幅が足りない時は真っ先に縮んで消える（min-width:0とoverflow:hiddenで完全に0幅までつぶせるようにする） */
+  .video-ref-name{ flex:0 1 auto; min-width:32px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
   .video-ref-name.placeholder{ color:var(--panel-muted); font-weight:600; }
   .video-ref-right-group{ display:flex; align-items:center; justify-content:flex-end; gap:8px; flex:0 0 auto; }
-  .video-ref-settings-summary{ flex:0 0 auto; font-size:13.5px; color:var(--panel-muted); font-weight:700; white-space:nowrap; }
+  .video-ref-settings-summary{ flex:0 999 auto; min-width:0; font-size:13.5px; color:var(--panel-muted); font-weight:700; white-space:nowrap; overflow:hidden; }
   .video-ref-badge{ flex:0 0 auto; font-size:10px; padding:3px 8px; border-radius:999px; background:rgba(51,199,176,0.18); color:var(--accent-rest); border:1px solid rgba(51,199,176,0.4); font-weight:700; }
   .video-ref-reorder-btn{
     appearance:none; cursor:pointer; flex:0 0 auto; border:none; border-radius:9px; width:28px; height:28px;
@@ -5601,11 +5605,11 @@ function renderExerciseItemHTML(item, index, total){
       <div class="video-ref-header">
         <button type="button" class="video-ref-toggle-area" data-act="toggle">
           <span class="video-ref-chevron">▸</span>
+          ${tagChip}
           <span class="video-ref-name${hasName?'':' placeholder'}">${hasName ? escapeHTML(truncateName(item.name)) : '（種目名未設定）'}</span>
+          <span class="video-ref-settings-summary">${escapeHTML(settingsSummary)}</span>
         </button>
         <div class="video-ref-right-group">
-          <span class="video-ref-settings-summary">${escapeHTML(settingsSummary)}</span>
-          ${tagChip}
           <button type="button" class="video-ref-reorder-btn" data-act="moveup" ${index===0?'disabled':''} title="上に移動">↑</button>
           <button type="button" class="video-ref-reorder-btn" data-act="movedown" ${index===total-1?'disabled':''} title="下に移動">↓</button>
           <button type="button" class="video-ref-delete-btn" data-act="delete" title="この種目を削除">🗑</button>
