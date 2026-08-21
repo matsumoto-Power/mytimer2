@@ -16,6 +16,8 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
+    color-scheme: dark; /* ブラウザ標準のUI部品（セレクトボックスの選択肢一覧など）もダークテーマに合わせて描画させる。
+                            これが無いと、選択肢のポップアップだけOS標準の白背景になり、白文字が白地に埋もれて読めなくなる */
     --bg-fallback-1:#0d1b1e;
     --bg-fallback-2:#142d2b;
     --panel-dark-bg: rgba(8,10,12,0.52);
@@ -197,7 +199,6 @@
     backdrop-filter: blur(8px);
     opacity:0; pointer-events:none; transition: opacity .35s ease;
   }
-  .group-quick-switch option{ color:#14171A; }
   #imagePane.controls-visible .group-quick-switch{ opacity:1; pointer-events:auto; }
 
   /* ===== 画像 全画面表示モード ===== */
@@ -492,6 +493,8 @@
     width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--panel-hairline);
     background:rgba(128,128,128,0.1); color:var(--panel-text); font-size:13px; font-weight:600;
   }
+  /* color-schemeだけでは反映が甘いブラウザ向けの保険として、選択肢一覧の配色も明示しておく */
+  select option{ background-color:#152321; color:#F5F3EC; }
   .preset-field{ display:flex; flex-direction:column; gap:8px; }
   .preset-field input[type=text]{
     width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--panel-hairline);
@@ -1153,13 +1156,10 @@
     background:rgba(128,128,128,0.06); font-size:22px; padding:8px 0; transition: all .15s ease; line-height:1;
   }
   .day-detail-condition-options button.selected{ background:rgba(255,178,44,0.18); border-color:var(--accent-amber); transform:scale(1.08); }
-  .day-detail-list{ display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; }
-  /* 横画面時：実施トレーニングリストだけが個別スクロールすると窮屈なため、
-     モーダル全体（体重・体調評価・一言メモ・実施トレーニングリスト・この日の日程タグ）を1つのスクロールにまとめる */
-  @media (orientation: landscape){
-    #dayDetailModal .modal-box{ overflow-y:auto; }
-    #dayDetailModal .day-detail-list{ max-height:none; overflow-y:visible; }
-  }
+  .day-detail-list{ display:flex; flex-direction:column; gap:8px; }
+  /* 実施トレーニングリストだけが個別スクロールする形だと、リストの一部と「この日の日程タブ」欄が
+     窮屈に重なって見えてしまうため、画面の向きに関わらず常にモーダル全体を1つのスクロールにまとめる */
+  #dayDetailModal .modal-box{ overflow-y:auto; }
   .day-detail-daytag-section{ display:flex; flex-direction:column; gap:8px; }
   .day-detail-daytag-section label{ font-size:13px; font-weight:700; color:var(--panel-text); }
   .day-detail-daytag-hint{ font-size:11px; color:var(--panel-muted); line-height:1.6; }
@@ -8704,12 +8704,7 @@ function applyAiExportProfileInputs(){
   $('#aiExportProfileOccupation').value = aiExportProfile.occupation ?? '';
   $('#aiExportProfileVolume').value = aiExportProfile.exerciseVolume ?? '';
   $('#aiExportProfileFrequency').value = aiExportProfile.exerciseFrequency ?? '';
-  // 既に何か入力済みなら、次回開いた時も見えるようにアコーディオンを開いた状態にしておく
-  const hasAnyValue = Object.values(aiExportProfile).some(v => v);
-  if(hasAnyValue){
-    $('#aiExportProfile').style.display = 'flex';
-    $('#aiExportProfileToggleBtn').classList.add('open');
-  }
+  // 値が入っているかどうかに関わらず、常に閉じた状態をデフォルトにする（必要な時に自分で開いてもらう）
 }
 async function saveAiExportProfile(){
   aiExportProfile = {
