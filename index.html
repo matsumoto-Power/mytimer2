@@ -2765,6 +2765,7 @@ let dragState = null;
 $('#positionToggleBtn').addEventListener('click', ()=>{
   if(bgIndex < 0) return;
   positionModeActive = !positionModeActive;
+  if(!positionModeActive && dragState) endDrag({ pointerId: dragState.pointerId }); // オフに切り替えた時、万一ドラッグ中ならキャプチャを確実に解除する
   imagePane.classList.toggle('position-mode', positionModeActive);
   $('#positionToast').classList.toggle('show', positionModeActive);
   $('#positionToggleBtn').classList.toggle('on', positionModeActive);
@@ -2772,6 +2773,7 @@ $('#positionToggleBtn').addEventListener('click', ()=>{
 });
 $('#positionDoneBtn').addEventListener('click', ()=>{
   positionModeActive = false;
+  if(dragState) endDrag({ pointerId: dragState.pointerId });
   imagePane.classList.remove('position-mode');
   $('#positionToast').classList.remove('show');
   $('#positionToggleBtn').classList.remove('on');
@@ -2790,7 +2792,8 @@ imagePane.addEventListener('pointerdown', (e)=>{
   dragState = {
     startX: e.clientX, startY: e.clientY,
     rectW: rect.width, rectH: rect.height,
-    startPos: {...bgPositions[bgIndex][currentOrientation()]}
+    startPos: {...bgPositions[bgIndex][currentOrientation()]},
+    pointerId: e.pointerId,
   };
   imagePane.classList.add('dragging');
   imagePane.setPointerCapture(e.pointerId);
@@ -2806,12 +2809,23 @@ imagePane.addEventListener('pointermove', (e)=>{
 });
 function endDrag(e){
   if(!dragState) return;
+  // PCのタッチパッド環境では、ポインターキャプチャがブラウザ側で自動解除されないことがあり、
+  // それを放置すると以降ページ上のどこをクリックしても画像エリアに固定されたままになってしまう。
+  // そのため、ドラッグ終了時に必ず明示的に解除する（対象要素・IDが取得できる時のみ）。
+  const pointerId = (e && e.pointerId !== undefined) ? e.pointerId : dragState.pointerId;
+  try{
+    if(pointerId !== undefined && imagePane.hasPointerCapture && imagePane.hasPointerCapture(pointerId)){
+      imagePane.releasePointerCapture(pointerId);
+    }
+  }catch(err){ /* 解除に失敗しても致命的ではないため握りつぶす */ }
   dragState = null;
   imagePane.classList.remove('dragging');
   scheduleImageSave();
 }
 imagePane.addEventListener('pointerup', endDrag);
 imagePane.addEventListener('pointercancel', endDrag);
+// ブラウザ側の何らかの理由でキャプチャが失われた場合（タブ切り替え等）も、ドラッグ状態を確実にリセットしておく
+imagePane.addEventListener('lostpointercapture', endDrag);
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
 loadSavedImages();
