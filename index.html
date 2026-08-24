@@ -2788,6 +2788,10 @@ $('#positionResetBtn').addEventListener('click', ()=>{
 
 imagePane.addEventListener('pointerdown', (e)=>{
   if(!positionModeActive || bgIndex < 0) return;
+  // リセット/完了・前後の矢印・位置調整/画像を変更/スライドショー作成などのボタン類は画像エリアの内側にあるため、
+  // それらの上でのクリックまでドラッグ開始として扱ってしまうと、ポインターが画像エリアに奪われてボタンのクリックが
+  // 反応しなくなる（PCのタッチパッド環境で顕著）。ボタン等の操作系要素の上では、ドラッグを開始しない。
+  if(e.target.closest('button, select, a, input, textarea')) return;
   const rect = imagePane.getBoundingClientRect();
   dragState = {
     startX: e.clientX, startY: e.clientY,
